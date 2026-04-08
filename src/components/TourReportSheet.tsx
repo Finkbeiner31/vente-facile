@@ -5,7 +5,8 @@ import { Input } from '@/components/ui/input';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from '@/components/ui/sheet';
-import { CheckCircle, XCircle, Clock, Repeat, Mic, MicOff, ArrowRight } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Repeat, Mic, MicOff, ArrowRight, UserPlus } from 'lucide-react';
+import { FollowUpActionSection, type FollowUpAction } from './FollowUpActionSection';
 
 const OUTCOMES = [
   { value: 'productive', label: 'Productif', icon: CheckCircle, color: 'bg-success/10 text-success border-success/30' },
@@ -18,14 +19,21 @@ interface TourReportSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   clientName: string;
-  onSubmit: (data: { outcome: string; notes: string; nextActionDate: string }) => void;
+  onSubmit: (data: {
+    outcome: string;
+    notes: string;
+    nextActionDate: string;
+    followUpAction: FollowUpAction | null;
+  }) => void;
+  onAddProspect?: () => void;
 }
 
-export function TourReportSheet({ open, onOpenChange, clientName, onSubmit }: TourReportSheetProps) {
+export function TourReportSheet({ open, onOpenChange, clientName, onSubmit, onAddProspect }: TourReportSheetProps) {
   const [outcome, setOutcome] = useState('');
   const [notes, setNotes] = useState('');
   const [nextActionDate, setNextActionDate] = useState('');
   const [isListening, setIsListening] = useState(false);
+  const [followUpAction, setFollowUpAction] = useState<FollowUpAction | null>(null);
 
   const handleVoice = () => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) return;
@@ -49,15 +57,16 @@ export function TourReportSheet({ open, onOpenChange, clientName, onSubmit }: To
   };
 
   const handleSubmit = () => {
-    onSubmit({ outcome, notes, nextActionDate });
+    onSubmit({ outcome, notes, nextActionDate, followUpAction });
     setOutcome('');
     setNotes('');
     setNextActionDate('');
+    setFollowUpAction(null);
   };
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-auto max-h-[85vh] rounded-t-2xl px-5 pb-8">
+      <SheetContent side="bottom" className="h-auto max-h-[90vh] rounded-t-2xl px-5 pb-8 overflow-y-auto">
         <SheetHeader className="pb-3">
           <SheetTitle className="font-heading text-lg text-left">
             {clientName}
@@ -114,6 +123,19 @@ export function TourReportSheet({ open, onOpenChange, clientName, onSubmit }: To
             </div>
             <Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes rapides..." rows={2} />
           </div>
+
+          {/* Follow-up action */}
+          <FollowUpActionSection onActionChange={setFollowUpAction} />
+
+          {/* Add prospect button */}
+          {onAddProspect && (
+            <button
+              onClick={onAddProspect}
+              className="w-full flex items-center gap-2.5 rounded-xl border border-dashed border-primary/30 p-3 text-sm font-medium text-primary hover:bg-primary/5 transition-colors">
+              <UserPlus className="h-4 w-4" />
+              Ajouter un prospect rencontré
+            </button>
+          )}
 
           {/* Submit */}
           <Button onClick={handleSubmit} disabled={!outcome}
