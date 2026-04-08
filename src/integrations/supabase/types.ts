@@ -134,6 +134,7 @@ export type Database = {
           account_status: string
           activity_type: string | null
           address: string | null
+          annual_revenue_potential: number | null
           assigned_rep_id: string | null
           city: string | null
           company_name: string
@@ -147,6 +148,7 @@ export type Database = {
           next_action_date: string | null
           next_action_description: string | null
           notes: string | null
+          number_of_vehicles: number | null
           phone: string | null
           postal_code: string | null
           sales_potential: string | null
@@ -158,6 +160,7 @@ export type Database = {
           account_status?: string
           activity_type?: string | null
           address?: string | null
+          annual_revenue_potential?: number | null
           assigned_rep_id?: string | null
           city?: string | null
           company_name: string
@@ -171,6 +174,7 @@ export type Database = {
           next_action_date?: string | null
           next_action_description?: string | null
           notes?: string | null
+          number_of_vehicles?: number | null
           phone?: string | null
           postal_code?: string | null
           sales_potential?: string | null
@@ -182,6 +186,7 @@ export type Database = {
           account_status?: string
           activity_type?: string | null
           address?: string | null
+          annual_revenue_potential?: number | null
           assigned_rep_id?: string | null
           city?: string | null
           company_name?: string
@@ -195,6 +200,7 @@ export type Database = {
           next_action_date?: string | null
           next_action_description?: string | null
           notes?: string | null
+          number_of_vehicles?: number | null
           phone?: string | null
           postal_code?: string | null
           sales_potential?: string | null
