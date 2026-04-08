@@ -283,13 +283,13 @@ export function TourMode({ stops: initialStops, onExit, onReorder, allCustomers 
       {/* ── Sticky bottom action bar ── */}
       <div className="shrink-0 bg-card border-t px-4 sm:px-6" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 12px), 12px)' }}>
         <div className="flex justify-around items-start gap-2 py-2.5 max-w-md mx-auto">
-          {[
+        {[
             { icon: FileText, label: 'Dernier\nrapport', color: 'text-primary', bg: 'bg-primary/10', onClick: () => setLastReportOpen(true) },
-            { icon: Plus, label: 'Visite\nimprévue', color: 'text-accent', bg: 'bg-accent/10', onClick: () => setAddUnplannedOpen(true) },
+            ...(!isVisitActive ? [{ icon: Plus, label: 'Visite\nimprévue', color: 'text-accent', bg: 'bg-accent/10', onClick: () => setAddUnplannedOpen(true) }] : []),
             { icon: Bell, label: 'Rappel', color: 'text-warning', bg: 'bg-warning/10', onClick: () => setReminderOpen(true) },
             {
               icon: isVisitActive ? Square : Play,
-              label: isVisitActive ? 'Terminer' : 'Démarrer',
+              label: isVisitActive ? 'Terminer\nvisite' : 'Démarrer\nvisite',
               color: isVisitActive ? 'text-destructive' : 'text-success',
               bg: isVisitActive ? 'bg-destructive/10' : 'bg-success/10',
               onClick: isVisitActive ? handleEndVisit : handleStartVisit,
