@@ -1,22 +1,22 @@
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { QuickReportDialog } from '@/components/QuickReportDialog';
 import {
   ArrowLeft,
-  Building2,
-  MapPin,
   Phone,
-  Mail,
-  Globe,
-  Edit,
+  Navigation,
   FileText,
   CheckSquare,
   TrendingUp,
+  Edit,
   User,
   Calendar,
   Clock,
+  MapPin,
+  ExternalLink,
 } from 'lucide-react';
 
 const customer = {
@@ -32,6 +32,8 @@ const customer = {
   status: 'actif',
   frequency: 'Bi-mensuelle',
   lastVisit: '08 Avr 2026',
+  nextAction: 'Envoyer devis gamme bio',
+  nextActionDate: '12 Avr 2026',
   rep: 'Sophie Leclerc',
   notes: 'Client fidèle depuis 2020. Intéressé par les nouveaux produits bio.',
   contacts: [
@@ -41,192 +43,168 @@ const customer = {
 };
 
 const timeline = [
-  { date: '08 Avr 2026', type: 'visit', title: 'Visite — Présentation nouveaux produits', detail: 'Rencontré Pierre Martin. Intéressé par la gamme bio.' },
-  { date: '05 Avr 2026', type: 'task', title: 'Tâche terminée — Envoi catalogue', detail: 'Catalogue envoyé par email.' },
-  { date: '01 Avr 2026', type: 'opportunity', title: 'Opportunité créée — Gamme bio 2026', detail: 'Montant estimé : 15 000 €' },
-  { date: '25 Mar 2026', type: 'visit', title: 'Visite — Suivi commande', detail: 'Livraison confirmée pour le 28 mars.' },
-  { date: '15 Mar 2026', type: 'note', title: 'Note ajoutée', detail: 'Le client souhaite augmenter les volumes au Q2.' },
+  { date: '08 Avr', type: 'visit', title: 'Présentation nouveaux produits', detail: 'Intéressé par la gamme bio.' },
+  { date: '05 Avr', type: 'task', title: 'Envoi catalogue', detail: 'Catalogue envoyé par email.' },
+  { date: '01 Avr', type: 'opportunity', title: 'Gamme bio 2026 — 15 000 €', detail: 'En négociation' },
 ];
-
-const typeIcons: Record<string, any> = {
-  visit: FileText,
-  task: CheckSquare,
-  opportunity: TrendingUp,
-  note: Edit,
-};
 
 const typeColors: Record<string, string> = {
   visit: 'bg-primary/10 text-primary',
   task: 'bg-success/10 text-success',
   opportunity: 'bg-warning/10 text-warning',
-  note: 'bg-info/10 text-info',
 };
 
 export default function CustomerDetailPage() {
   const { id } = useParams();
+  const [reportOpen, setReportOpen] = useState(false);
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-4 animate-fade-in pb-20 md:pb-0">
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         <Link to="/clients">
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0">
             <ArrowLeft className="h-5 w-5" />
           </Button>
         </Link>
-        <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <h1 className="font-heading text-2xl font-bold">{customer.name}</h1>
-            <Badge className="bg-success text-success-foreground">{customer.potential}</Badge>
-            <Badge variant="default">Client</Badge>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h1 className="font-heading text-lg md:text-2xl font-bold truncate">{customer.name}</h1>
+            <Badge className="bg-success text-success-foreground text-[10px] shrink-0">{customer.potential}</Badge>
           </div>
-          <p className="text-sm text-muted-foreground">{customer.sector} — {customer.address}</p>
+          <p className="text-xs text-muted-foreground">{customer.sector} · {customer.type === 'client' ? 'Client' : 'Prospect'}</p>
         </div>
-        <Button>
-          <Edit className="mr-2 h-4 w-4" />
-          Modifier
+      </div>
+
+      {/* Quick Action Buttons - large touch targets */}
+      <div className="grid grid-cols-4 gap-2">
+        <a href={`tel:${customer.contacts[0]?.phone || customer.phone}`}>
+          <Button variant="outline" className="w-full h-14 flex-col gap-1 text-xs font-medium">
+            <Phone className="h-5 w-5 text-primary" />
+            Appeler
+          </Button>
+        </a>
+        <a
+          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Button variant="outline" className="w-full h-14 flex-col gap-1 text-xs font-medium">
+            <Navigation className="h-5 w-5 text-primary" />
+            Naviguer
+          </Button>
+        </a>
+        <Button variant="outline" className="h-14 flex-col gap-1 text-xs font-medium" onClick={() => setReportOpen(true)}>
+          <FileText className="h-5 w-5 text-primary" />
+          Rapport
         </Button>
+        <Link to="/taches">
+          <Button variant="outline" className="w-full h-14 flex-col gap-1 text-xs font-medium">
+            <CheckSquare className="h-5 w-5 text-primary" />
+            Tâche
+          </Button>
+        </Link>
       </div>
 
-      {/* Info Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Key Info - fast reading */}
+      <div className="grid grid-cols-2 gap-2">
         <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <MapPin className="h-4 w-4 text-muted-foreground" />
-            <div className="text-sm">
-              <p className="text-muted-foreground">Adresse</p>
-              <p className="font-medium">{customer.address}</p>
-            </div>
+          <CardContent className="p-3">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Dernière visite</p>
+            <p className="text-sm font-semibold mt-0.5">{customer.lastVisit}</p>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <Phone className="h-4 w-4 text-muted-foreground" />
-            <div className="text-sm">
-              <p className="text-muted-foreground">Téléphone</p>
-              <p className="font-medium">{customer.phone}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <Calendar className="h-4 w-4 text-muted-foreground" />
-            <div className="text-sm">
-              <p className="text-muted-foreground">Dernière visite</p>
-              <p className="font-medium">{customer.lastVisit}</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="flex items-center gap-3 p-4">
-            <User className="h-4 w-4 text-muted-foreground" />
-            <div className="text-sm">
-              <p className="text-muted-foreground">Commercial</p>
-              <p className="font-medium">{customer.rep}</p>
-            </div>
+        <Card className="border-warning/30 bg-warning/5">
+          <CardContent className="p-3">
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Prochaine action</p>
+            <p className="text-sm font-semibold mt-0.5 truncate">{customer.nextActionDate}</p>
           </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="timeline" className="w-full">
-        <TabsList>
-          <TabsTrigger value="timeline">Historique</TabsTrigger>
-          <TabsTrigger value="contacts">Contacts</TabsTrigger>
-          <TabsTrigger value="opportunities">Opportunités</TabsTrigger>
-          <TabsTrigger value="notes">Notes</TabsTrigger>
-        </TabsList>
+      {/* Next Action Alert */}
+      {customer.nextAction && (
+        <Card className="border-primary/20">
+          <CardContent className="p-3 flex items-center gap-3">
+            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+              <Clock className="h-4 w-4 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-muted-foreground">Action à faire</p>
+              <p className="text-sm font-medium truncate">{customer.nextAction}</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-        <TabsContent value="timeline" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="font-heading text-base">Fil d'activité</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="relative space-y-6 pl-6 before:absolute before:left-[11px] before:top-2 before:h-[calc(100%-16px)] before:w-px before:bg-border">
-                {timeline.map((item, i) => {
-                  const Icon = typeIcons[item.type];
-                  return (
-                    <div key={i} className="relative">
-                      <div className={`absolute -left-6 flex h-6 w-6 items-center justify-center rounded-full ${typeColors[item.type]}`}>
-                        <Icon className="h-3 w-3" />
-                      </div>
-                      <div className="rounded-lg border p-3">
-                        <div className="flex items-center justify-between mb-1">
-                          <p className="text-sm font-medium">{item.title}</p>
-                          <span className="text-xs text-muted-foreground">{item.date}</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground">{item.detail}</p>
-                      </div>
-                    </div>
-                  );
-                })}
+      {/* Contact - click to call */}
+      <Card>
+        <CardHeader className="pb-2 px-4 pt-4">
+          <CardTitle className="font-heading text-sm">Contacts</CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4 space-y-2">
+          {customer.contacts.map((contact, i) => (
+            <div key={i} className="flex items-center gap-3 rounded-xl border p-3">
+              <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <User className="h-4 w-4 text-primary" />
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="contacts" className="mt-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            {customer.contacts.map((contact, i) => (
-              <Card key={i}>
-                <CardContent className="p-5">
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                        <User className="h-5 w-5 text-primary" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm">{contact.name}</p>
-                        <p className="text-xs text-muted-foreground">{contact.role}</p>
-                      </div>
-                    </div>
-                    {contact.primary && <Badge variant="secondary" className="text-[10px]">Principal</Badge>}
-                  </div>
-                  <div className="space-y-1.5 text-xs text-muted-foreground">
-                    <div className="flex items-center gap-2"><Phone className="h-3 w-3" />{contact.phone}</div>
-                    <div className="flex items-center gap-2"><Mail className="h-3 w-3" />{contact.email}</div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="opportunities" className="mt-4">
-          <Card>
-            <CardContent className="p-6">
-              <div className="rounded-lg border p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="font-medium text-sm">Gamme bio 2026</p>
-                  <Badge className="bg-warning/10 text-warning">Négociation</Badge>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium">{contact.name}</p>
+                  {contact.primary && <Badge variant="secondary" className="text-[9px] h-4">Principal</Badge>}
                 </div>
-                <div className="grid grid-cols-3 gap-4 text-xs text-muted-foreground">
-                  <div>
-                    <p>Montant estimé</p>
-                    <p className="font-medium text-foreground">15 000 €</p>
-                  </div>
-                  <div>
-                    <p>Probabilité</p>
-                    <p className="font-medium text-foreground">60%</p>
-                  </div>
-                  <div>
-                    <p>Clôture prévue</p>
-                    <p className="font-medium text-foreground">30 Juin 2026</p>
-                  </div>
-                </div>
+                <p className="text-[11px] text-muted-foreground">{contact.role}</p>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+              <a href={`tel:${contact.phone}`}>
+                <Button variant="outline" size="icon" className="h-10 w-10 shrink-0">
+                  <Phone className="h-4 w-4" />
+                </Button>
+              </a>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
-        <TabsContent value="notes" className="mt-4">
-          <Card>
-            <CardContent className="p-6">
-              <p className="text-sm">{customer.notes}</p>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+      {/* Address - click for GPS */}
+      <a
+        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address)}`}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <Card className="cursor-pointer hover:border-primary/30 transition-colors">
+          <CardContent className="p-3 flex items-center gap-3">
+            <MapPin className="h-5 w-5 text-primary shrink-0" />
+            <p className="text-sm flex-1">{customer.address}</p>
+            <ExternalLink className="h-4 w-4 text-muted-foreground shrink-0" />
+          </CardContent>
+        </Card>
+      </a>
+
+      {/* Activity Timeline - compact */}
+      <Card>
+        <CardHeader className="pb-2 px-4 pt-4">
+          <CardTitle className="font-heading text-sm">Historique récent</CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4 space-y-2">
+          {timeline.map((item, i) => (
+            <div key={i} className="flex items-start gap-3 rounded-lg border p-3">
+              <Badge className={`text-[9px] shrink-0 ${typeColors[item.type]}`}>
+                {item.date}
+              </Badge>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{item.title}</p>
+                <p className="text-[11px] text-muted-foreground">{item.detail}</p>
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <QuickReportDialog
+        open={reportOpen}
+        onOpenChange={setReportOpen}
+        clientName={customer.name}
+      />
     </div>
   );
 }
