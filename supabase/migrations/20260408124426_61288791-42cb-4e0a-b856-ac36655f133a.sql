@@ -1,0 +1,2 @@
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS number_of_vehicles integer DEFAULT 0;
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS annual_revenue_potential numeric GENERATED ALWAYS AS (number_of_vehicles * 3500) STORED;
