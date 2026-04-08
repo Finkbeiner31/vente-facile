@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { QuickReportDialog } from '@/components/QuickReportDialog';
+import { TourMode } from '@/components/TourMode';
 import {
   MapPin, Play, Square, Phone, Navigation, Sparkles,
   GripVertical, ChevronLeft, ChevronRight, Calendar, Target,
@@ -39,8 +40,18 @@ export default function RoutesPage() {
   const [reportOpen, setReportOpen] = useState(false);
   const [activeClient, setActiveClient] = useState('');
   const [dayStarted, setDayStarted] = useState(false);
-
+  const [tourMode, setTourMode] = useState(false);
   const todayStops = cycle[selectedDay] || [];
+
+  if (tourMode) {
+    return (
+      <TourMode
+        stops={todayStops.map(s => ({ customer: s.customer, priority: s.priority }))}
+        onExit={() => setTourMode(false)}
+      />
+    );
+  }
+
   const completedCount = todayStops.filter(s => statuses[`${selectedDay}-${s.customer.id}`] === 'completed').length;
   const inProgressStop = todayStops.find(s => statuses[`${selectedDay}-${s.customer.id}`] === 'in_progress');
 
@@ -142,9 +153,9 @@ export default function RoutesPage() {
           {/* Day control buttons */}
           <div className="flex gap-2">
             {!dayStarted && (
-              <Button className="flex-1 h-12 font-semibold" onClick={handleStartDay}>
+              <Button className="flex-1 h-12 font-semibold" onClick={() => setTourMode(true)}>
                 <Sun className="h-4 w-4 mr-2" />
-                Démarrer la journée
+                Mode Tournée
               </Button>
             )}
             {dayStarted && !inProgressStop && completedCount < todayStops.length && (

@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { QuickReportDialog } from '@/components/QuickReportDialog';
+import { TourMode } from '@/components/TourMode';
 import {
   Play, Square, Phone, Navigation, AlertTriangle, ArrowRight,
   Sun, Flag, Target, TrendingUp, Eye, Calendar,
@@ -42,7 +43,7 @@ export default function DashboardPage() {
   const [statuses, setStatuses] = useState<Record<string, string>>({});
   const [reportOpen, setReportOpen] = useState(false);
   const [activeClient, setActiveClient] = useState('');
-  const [dayStarted, setDayStarted] = useState(false);
+  const [tourMode, setTourMode] = useState(false);
 
   const firstName = profile?.full_name?.split(' ')[0] || 'Commercial';
   const completedCount = todayStops.filter(s => statuses[s.customer.id] === 'completed').length;
@@ -52,7 +53,6 @@ export default function DashboardPage() {
 
   const handleStart = (id: string) => {
     setStatuses(prev => ({ ...prev, [id]: 'in_progress' }));
-    if (!dayStarted) setDayStarted(true);
   };
 
   const handleEnd = (id: string, name: string) => {
@@ -61,10 +61,14 @@ export default function DashboardPage() {
     setReportOpen(true);
   };
 
-  const handleNextVisit = () => {
-    const next = todayStops.find(s => !statuses[s.customer.id] || statuses[s.customer.id] === 'planned');
-    if (next) handleStart(next.customer.id);
-  };
+  if (tourMode) {
+    return (
+      <TourMode
+        stops={todayStops.map(s => ({ customer: s.customer, priority: s.priority }))}
+        onExit={() => setTourMode(false)}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4 animate-fade-in pb-20 md:pb-0">
@@ -116,27 +120,11 @@ export default function DashboardPage() {
             <div className="h-full bg-primary rounded-full transition-all duration-500"
               style={{ width: `${todayStops.length > 0 ? (completedCount / todayStops.length) * 100 : 0}%` }} />
           </div>
-          <div className="flex gap-2">
-            {!dayStarted && (
-              <Button className="flex-1 h-12 font-semibold" onClick={() => { setDayStarted(true); handleNextVisit(); }}>
-                <Sun className="h-4 w-4 mr-2" /> Démarrer la journée
-              </Button>
-            )}
-            {dayStarted && !inProgress && completedCount < todayStops.length && (
-              <Button className="flex-1 h-12 font-semibold" onClick={handleNextVisit}>
-                <Play className="h-4 w-4 mr-2" /> Visite suivante
-              </Button>
-            )}
-            {dayStarted && completedCount === todayStops.length && todayStops.length > 0 && (
-              <Button variant="outline" className="flex-1 h-12 font-semibold border-success text-success"
-                onClick={() => setDayStarted(false)}>
-                <Flag className="h-4 w-4 mr-2" /> Journée terminée 🎉
-              </Button>
-            )}
-          </div>
+          <Button className="w-full h-14 font-bold text-base" onClick={() => setTourMode(true)}>
+            <Sun className="h-5 w-5 mr-2" /> Lancer la tournée
+          </Button>
         </CardContent>
       </Card>
-
       {/* In-progress visit */}
       {inProgress && (
         <Card className="border-primary/30 bg-primary/5">
