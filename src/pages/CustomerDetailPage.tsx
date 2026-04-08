@@ -5,18 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { QuickReportDialog } from '@/components/QuickReportDialog';
 import {
-  ArrowLeft,
-  Phone,
-  Navigation,
-  FileText,
-  CheckSquare,
-  TrendingUp,
-  Edit,
-  User,
-  Calendar,
-  Clock,
-  MapPin,
-  ExternalLink,
+  ArrowLeft, Phone, Navigation, FileText, CheckSquare,
+  Edit, User, Clock, MapPin, ExternalLink, Car, TrendingUp, Calendar,
 } from 'lucide-react';
 
 const customer = {
@@ -30,7 +20,9 @@ const customer = {
   website: 'www.boulangerie-martin.fr',
   potential: 'A',
   status: 'actif',
-  frequency: 'Bi-mensuelle',
+  frequency: '1 fois / semaine',
+  numberOfVehicles: 8,
+  annualRevenuePotential: 28000,
   lastVisit: '08 Avr 2026',
   nextAction: 'Envoyer devis gamme bio',
   nextActionDate: '12 Avr 2026',
@@ -76,7 +68,31 @@ export default function CustomerDetailPage() {
         </div>
       </div>
 
-      {/* Quick Action Buttons - large touch targets */}
+      {/* Revenue Potential - prominent */}
+      <Card className="border-accent/20 bg-accent/5">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-4">
+            <div className="h-12 w-12 rounded-xl bg-accent/15 flex items-center justify-center shrink-0">
+              <TrendingUp className="h-6 w-6 text-accent" />
+            </div>
+            <div className="flex-1">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Potentiel annuel</p>
+              <p className="font-heading text-2xl font-bold text-accent">
+                {(customer.annualRevenuePotential / 1000).toFixed(0)}k€
+              </p>
+            </div>
+            <div className="text-right">
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <Car className="h-4 w-4" />
+                <span className="text-lg font-bold">{customer.numberOfVehicles}</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground">véhicules</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Quick Actions */}
       <div className="grid grid-cols-4 gap-2">
         <a href={`tel:${customer.contacts[0]?.phone || customer.phone}`}>
           <Button variant="outline" className="w-full h-14 flex-col gap-1 text-xs font-medium">
@@ -84,11 +100,8 @@ export default function CustomerDetailPage() {
             Appeler
           </Button>
         </a>
-        <a
-          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address)}`}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address)}`}
+          target="_blank" rel="noopener noreferrer">
           <Button variant="outline" className="w-full h-14 flex-col gap-1 text-xs font-medium">
             <Navigation className="h-5 w-5 text-primary" />
             Naviguer
@@ -106,7 +119,7 @@ export default function CustomerDetailPage() {
         </Link>
       </div>
 
-      {/* Key Info - fast reading */}
+      {/* Key Info */}
       <div className="grid grid-cols-2 gap-2">
         <Card>
           <CardContent className="p-3">
@@ -114,15 +127,15 @@ export default function CustomerDetailPage() {
             <p className="text-sm font-semibold mt-0.5">{customer.lastVisit}</p>
           </CardContent>
         </Card>
-        <Card className="border-warning/30 bg-warning/5">
+        <Card>
           <CardContent className="p-3">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Prochaine action</p>
-            <p className="text-sm font-semibold mt-0.5 truncate">{customer.nextActionDate}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Fréquence</p>
+            <p className="text-sm font-semibold mt-0.5">{customer.frequency}</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Next Action Alert */}
+      {/* Next Action */}
       {customer.nextAction && (
         <Card className="border-primary/20">
           <CardContent className="p-3 flex items-center gap-3">
@@ -130,14 +143,14 @@ export default function CustomerDetailPage() {
               <Clock className="h-4 w-4 text-primary" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs text-muted-foreground">Action à faire</p>
+              <p className="text-xs text-muted-foreground">Action à faire · {customer.nextActionDate}</p>
               <p className="text-sm font-medium truncate">{customer.nextAction}</p>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Contact - click to call */}
+      {/* Contacts */}
       <Card>
         <CardHeader className="pb-2 px-4 pt-4">
           <CardTitle className="font-heading text-sm">Contacts</CardTitle>
@@ -165,12 +178,9 @@ export default function CustomerDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Address - click for GPS */}
-      <a
-        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address)}`}
-        target="_blank"
-        rel="noopener noreferrer"
-      >
+      {/* Address */}
+      <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address)}`}
+        target="_blank" rel="noopener noreferrer">
         <Card className="cursor-pointer hover:border-primary/30 transition-colors">
           <CardContent className="p-3 flex items-center gap-3">
             <MapPin className="h-5 w-5 text-primary shrink-0" />
@@ -180,7 +190,7 @@ export default function CustomerDetailPage() {
         </Card>
       </a>
 
-      {/* Activity Timeline - compact */}
+      {/* Timeline */}
       <Card>
         <CardHeader className="pb-2 px-4 pt-4">
           <CardTitle className="font-heading text-sm">Historique récent</CardTitle>
@@ -188,9 +198,7 @@ export default function CustomerDetailPage() {
         <CardContent className="px-4 pb-4 space-y-2">
           {timeline.map((item, i) => (
             <div key={i} className="flex items-start gap-3 rounded-lg border p-3">
-              <Badge className={`text-[9px] shrink-0 ${typeColors[item.type]}`}>
-                {item.date}
-              </Badge>
+              <Badge className={`text-[9px] shrink-0 ${typeColors[item.type]}`}>{item.date}</Badge>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{item.title}</p>
                 <p className="text-[11px] text-muted-foreground">{item.detail}</p>
@@ -200,11 +208,7 @@ export default function CustomerDetailPage() {
         </CardContent>
       </Card>
 
-      <QuickReportDialog
-        open={reportOpen}
-        onOpenChange={setReportOpen}
-        clientName={customer.name}
-      />
+      <QuickReportDialog open={reportOpen} onOpenChange={setReportOpen} clientName={customer.name} />
     </div>
   );
 }

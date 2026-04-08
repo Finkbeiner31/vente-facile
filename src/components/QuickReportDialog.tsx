@@ -2,18 +2,8 @@ import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { CheckCircle, XCircle, Clock, Repeat, Mic, MicOff } from 'lucide-react';
-
-const VISIT_PURPOSES = [
-  'Présentation produits',
-  'Suivi commande',
-  'Négociation',
-  'Prospection',
-  'Réclamation',
-  'Livraison',
-  'Autre',
-];
 
 const OUTCOMES = [
   { value: 'positive', label: 'Positif', icon: CheckCircle, color: 'bg-success/10 text-success border-success/30' },
@@ -26,25 +16,22 @@ interface QuickReportDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   clientName?: string;
-  onSubmit?: (data: { purpose: string; outcome: string; notes: string }) => void;
+  onSubmit?: (data: { outcome: string; notes: string; nextActionDate: string }) => void;
 }
 
 export function QuickReportDialog({ open, onOpenChange, clientName, onSubmit }: QuickReportDialogProps) {
-  const [purpose, setPurpose] = useState('');
   const [outcome, setOutcome] = useState('');
   const [notes, setNotes] = useState('');
+  const [nextActionDate, setNextActionDate] = useState('');
   const [isListening, setIsListening] = useState(false);
 
   const handleVoiceInput = () => {
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      return;
-    }
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) return;
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
     recognition.lang = 'fr-FR';
     recognition.continuous = false;
     recognition.interimResults = false;
-
     recognition.onstart = () => setIsListening(true);
     recognition.onend = () => setIsListening(false);
     recognition.onresult = (e: any) => {
@@ -55,11 +42,18 @@ export function QuickReportDialog({ open, onOpenChange, clientName, onSubmit }: 
   };
 
   const handleSubmit = () => {
-    onSubmit?.({ purpose, outcome, notes });
-    setPurpose('');
+    onSubmit?.({ outcome, notes, nextActionDate });
     setOutcome('');
     setNotes('');
+    setNextActionDate('');
     onOpenChange(false);
+  };
+
+  // Quick date shortcuts
+  const setQuickDate = (daysFromNow: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + daysFromNow);
+    setNextActionDate(d.toISOString().split('T')[0]);
   };
 
   return (
@@ -69,42 +63,22 @@ export function QuickReportDialog({ open, onOpenChange, clientName, onSubmit }: 
           <DialogTitle className="font-heading text-lg">
             Rapport rapide{clientName ? ` — ${clientName}` : ''}
           </DialogTitle>
+          <p className="text-xs text-muted-foreground">Complétez en moins de 30 secondes</p>
         </DialogHeader>
 
-        <div className="space-y-5">
-          {/* Purpose */}
+        <div className="space-y-4">
+          {/* Outcome - big buttons */}
           <div>
-            <p className="text-sm font-medium mb-2">Objet de la visite</p>
-            <div className="flex flex-wrap gap-2">
-              {VISIT_PURPOSES.map(p => (
-                <Button
-                  key={p}
-                  variant={purpose === p ? 'default' : 'outline'}
-                  size="sm"
-                  className="h-9 text-xs"
-                  onClick={() => setPurpose(p)}
-                >
-                  {p}
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          {/* Outcome */}
-          <div>
-            <p className="text-sm font-medium mb-2">Résultat</p>
+            <p className="text-sm font-medium mb-2">Résultat de la visite</p>
             <div className="grid grid-cols-2 gap-2">
               {OUTCOMES.map(o => {
                 const Icon = o.icon;
                 return (
-                  <button
-                    key={o.value}
-                    onClick={() => setOutcome(o.value)}
-                    className={`flex items-center gap-2 rounded-lg border p-3 text-sm font-medium transition-all ${
-                      outcome === o.value ? o.color + ' border-2' : 'border-border hover:border-muted-foreground/30'
-                    }`}
-                  >
-                    <Icon className="h-4 w-4" />
+                  <button key={o.value} onClick={() => setOutcome(o.value)}
+                    className={`flex items-center gap-2 rounded-xl border p-3.5 text-sm font-semibold transition-all ${
+                      outcome === o.value ? o.color + ' border-2 scale-[1.02]' : 'border-border hover:border-muted-foreground/30'
+                    }`}>
+                    <Icon className="h-5 w-5" />
                     {o.label}
                   </button>
                 );
@@ -112,34 +86,35 @@ export function QuickReportDialog({ open, onOpenChange, clientName, onSubmit }: 
             </div>
           </div>
 
+          {/* Next action date - quick picks */}
+          <div>
+            <p className="text-sm font-medium mb-2">Prochaine action</p>
+            <div className="flex gap-2 mb-2">
+              <Button variant="outline" size="sm" className="flex-1 h-9 text-xs" onClick={() => setQuickDate(1)}>Demain</Button>
+              <Button variant="outline" size="sm" className="flex-1 h-9 text-xs" onClick={() => setQuickDate(7)}>1 sem.</Button>
+              <Button variant="outline" size="sm" className="flex-1 h-9 text-xs" onClick={() => setQuickDate(14)}>2 sem.</Button>
+              <Button variant="outline" size="sm" className="flex-1 h-9 text-xs" onClick={() => setQuickDate(21)}>3 sem.</Button>
+            </div>
+            <Input type="date" value={nextActionDate} onChange={e => setNextActionDate(e.target.value)} className="h-10" />
+          </div>
+
           {/* Notes with voice */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-medium">Notes (optionnel)</p>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleVoiceInput}
-                className={isListening ? 'text-destructive animate-pulse' : 'text-muted-foreground'}
-              >
+              <Button variant="ghost" size="sm" onClick={handleVoiceInput}
+                className={isListening ? 'text-destructive animate-pulse' : 'text-muted-foreground'}>
                 {isListening ? <MicOff className="h-4 w-4 mr-1" /> : <Mic className="h-4 w-4 mr-1" />}
-                {isListening ? 'Arrêter' : 'Dicter'}
+                {isListening ? 'Stop' : 'Dicter'}
               </Button>
             </div>
-            <Textarea
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              placeholder="Ajouter des notes..."
-              rows={3}
-            />
+            <Textarea value={notes} onChange={e => setNotes(e.target.value)}
+              placeholder="Notes rapides..." rows={2} />
           </div>
 
-          <Button
-            onClick={handleSubmit}
-            disabled={!purpose || !outcome}
-            className="w-full h-12 text-base font-semibold"
-          >
-            Enregistrer le rapport
+          <Button onClick={handleSubmit} disabled={!outcome}
+            className="w-full h-12 text-base font-semibold">
+            Enregistrer
           </Button>
         </div>
       </DialogContent>
