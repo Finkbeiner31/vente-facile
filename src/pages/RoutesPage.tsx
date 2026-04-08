@@ -153,9 +153,9 @@ export default function RoutesPage() {
           {/* Day control buttons */}
           <div className="flex gap-2">
             {!dayStarted && (
-              <Button className="flex-1 h-12 font-semibold" onClick={handleStartDay}>
+              <Button className="flex-1 h-12 font-semibold" onClick={() => setTourMode(true)}>
                 <Sun className="h-4 w-4 mr-2" />
-                Démarrer la journée
+                Mode Tournée
               </Button>
             )}
             {dayStarted && !inProgressStop && completedCount < todayStops.length && (
