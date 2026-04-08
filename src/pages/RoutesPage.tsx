@@ -1,99 +1,187 @@
+import { useState, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { MapPin, Clock, CheckCircle, XCircle, Pause, Plus, Calendar } from 'lucide-react';
+import { QuickReportDialog } from '@/components/QuickReportDialog';
+import {
+  MapPin, Clock, CheckCircle, Play, Square, Phone, Navigation, Plus, Calendar,
+  GripVertical, Sparkles, Route as RouteIcon,
+} from 'lucide-react';
 
-const todayStops = [
-  { id: 1, client: 'Boulangerie Martin', address: '12 Rue de la Paix, Paris', time: '09:00', status: 'completed' },
-  { id: 2, client: 'Café du Commerce', address: '45 Av. des Champs, Lyon', time: '10:30', status: 'completed' },
-  { id: 3, client: 'Restaurant Le Gourmet', address: '8 Pl. Bellecour, Lyon', time: '14:00', status: 'planned' },
-  { id: 4, client: 'Pharmacie du Centre', address: '22 Rue Nationale, Lyon', time: '15:30', status: 'planned' },
+interface Stop {
+  id: string;
+  client: string;
+  address: string;
+  time: string;
+  status: string;
+  phone: string;
+}
+
+const initialStops: Stop[] = [
+  { id: '1', client: 'Boulangerie Martin', address: '12 Rue de la Paix, Paris', time: '09:00', status: 'completed', phone: '01 42 33 44 55' },
+  { id: '2', client: 'Café du Commerce', address: '45 Av. des Champs, Lyon', time: '10:30', status: 'completed', phone: '04 72 11 22 33' },
+  { id: '3', client: 'Restaurant Le Gourmet', address: '8 Pl. Bellecour, Lyon', time: '14:00', status: 'planned', phone: '04 78 99 88 77' },
+  { id: '4', client: 'Pharmacie du Centre', address: '22 Rue Nationale, Lyon', time: '15:30', status: 'planned', phone: '05 61 77 88 99' },
 ];
 
-const statusConfig: Record<string, { label: string; icon: any; className: string }> = {
-  completed: { label: 'Terminé', icon: CheckCircle, className: 'bg-success/10 text-success' },
-  planned: { label: 'Planifié', icon: Clock, className: 'bg-info/10 text-info' },
-  postponed: { label: 'Reporté', icon: Pause, className: 'bg-warning/10 text-warning' },
-  cancelled: { label: 'Annulé', icon: XCircle, className: 'bg-destructive/10 text-destructive' },
-};
-
 export default function RoutesPage() {
+  const [stops, setStops] = useState(initialStops);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [activeClient, setActiveClient] = useState('');
+
+  const handleDragStart = (i: number) => setDragIndex(i);
+  const handleDragOver = (e: React.DragEvent, i: number) => {
+    e.preventDefault();
+    if (dragIndex === null || dragIndex === i) return;
+    const updated = [...stops];
+    const [moved] = updated.splice(dragIndex, 1);
+    updated.splice(i, 0, moved);
+    setStops(updated);
+    setDragIndex(i);
+  };
+  const handleDragEnd = () => setDragIndex(null);
+
+  const handleOptimize = () => {
+    // Simple optimization: completed first, then planned
+    const completed = stops.filter(s => s.status === 'completed');
+    const rest = stops.filter(s => s.status !== 'completed');
+    setStops([...completed, ...rest]);
+  };
+
+  const handleStart = (id: string) => {
+    setStops(prev => prev.map(s => s.id === id ? { ...s, status: 'in_progress' } : s));
+  };
+
+  const handleEnd = (id: string, client: string) => {
+    setStops(prev => prev.map(s => s.id === id ? { ...s, status: 'completed' } : s));
+    setActiveClient(client);
+    setReportOpen(true);
+  };
+
+  const completedCount = stops.filter(s => s.status === 'completed').length;
+
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="space-y-4 animate-fade-in pb-20 md:pb-0">
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-heading text-2xl font-bold">Tournées</h1>
-          <p className="text-sm text-muted-foreground">Planifiez et suivez vos visites terrain</p>
+          <h1 className="font-heading text-xl md:text-2xl font-bold">Tournée du jour</h1>
+          <p className="text-xs text-muted-foreground">{completedCount}/{stops.length} visites · ~85 km · ~2h15</p>
         </div>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Nouvelle tournée
+        <Button variant="outline" size="sm" className="h-9" onClick={handleOptimize}>
+          <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+          Optimiser
         </Button>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Today's route */}
-        <div className="lg:col-span-2 space-y-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
-                  <Calendar className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <CardTitle className="font-heading text-base">Aujourd'hui — 08 Avr 2026</CardTitle>
-                  <p className="text-xs text-muted-foreground">4 arrêts · ~85 km · ~2h15</p>
-                </div>
-              </div>
-              <Badge variant="secondary">En cours</Badge>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {todayStops.map((stop, i) => {
-                const config = statusConfig[stop.status];
-                const Icon = config.icon;
-                return (
-                  <div key={stop.id} className="flex items-center gap-4 rounded-lg border p-4">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted font-heading text-sm font-bold">
-                      {i + 1}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">{stop.client}</p>
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <MapPin className="h-3 w-3" />
-                        {stop.address}
-                      </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-sm font-medium">{stop.time}</p>
-                      <Badge className={`text-[10px] ${config.className}`}>
-                        <Icon className="mr-1 h-3 w-3" />
-                        {config.label}
-                      </Badge>
-                    </div>
-                  </div>
-                );
-              })}
-            </CardContent>
-          </Card>
-        </div>
+      {/* Progress */}
+      <div className="h-2 rounded-full bg-muted overflow-hidden">
+        <div
+          className="h-full bg-primary rounded-full transition-all duration-500"
+          style={{ width: `${(completedCount / stops.length) * 100}%` }}
+        />
+      </div>
 
-        {/* Week overview */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="font-heading text-base">Cette semaine</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {['Lun 06', 'Mar 07', 'Mer 08', 'Jeu 09', 'Ven 10'].map((day, i) => (
-              <div key={i} className={`flex items-center justify-between rounded-lg p-3 ${i === 2 ? 'bg-primary/10 border border-primary/20' : 'border'}`}>
-                <span className={`text-sm font-medium ${i === 2 ? 'text-primary' : ''}`}>{day}</span>
-                <Badge variant="secondary" className="text-[10px]">
-                  {i === 2 ? '4 visites' : i < 2 ? `${3 + i} visites` : `${2 + i} visites`}
-                </Badge>
+      {/* Stats bar */}
+      <div className="grid grid-cols-3 gap-2">
+        <Card><CardContent className="p-2.5 text-center">
+          <p className="font-heading text-lg font-bold">{stops.length}</p>
+          <p className="text-[10px] text-muted-foreground">Arrêts</p>
+        </CardContent></Card>
+        <Card><CardContent className="p-2.5 text-center">
+          <p className="font-heading text-lg font-bold">85 km</p>
+          <p className="text-[10px] text-muted-foreground">Distance</p>
+        </CardContent></Card>
+        <Card><CardContent className="p-2.5 text-center">
+          <p className="font-heading text-lg font-bold">2h15</p>
+          <p className="text-[10px] text-muted-foreground">Durée est.</p>
+        </CardContent></Card>
+      </div>
+
+      {/* Stops - draggable */}
+      <div className="space-y-2">
+        {stops.map((stop, i) => {
+          const isActive = stop.status === 'in_progress';
+          return (
+            <div
+              key={stop.id}
+              draggable={stop.status === 'planned'}
+              onDragStart={() => handleDragStart(i)}
+              onDragOver={(e) => handleDragOver(e, i)}
+              onDragEnd={handleDragEnd}
+              className={`rounded-xl border p-3 transition-all ${
+                isActive ? 'border-primary/40 bg-primary/5 shadow-sm' :
+                stop.status === 'completed' ? 'opacity-60' : ''
+              } ${dragIndex === i ? 'opacity-50' : ''}`}
+            >
+              <div className="flex items-center gap-2">
+                {stop.status === 'planned' && (
+                  <GripVertical className="h-4 w-4 text-muted-foreground/50 cursor-grab shrink-0 touch-none" />
+                )}
+                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                  stop.status === 'completed' ? 'bg-success/10 text-success' :
+                  isActive ? 'bg-primary text-primary-foreground' :
+                  'bg-muted text-muted-foreground'
+                }`}>
+                  {stop.status === 'completed' ? '✓' : i + 1}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate">{stop.client}</p>
+                  <p className="text-[11px] text-muted-foreground truncate">{stop.address}</p>
+                </div>
+                <span className="text-xs font-medium text-muted-foreground shrink-0">{stop.time}</span>
+              </div>
+
+              {/* Actions */}
+              {stop.status !== 'completed' && (
+                <div className="flex items-center gap-2 mt-2.5">
+                  {stop.status === 'planned' && (
+                    <Button size="sm" className="h-9 flex-1 font-semibold text-xs" onClick={() => handleStart(stop.id)}>
+                      <Play className="h-3.5 w-3.5 mr-1" /> Démarrer
+                    </Button>
+                  )}
+                  {isActive && (
+                    <Button size="sm" variant="destructive" className="h-9 flex-1 font-semibold text-xs"
+                      onClick={() => handleEnd(stop.id, stop.client)}>
+                      <Square className="h-3.5 w-3.5 mr-1" /> Terminer
+                    </Button>
+                  )}
+                  <a href={`tel:${stop.phone}`} className="shrink-0">
+                    <Button variant="outline" size="icon" className="h-9 w-9">
+                      <Phone className="h-3.5 w-3.5" />
+                    </Button>
+                  </a>
+                  <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(stop.address)}`}
+                    target="_blank" rel="noopener noreferrer" className="shrink-0">
+                    <Button variant="outline" size="icon" className="h-9 w-9">
+                      <Navigation className="h-3.5 w-3.5" />
+                    </Button>
+                  </a>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Week overview */}
+      <Card>
+        <CardHeader className="pb-2 px-4 pt-4">
+          <CardTitle className="font-heading text-sm">Cette semaine</CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4">
+          <div className="grid grid-cols-5 gap-1.5">
+            {['L', 'M', 'M', 'J', 'V'].map((day, i) => (
+              <div key={i} className={`rounded-lg p-2 text-center ${i === 2 ? 'bg-primary/10 border border-primary/20' : 'border'}`}>
+                <p className={`text-xs font-bold ${i === 2 ? 'text-primary' : ''}`}>{day}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{3 + i}v</p>
               </div>
             ))}
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <QuickReportDialog open={reportOpen} onOpenChange={setReportOpen} clientName={activeClient} />
     </div>
   );
 }
