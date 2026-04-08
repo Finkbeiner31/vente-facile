@@ -188,5 +188,13 @@ export function TourReportSheet({ open, onOpenChange, clientName, onSubmit, onAd
         </div>
       </SheetContent>
     </Sheet>
+
+    <PromotionPickerSheet
+      open={promoPickerOpen}
+      onOpenChange={setPromoPickerOpen}
+      mode="select"
+      onSelect={(promo) => setSelectedPromotion(promo)}
+    />
+    </>
   );
 }
