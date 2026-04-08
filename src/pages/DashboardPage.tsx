@@ -120,10 +120,11 @@ export default function DashboardPage() {
             <div className="h-full bg-primary rounded-full transition-all duration-500"
               style={{ width: `${todayStops.length > 0 ? (completedCount / todayStops.length) * 100 : 0}%` }} />
           </div>
-          <Button className="flex-1 h-14 font-bold text-base" onClick={() => setTourMode(true)}>
+          <Button className="w-full h-14 font-bold text-base" onClick={() => setTourMode(true)}>
             <Sun className="h-5 w-5 mr-2" /> Lancer la tournée
           </Button>
-
+        </CardContent>
+      </Card>
       {/* In-progress visit */}
       {inProgress && (
         <Card className="border-primary/30 bg-primary/5">
