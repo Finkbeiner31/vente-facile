@@ -214,56 +214,35 @@ export function TourMode({ stops, onExit }: TourModeProps) {
       </div>
 
       {/* ── Sticky bottom action bar (always visible) ── */}
-      <div className="shrink-0 bg-card border-t px-3 pb-safe-bottom">
-        <div className="grid grid-cols-4 gap-1 py-2">
-          <button
-            onClick={() => setLastReportOpen(true)}
-            className="flex flex-col items-center gap-1 rounded-xl py-2.5 px-1 active:bg-muted/80 transition-colors"
-          >
-            <div className="h-11 w-11 rounded-full bg-primary/10 flex items-center justify-center">
-              <FileText className="h-5 w-5 text-primary" />
-            </div>
-            <span className="text-[10px] font-semibold text-muted-foreground leading-tight text-center">Dernier rapport</span>
-          </button>
-
-          <button
-            onClick={() => setProspectOpen(true)}
-            className="flex flex-col items-center gap-1 rounded-xl py-2.5 px-1 active:bg-muted/80 transition-colors"
-          >
-            <div className="h-11 w-11 rounded-full bg-accent/10 flex items-center justify-center">
-              <UserPlus className="h-5 w-5 text-accent" />
-            </div>
-            <span className="text-[10px] font-semibold text-muted-foreground leading-tight text-center">Prospect</span>
-          </button>
-
-          <button
-            onClick={() => setReminderOpen(true)}
-            className="flex flex-col items-center gap-1 rounded-xl py-2.5 px-1 active:bg-muted/80 transition-colors"
-          >
-            <div className="h-11 w-11 rounded-full bg-warning/10 flex items-center justify-center">
-              <Bell className="h-5 w-5 text-warning" />
-            </div>
-            <span className="text-[10px] font-semibold text-muted-foreground leading-tight text-center">Rappel</span>
-          </button>
-
-          <button
-            onClick={isVisitActive ? handleEndVisit : handleStartVisit}
-            className="flex flex-col items-center gap-1 rounded-xl py-2.5 px-1 active:bg-muted/80 transition-colors"
-          >
-            <div className={`h-11 w-11 rounded-full flex items-center justify-center ${
-              isVisitActive ? 'bg-destructive/10' : 'bg-success/10'
-            }`}>
-              {isVisitActive
-                ? <Square className="h-5 w-5 text-destructive" />
-                : <Play className="h-5 w-5 text-success" />
-              }
-            </div>
-            <span className={`text-[10px] font-semibold leading-tight text-center ${
-              isVisitActive ? 'text-destructive' : 'text-success'
-            }`}>
-              {isVisitActive ? 'Terminer' : 'Démarrer'}
-            </span>
-          </button>
+      <div className="shrink-0 bg-card border-t px-4 sm:px-6" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 12px), 12px)' }}>
+        <div className="flex justify-around items-start gap-2 py-2.5 max-w-md mx-auto">
+          {[
+            { icon: FileText, label: 'Dernier\nrapport', color: 'text-primary', bg: 'bg-primary/10', onClick: () => setLastReportOpen(true) },
+            { icon: UserPlus, label: 'Prospect', color: 'text-accent', bg: 'bg-accent/10', onClick: () => setProspectOpen(true) },
+            { icon: Bell, label: 'Rappel', color: 'text-warning', bg: 'bg-warning/10', onClick: () => setReminderOpen(true) },
+            {
+              icon: isVisitActive ? Square : Play,
+              label: isVisitActive ? 'Terminer' : 'Démarrer',
+              color: isVisitActive ? 'text-destructive' : 'text-success',
+              bg: isVisitActive ? 'bg-destructive/10' : 'bg-success/10',
+              onClick: isVisitActive ? handleEndVisit : handleStartVisit,
+            },
+          ].map((item, i) => (
+            <button
+              key={i}
+              onClick={item.onClick}
+              className="flex flex-col items-center gap-1.5 rounded-xl py-2 px-2 min-w-[60px] max-w-[72px] flex-1 active:bg-muted/80 transition-colors"
+            >
+              <div className={`h-11 w-11 rounded-full ${item.bg} flex items-center justify-center shrink-0`}>
+                <item.icon className={`h-5 w-5 ${item.color}`} />
+              </div>
+              <span className={`text-[10px] font-semibold leading-tight text-center whitespace-pre-line ${
+                item.color.includes('destructive') || item.color.includes('success') ? item.color : 'text-muted-foreground'
+              }`}>
+                {item.label}
+              </span>
+            </button>
+          ))}
         </div>
       </div>
 
