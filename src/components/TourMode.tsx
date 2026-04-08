@@ -20,6 +20,7 @@ export interface TourStop {
 interface TourModeProps {
   stops: TourStop[];
   onExit: () => void;
+  onReorder?: (stops: TourStop[]) => void;
 }
 
 type StopStatus = 'planned' | 'in_progress' | 'completed' | 'skipped';
