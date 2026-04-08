@@ -42,18 +42,6 @@ export default function RoutesPage() {
   const [dayStarted, setDayStarted] = useState(false);
   const [tourMode, setTourMode] = useState(false);
 
-  const todayStops = cycle[selectedDay] || [];
-
-  if (tourMode) {
-    return (
-      <TourMode
-        stops={todayStops.map(s => ({ customer: s.customer, priority: s.priority }))}
-        onExit={() => setTourMode(false)}
-      />
-    );
-  }
-
-  const todayStops = cycle[selectedDay] || [];
   const completedCount = todayStops.filter(s => statuses[`${selectedDay}-${s.customer.id}`] === 'completed').length;
   const inProgressStop = todayStops.find(s => statuses[`${selectedDay}-${s.customer.id}`] === 'in_progress');
 
