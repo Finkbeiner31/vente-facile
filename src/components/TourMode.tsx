@@ -242,7 +242,7 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
       {/* ── Main content ── */}
       <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center px-5 py-4 min-h-0">
         <p className="text-[11px] text-muted-foreground mb-1.5">
-          Visite {currentIndex + 1} sur {stops.length}
+          {remainingIndices.length} visite{remainingIndices.length > 1 ? 's' : ''} restante{remainingIndices.length > 1 ? 's' : ''}
         </p>
 
         <div className={`rounded-full px-3.5 py-1 border text-xs font-semibold mb-3 ${getPriorityBg(current.priority)}`}>
