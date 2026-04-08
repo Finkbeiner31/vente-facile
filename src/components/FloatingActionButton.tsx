@@ -21,7 +21,7 @@ export function FloatingActionButton({ onProspectCreated }: FloatingActionButton
     <>
       {/* Backdrop */}
       {menuOpen && (
-        <div className="fixed inset-0 z-40 bg-black/20" onClick={() => setMenuOpen(false)} />
+        <div className="fixed inset-0 z-40 bg-black/20 pointer-events-auto" onClick={() => setMenuOpen(false)} />
       )}
 
       {/* Menu items */}
