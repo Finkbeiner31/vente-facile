@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { formatMonthly, getRevenueTier, getRevenueTierColor } from '@/lib/revenueUtils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {

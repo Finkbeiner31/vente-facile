@@ -7,6 +7,7 @@ import {
   Search, Plus, Phone, Navigation, Building2, Clock, Car, TrendingUp,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { formatMonthly, getRevenueTier, getRevenueTierColor } from '@/lib/revenueUtils';
 
 const demoCustomers = [
   { id: '1', name: 'Boulangerie Martin', type: 'client', sector: 'Alimentaire', city: 'Paris', phone: '01 42 33 44 55', potential: 'A', lastVisit: '08 Avr', nextAction: 'Envoyer devis', address: '12 Rue de la Paix, Paris', vehicles: 8, revenue: 28000 },
