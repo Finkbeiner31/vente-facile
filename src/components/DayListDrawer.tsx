@@ -74,8 +74,10 @@ export function DayListDrawer({
             />
           ) : (
             <div className="space-y-1.5">
+              {/* Active (remaining) visits */}
               {stops.map((stop, i) => {
                 const status = statuses[i] || 'planned';
+                if (status === 'completed') return null;
                 const config = statusConfig[status];
                 const StatusIcon = config.icon;
                 const isCurrent = i === currentIndex;
@@ -86,7 +88,7 @@ export function DayListDrawer({
                     onClick={() => { onGoToStop(i); onOpenChange(false); }}
                     className={`w-full text-left rounded-xl border p-3 transition-all active:scale-[0.98] ${
                       isCurrent ? 'border-primary/40 bg-primary/5 ring-1 ring-primary/20' : 'border-border'
-                    } ${status === 'completed' || status === 'skipped' ? 'opacity-60' : ''}`}
+                    }`}
                   >
                     <div className="flex items-center gap-2.5">
                       <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground">
@@ -117,6 +119,41 @@ export function DayListDrawer({
                   </button>
                 );
               })}
+
+              {/* Completed visits section */}
+              {completedCount > 0 && (
+                <>
+                  <div className="pt-3 pb-1">
+                    <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5">
+                      <CheckCircle className="h-3.5 w-3.5" />
+                      Visites terminées ({completedCount})
+                    </p>
+                  </div>
+                  {stops.map((stop, i) => {
+                    const status = statuses[i] || 'planned';
+                    if (status !== 'completed') return null;
+                    return (
+                      <div
+                        key={`${stop.customer.id}-${i}`}
+                        className="w-full text-left rounded-xl border border-border p-3 opacity-50"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-success/15 text-xs font-bold text-success">
+                            ✓
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold truncate">{stop.customer.company_name}</p>
+                          </div>
+                          <Badge className="bg-success/15 text-success text-[9px] h-5 shrink-0 gap-1">
+                            <CheckCircle className="h-3 w-3" />
+                            Fait
+                          </Badge>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
             </div>
           )}
         </div>
