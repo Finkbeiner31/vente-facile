@@ -43,7 +43,7 @@ export default function DashboardPage() {
   const [statuses, setStatuses] = useState<Record<string, string>>({});
   const [reportOpen, setReportOpen] = useState(false);
   const [activeClient, setActiveClient] = useState('');
-  const [dayStarted, setDayStarted] = useState(false);
+  const [tourMode, setTourMode] = useState(false);
 
   const firstName = profile?.full_name?.split(' ')[0] || 'Commercial';
   const completedCount = todayStops.filter(s => statuses[s.customer.id] === 'completed').length;
