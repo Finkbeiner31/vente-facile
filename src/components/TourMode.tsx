@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import {
   Phone, Navigation, Play, Square, SkipForward, X,
   MapPin, TrendingUp, AlertTriangle, FileText, UserPlus,
-  Bell, ArrowUpDown, List, Plus, Tag,
+  Bell, ArrowUpDown, List, Plus, Tag, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { TourReportSheet } from './TourReportSheet';
 import { DaySummarySheet } from './DaySummarySheet';
