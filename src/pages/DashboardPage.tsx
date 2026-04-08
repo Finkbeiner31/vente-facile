@@ -8,13 +8,14 @@ import { QuickReportDialog } from '@/components/QuickReportDialog';
 import { TourMode } from '@/components/TourMode';
 import {
   Play, Square, Phone, Navigation, AlertTriangle, ArrowRight,
-  Sun, Flag, Target, TrendingUp, Eye, Calendar,
+  Sun, Flag, Target, TrendingUp, Eye, Calendar, RotateCcw,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
   generateRouteCycle,
   type CustomerForRouting,
 } from '@/lib/routeCycleEngine';
+import { useTourSession } from '@/contexts/TourSessionContext';
 
 const demoCustomers: CustomerForRouting[] = [
   { id: '1', company_name: 'Boulangerie Martin', address: '12 Rue de la Paix, Paris', city: 'Paris', phone: '01 42 33 44 55', visit_frequency: 'weekly', number_of_vehicles: 8, annual_revenue_potential: 28000, latitude: null, longitude: null, sales_potential: 'A' },
@@ -46,6 +47,8 @@ export default function DashboardPage() {
   const [activeClient, setActiveClient] = useState('');
   const [tourMode, setTourMode] = useState(false);
 
+  const { session, startSession } = useTourSession();
+
   const firstName = profile?.full_name?.split(' ')[0] || 'Commercial';
   const completedCount = todayStops.filter(s => statuses[s.customer.id] === 'completed').length;
   const inProgress = todayStops.find(s => statuses[s.customer.id] === 'in_progress');
@@ -62,14 +65,24 @@ export default function DashboardPage() {
     setReportOpen(true);
   };
 
-  if (tourMode) {
+  const handleLaunchTour = () => {
+    if (!session?.active) {
+      const stops = todayStops.map(s => ({ customer: s.customer, priority: s.priority }));
+      startSession(0, stops);
+    }
+    setTourMode(true);
+  };
+
+  if (tourMode && session?.active) {
     return (
       <TourMode
-        stops={todayStops.map(s => ({ customer: s.customer, priority: s.priority }))}
         onExit={() => setTourMode(false)}
+        allCustomers={demoCustomers}
       />
     );
   }
+
+  const sessionCompletedCount = session ? Object.values(session.statuses).filter(s => s === 'completed').length : 0;
 
   return (
     <div className="space-y-4 animate-fade-in pb-20 md:pb-0">
@@ -80,6 +93,27 @@ export default function DashboardPage() {
           {completedCount}/{todayStops.length} visites aujourd'hui · Objectif {targetMin}-{targetMax}
         </p>
       </div>
+
+      {/* Active tour resume banner */}
+      {session?.active && !tourMode && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-3">
+              <div className="h-3 w-3 rounded-full bg-primary animate-pulse" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold">Tournée en cours</p>
+                <p className="text-xs text-muted-foreground">
+                  {sessionCompletedCount} / {session.stops.length} visites complétées
+                </p>
+              </div>
+              <Button size="sm" className="h-10 px-4 font-semibold shrink-0 gap-1.5" onClick={() => setTourMode(true)}>
+                <RotateCcw className="h-4 w-4" />
+                Reprendre
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-3 gap-2">
@@ -121,11 +155,18 @@ export default function DashboardPage() {
             <div className="h-full bg-primary rounded-full transition-all duration-500"
               style={{ width: `${todayStops.length > 0 ? (completedCount / todayStops.length) * 100 : 0}%` }} />
           </div>
-          <Button className="w-full h-14 font-bold text-base" onClick={() => setTourMode(true)}>
-            <Sun className="h-5 w-5 mr-2" /> Lancer la tournée
-          </Button>
+          {!session?.active ? (
+            <Button className="w-full h-14 font-bold text-base" onClick={handleLaunchTour}>
+              <Sun className="h-5 w-5 mr-2" /> Lancer la tournée
+            </Button>
+          ) : (
+            <Button className="w-full h-14 font-bold text-base gap-2" onClick={() => setTourMode(true)}>
+              <RotateCcw className="h-5 w-5" /> Reprendre la tournée
+            </Button>
+          )}
         </CardContent>
       </Card>
+
       {/* In-progress visit */}
       {inProgress && (
         <Card className="border-primary/30 bg-primary/5">
