@@ -256,6 +256,29 @@ export function TourMode({ stops: initialStops, onExit, onReorder }: TourModePro
         </div>
       </div>
 
+      {/* ── Reorder overlay ── */}
+      {reorderOpen && (
+        <div className="fixed inset-0 z-[60] bg-background flex flex-col">
+          <div className="flex items-center justify-between px-4 py-2.5 border-b bg-card shrink-0">
+            <h2 className="text-sm font-bold">Modifier l'ordre des visites</h2>
+            <Button variant="default" size="sm" className="h-8 text-xs font-semibold" onClick={() => setReorderOpen(false)}>
+              Terminé
+            </Button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4">
+            <SortableRouteList
+              stops={stops.map((s, i) => ({ customer: s.customer, priority: s.priority, dayIndex: 0 }))}
+              onReorder={(newStops) => {
+                const reordered = newStops.map(s => ({ customer: s.customer, priority: s.priority }));
+                setStops(reordered);
+                onReorder?.(reordered);
+              }}
+              compact
+            />
+          </div>
+        </div>
+      )}
+
       {/* ── Sheets ── */}
       <TourReportSheet
         open={reportOpen}
