@@ -32,7 +32,7 @@ export default function AppLayout() {
             <span className="font-heading text-sm font-bold md:hidden text-primary">F7 Sales Pilot</span>
             <div className="flex-1" />
           </header>
-          <main className="flex-1 p-3 md:p-6 lg:p-8">
+          <main className="flex-1 p-3 md:p-6 lg:p-8 pb-20 md:pb-8 relative z-0">
             <Outlet />
           </main>
         </div>
