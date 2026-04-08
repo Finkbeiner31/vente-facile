@@ -144,6 +144,8 @@ export type Database = {
           last_visit_date: string | null
           latitude: number | null
           longitude: number | null
+          next_action_date: string | null
+          next_action_description: string | null
           notes: string | null
           phone: string | null
           postal_code: string | null
@@ -166,6 +168,8 @@ export type Database = {
           last_visit_date?: string | null
           latitude?: number | null
           longitude?: number | null
+          next_action_date?: string | null
+          next_action_description?: string | null
           notes?: string | null
           phone?: string | null
           postal_code?: string | null
@@ -188,6 +192,8 @@ export type Database = {
           last_visit_date?: string | null
           latitude?: number | null
           longitude?: number | null
+          next_action_date?: string | null
+          next_action_description?: string | null
           notes?: string | null
           phone?: string | null
           postal_code?: string | null
@@ -463,16 +469,20 @@ export type Database = {
           created_at: string
           customer_id: string
           customer_needs: string | null
+          ended_at: string | null
           follow_up_date: string | null
           id: string
           next_actions: string | null
           opportunities_detected: string | null
+          quick_outcome: string | null
           rep_id: string
           route_stop_id: string | null
+          started_at: string | null
           summary: string | null
           updated_at: string
           visit_date: string
           visit_purpose: string | null
+          visit_status: string
         }
         Insert: {
           competitor_info?: string | null
@@ -480,16 +490,20 @@ export type Database = {
           created_at?: string
           customer_id: string
           customer_needs?: string | null
+          ended_at?: string | null
           follow_up_date?: string | null
           id?: string
           next_actions?: string | null
           opportunities_detected?: string | null
+          quick_outcome?: string | null
           rep_id: string
           route_stop_id?: string | null
+          started_at?: string | null
           summary?: string | null
           updated_at?: string
           visit_date?: string
           visit_purpose?: string | null
+          visit_status?: string
         }
         Update: {
           competitor_info?: string | null
@@ -497,16 +511,20 @@ export type Database = {
           created_at?: string
           customer_id?: string
           customer_needs?: string | null
+          ended_at?: string | null
           follow_up_date?: string | null
           id?: string
           next_actions?: string | null
           opportunities_detected?: string | null
+          quick_outcome?: string | null
           rep_id?: string
           route_stop_id?: string | null
+          started_at?: string | null
           summary?: string | null
           updated_at?: string
           visit_date?: string
           visit_purpose?: string | null
+          visit_status?: string
         }
         Relationships: [
           {
