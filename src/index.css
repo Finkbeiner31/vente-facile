@@ -114,4 +114,14 @@
   .text-gradient {
     @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-orange-400;
   }
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+}
+
+/* Mobile-first: larger touch targets */
+@media (max-width: 768px) {
+  .btn, button {
+    min-height: 40px;
+  }
 }
