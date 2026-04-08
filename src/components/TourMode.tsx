@@ -3,13 +3,14 @@ import { Button } from '@/components/ui/button';
 import {
   Phone, Navigation, Play, Square, SkipForward, X,
   MapPin, TrendingUp, AlertTriangle, FileText, UserPlus,
-  Bell, ChevronUp,
+  Bell, ChevronUp, ArrowUpDown,
 } from 'lucide-react';
 import { TourReportSheet } from './TourReportSheet';
 import { DaySummarySheet } from './DaySummarySheet';
 import { LastReportCard } from './LastReportCard';
 import { QuickProspectSheet } from './QuickProspectSheet';
 import { QuickReminderSheet } from './QuickReminderSheet';
+import { SortableRouteList } from './SortableRouteList';
 import type { CustomerForRouting } from '@/lib/routeCycleEngine';
 
 export interface TourStop {
@@ -20,6 +21,7 @@ export interface TourStop {
 interface TourModeProps {
   stops: TourStop[];
   onExit: () => void;
+  onReorder?: (stops: TourStop[]) => void;
 }
 
 type StopStatus = 'planned' | 'in_progress' | 'completed' | 'skipped';
@@ -30,7 +32,8 @@ const demoLastReports: Record<string, any> = {
   '5': { date: '12 mars 2026', contactMet: 'M. Leclerc', summary: 'Discussion tarifs flotte', nextAction: 'Revoir les prix volume', notes: 'Flotte de 25 véhicules', outcome: 'productive' },
 };
 
-export function TourMode({ stops, onExit }: TourModeProps) {
+export function TourMode({ stops: initialStops, onExit, onReorder }: TourModeProps) {
+  const [stops, setStops] = useState(initialStops);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [statuses, setStatuses] = useState<Record<number, StopStatus>>({});
   const [visitStartTime, setVisitStartTime] = useState<Date | null>(null);
@@ -39,6 +42,7 @@ export function TourMode({ stops, onExit }: TourModeProps) {
   const [lastReportOpen, setLastReportOpen] = useState(false);
   const [prospectOpen, setProspectOpen] = useState(false);
   const [reminderOpen, setReminderOpen] = useState(false);
+  const [reorderOpen, setReorderOpen] = useState(false);
 
   const current = stops[currentIndex];
   const status = statuses[currentIndex] || 'planned';
@@ -109,9 +113,15 @@ export function TourMode({ stops, onExit }: TourModeProps) {
             <p className="text-sm font-bold leading-tight">{completedCount} / {stops.length} visites</p>
           </div>
         </div>
-        <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setSummaryOpen(true)}>
-          Fin de journée
-        </Button>
+        <div className="flex items-center gap-1.5">
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={() => setReorderOpen(true)}>
+            <ArrowUpDown className="h-3.5 w-3.5" />
+            Ordre
+          </Button>
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setSummaryOpen(true)}>
+            Fin de journée
+          </Button>
+        </div>
       </div>
 
       {/* ── Progress bar ── */}
@@ -245,6 +255,29 @@ export function TourMode({ stops, onExit }: TourModeProps) {
           ))}
         </div>
       </div>
+
+      {/* ── Reorder overlay ── */}
+      {reorderOpen && (
+        <div className="fixed inset-0 z-[60] bg-background flex flex-col">
+          <div className="flex items-center justify-between px-4 py-2.5 border-b bg-card shrink-0">
+            <h2 className="text-sm font-bold">Modifier l'ordre des visites</h2>
+            <Button variant="default" size="sm" className="h-8 text-xs font-semibold" onClick={() => setReorderOpen(false)}>
+              Terminé
+            </Button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4">
+            <SortableRouteList
+              stops={stops.map((s, i) => ({ customer: s.customer, priority: s.priority, dayIndex: 0 }))}
+              onReorder={(newStops) => {
+                const reordered = newStops.map(s => ({ customer: s.customer, priority: s.priority }));
+                setStops(reordered);
+                onReorder?.(reordered);
+              }}
+              compact
+            />
+          </div>
+        </div>
+      )}
 
       {/* ── Sheets ── */}
       <TourReportSheet
