@@ -53,7 +53,6 @@ export default function DashboardPage() {
 
   const handleStart = (id: string) => {
     setStatuses(prev => ({ ...prev, [id]: 'in_progress' }));
-    if (!dayStarted) setDayStarted(true);
   };
 
   const handleEnd = (id: string, name: string) => {
@@ -62,10 +61,14 @@ export default function DashboardPage() {
     setReportOpen(true);
   };
 
-  const handleNextVisit = () => {
-    const next = todayStops.find(s => !statuses[s.customer.id] || statuses[s.customer.id] === 'planned');
-    if (next) handleStart(next.customer.id);
-  };
+  if (tourMode) {
+    return (
+      <TourMode
+        stops={todayStops.map(s => ({ customer: s.customer, priority: s.priority }))}
+        onExit={() => setTourMode(false)}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4 animate-fade-in pb-20 md:pb-0">
