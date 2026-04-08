@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { QuickReportDialog } from '@/components/QuickReportDialog';
+import { TourMode } from '@/components/TourMode';
 import {
   MapPin, Play, Square, Phone, Navigation, Sparkles,
   GripVertical, ChevronLeft, ChevronRight, Calendar, Target,
