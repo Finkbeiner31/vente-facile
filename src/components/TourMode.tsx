@@ -53,11 +53,18 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
   if (!session) return null;
 
   const { stops, currentIndex, statuses, visitStartTime } = session;
+
+  // Build list of remaining (non-completed) stop indices
+  const remainingIndices = stops.map((_, i) => i).filter(i => statuses[i] !== 'completed');
+  const currentRemainingPos = remainingIndices.indexOf(currentIndex);
+  const prevRemainingIndex = currentRemainingPos > 0 ? remainingIndices[currentRemainingPos - 1] : null;
+  const nextRemainingIndex = currentRemainingPos < remainingIndices.length - 1 ? remainingIndices[currentRemainingPos + 1] : null;
+
   const current = stops[currentIndex];
   const status = statuses[currentIndex] || 'planned';
   const completedCount = Object.values(statuses).filter(s => s === 'completed').length;
   const isVisitActive = status === 'in_progress';
-  const allDone = currentIndex >= stops.length;
+  const allDone = remainingIndices.length === 0;
 
   const getPriorityColor = (p: number) => p >= 60 ? 'text-destructive' : p >= 30 ? 'text-accent' : 'text-muted-foreground';
   const getPriorityLabel = (p: number) => p >= 60 ? 'Haut potentiel' : p >= 30 ? 'Moyen' : 'Standard';
