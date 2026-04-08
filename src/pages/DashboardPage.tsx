@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { QuickReportDialog } from '@/components/QuickReportDialog';
+import { TourMode } from '@/components/TourMode';
 import {
   Play, Square, Phone, Navigation, AlertTriangle, ArrowRight,
   Sun, Flag, Target, TrendingUp, Eye, Calendar,
