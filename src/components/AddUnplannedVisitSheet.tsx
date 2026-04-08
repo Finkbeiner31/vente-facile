@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { formatMonthly, getRevenueTier, getRevenueTierColor } from '@/lib/revenueUtils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -217,8 +218,8 @@ export function AddUnplannedVisitSheet({
                         </span>
                       )}
                       {c.annual_revenue_potential > 0 && (
-                        <span className="text-[10px] text-accent font-medium">
-                          {(c.annual_revenue_potential / 1000).toFixed(0)}k€/an
+                        <span className={`text-[10px] font-medium ${getRevenueTierColor(getRevenueTier(c.annual_revenue_potential))}`}>
+                          {formatMonthly(c.annual_revenue_potential)}
                         </span>
                       )}
                     </div>

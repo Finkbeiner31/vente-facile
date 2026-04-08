@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { formatMonthly, getRevenueTier, getRevenueTierColor } from '@/lib/revenueUtils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -101,9 +102,9 @@ export function DayListDrawer({
                             </span>
                           )}
                           {stop.customer.annual_revenue_potential > 0 && (
-                            <span className="flex items-center gap-0.5 text-[10px] text-accent shrink-0">
+                            <span className={`flex items-center gap-0.5 text-[10px] font-medium shrink-0 ${getRevenueTierColor(getRevenueTier(stop.customer.annual_revenue_potential))}`}>
                               <TrendingUp className="h-3 w-3" />
-                              {(stop.customer.annual_revenue_potential / 1000).toFixed(0)}k€
+                              {formatMonthly(stop.customer.annual_revenue_potential)}
                             </span>
                           )}
                         </div>

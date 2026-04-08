@@ -7,6 +7,7 @@ import {
   Search, Plus, Phone, Navigation, Building2, Clock, Car, TrendingUp,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { formatMonthly, getRevenueTier, getRevenueTierColor } from '@/lib/revenueUtils';
 
 const demoCustomers = [
   { id: '1', name: 'Boulangerie Martin', type: 'client', sector: 'Alimentaire', city: 'Paris', phone: '01 42 33 44 55', potential: 'A', lastVisit: '08 Avr', nextAction: 'Envoyer devis', address: '12 Rue de la Paix, Paris', vehicles: 8, revenue: 28000 },
@@ -74,7 +75,7 @@ export default function CustomersPage() {
                         <Car className="h-2.5 w-2.5" /> {customer.vehicles}
                       </span>
                       <span>·</span>
-                      <span className="text-accent font-medium">{(customer.revenue / 1000).toFixed(0)}k€</span>
+                      <span className={`font-semibold ${getRevenueTierColor(getRevenueTier(customer.revenue))}`}>{formatMonthly(customer.revenue)}</span>
                     </div>
                     {customer.nextAction && (
                       <p className="text-[10px] text-primary font-medium mt-0.5 truncate">→ {customer.nextAction}</p>
