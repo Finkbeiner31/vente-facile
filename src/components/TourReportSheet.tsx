@@ -77,6 +77,7 @@ export function TourReportSheet({ open, onOpenChange, clientName, onSubmit, onAd
   };
 
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="h-auto max-h-[90vh] rounded-t-2xl px-5 pb-8 overflow-y-auto">
         <SheetHeader className="pb-3">
