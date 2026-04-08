@@ -8,7 +8,7 @@ import { SortableRouteList } from '@/components/SortableRouteList';
 import {
   MapPin, Play, Square, Phone, Navigation, Sparkles,
   GripVertical, ChevronLeft, ChevronRight, Calendar, Target,
-  Sun, Flag, ArrowUpDown,
+  Sun, Flag, ArrowUpDown, RotateCcw,
 } from 'lucide-react';
 import {
   generateRouteCycle,
@@ -17,6 +17,7 @@ import {
   type CustomerForRouting,
   type PlannedVisit,
 } from '@/lib/routeCycleEngine';
+import { useTourSession } from '@/contexts/TourSessionContext';
 
 const demoCustomers: CustomerForRouting[] = [
   { id: '1', company_name: 'Boulangerie Martin', address: '12 Rue de la Paix, Paris', city: 'Paris', phone: '01 42 33 44 55', visit_frequency: 'weekly', number_of_vehicles: 8, annual_revenue_potential: 28000, latitude: null, longitude: null, sales_potential: 'A' },
@@ -35,7 +36,6 @@ type StopStatus = 'planned' | 'in_progress' | 'completed';
 
 export default function RoutesPage() {
   const baseCycle = useMemo(() => generateRouteCycle(demoCustomers), []);
-  // Mutable day overrides for reordering
   const [dayOverrides, setDayOverrides] = useState<Record<number, PlannedVisit[]>>({});
   const [selectedDay, setSelectedDay] = useState(0);
   const [statuses, setStatuses] = useState<Record<string, StopStatus>>({});
@@ -45,25 +45,29 @@ export default function RoutesPage() {
   const [tourMode, setTourMode] = useState(false);
   const [reorderMode, setReorderMode] = useState(false);
 
+  const { session, startSession } = useTourSession();
+
   const todayStops = dayOverrides[selectedDay] || baseCycle[selectedDay] || [];
 
   const handleReorder = useCallback((newStops: PlannedVisit[]) => {
     setDayOverrides(prev => ({ ...prev, [selectedDay]: newStops }));
   }, [selectedDay]);
 
-  if (tourMode) {
+  const handleStartTour = () => {
+    const stops = todayStops.map(s => ({ customer: s.customer, priority: s.priority }));
+    startSession(selectedDay, stops);
+    setTourMode(true);
+  };
+
+  const handleResumeTour = () => {
+    setTourMode(true);
+  };
+
+  if (tourMode && session?.active) {
     return (
       <TourMode
-        stops={todayStops.map(s => ({ customer: s.customer, priority: s.priority }))}
         onExit={() => setTourMode(false)}
-        onReorder={(reorderedStops) => {
-          const newStops = reorderedStops.map((s, i) => ({
-            customer: s.customer,
-            priority: s.priority,
-            dayIndex: selectedDay,
-          }));
-          setDayOverrides(prev => ({ ...prev, [selectedDay]: newStops }));
-        }}
+        allCustomers={demoCustomers}
       />
     );
   }
@@ -104,8 +108,32 @@ export default function RoutesPage() {
     return null;
   };
 
+  // Session progress for resume banner
+  const sessionCompletedCount = session ? Object.values(session.statuses).filter(s => s === 'completed').length : 0;
+
   return (
     <div className="space-y-4 animate-fade-in pb-20 md:pb-0">
+      {/* Active tour resume banner */}
+      {session?.active && !tourMode && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="p-3">
+            <div className="flex items-center gap-3">
+              <div className="h-3 w-3 rounded-full bg-primary animate-pulse" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold">Tournée en cours</p>
+                <p className="text-xs text-muted-foreground">
+                  {sessionCompletedCount} / {session.stops.length} visites complétées
+                </p>
+              </div>
+              <Button size="sm" className="h-10 px-4 font-semibold shrink-0 gap-1.5" onClick={handleResumeTour}>
+                <RotateCcw className="h-4 w-4" />
+                Reprendre
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -176,22 +204,15 @@ export default function RoutesPage() {
                   style={{ width: `${todayStops.length > 0 ? (completedCount / todayStops.length) * 100 : 0}%` }} />
               </div>
               <div className="flex gap-2">
-                {!dayStarted && (
-                  <Button className="flex-1 h-12 font-semibold" onClick={() => setTourMode(true)}>
+                {!session?.active ? (
+                  <Button className="flex-1 h-12 font-semibold" onClick={handleStartTour}>
                     <Sun className="h-4 w-4 mr-2" />
-                    Mode Tournée
+                    Démarrer la journée
                   </Button>
-                )}
-                {dayStarted && !inProgressStop && completedCount < todayStops.length && (
-                  <Button className="flex-1 h-12 font-semibold" onClick={handleNextVisit}>
-                    <Play className="h-4 w-4 mr-2" />
-                    Visite suivante
-                  </Button>
-                )}
-                {dayStarted && completedCount === todayStops.length && todayStops.length > 0 && (
-                  <Button variant="outline" className="flex-1 h-12 font-semibold border-success text-success" onClick={handleEndDay}>
-                    <Flag className="h-4 w-4 mr-2" />
-                    Terminer la journée
+                ) : (
+                  <Button className="flex-1 h-12 font-semibold gap-1.5" onClick={handleResumeTour}>
+                    <RotateCcw className="h-4 w-4" />
+                    Reprendre la tournée
                   </Button>
                 )}
               </div>

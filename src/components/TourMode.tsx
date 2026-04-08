@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Phone, Navigation, Play, Square, SkipForward, X,
@@ -15,6 +15,7 @@ import { DayListDrawer } from './DayListDrawer';
 import { AddUnplannedVisitSheet } from './AddUnplannedVisitSheet';
 import { PromotionPickerSheet } from './PromotionPickerSheet';
 import { formatMonthly, formatAnnual, getRevenueTier, getRevenueTierColor, getRevenueTierBg } from '@/lib/revenueUtils';
+import { useTourSession } from '@/contexts/TourSessionContext';
 import type { CustomerForRouting } from '@/lib/routeCycleEngine';
 
 export interface TourStop {
@@ -23,9 +24,7 @@ export interface TourStop {
 }
 
 interface TourModeProps {
-  stops: TourStop[];
   onExit: () => void;
-  onReorder?: (stops: TourStop[]) => void;
   allCustomers?: CustomerForRouting[];
 }
 
@@ -37,13 +36,10 @@ const demoLastReports: Record<string, any> = {
   '5': { date: '12 mars 2026', contactMet: 'M. Leclerc', summary: 'Discussion tarifs flotte', nextAction: 'Revoir les prix volume', notes: 'Flotte de 25 véhicules', outcome: 'productive' },
 };
 
-export function TourMode({ stops: initialStops, onExit, onReorder, allCustomers = [] }: TourModeProps) {
-  const [stops, setStops] = useState(initialStops);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [statuses, setStatuses] = useState<Record<number, StopStatus>>({});
-  const [visitStartTime, setVisitStartTime] = useState<Date | null>(null);
+export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
+  const { session, updateSession, endSession } = useTourSession();
 
-  // Sheet states
+  // Local UI sheet states only
   const [reportOpen, setReportOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [lastReportOpen, setLastReportOpen] = useState(false);
@@ -54,6 +50,9 @@ export function TourMode({ stops: initialStops, onExit, onReorder, allCustomers 
   const [addUnplannedOpen, setAddUnplannedOpen] = useState(false);
   const [promotionsOpen, setPromotionsOpen] = useState(false);
 
+  if (!session) return null;
+
+  const { stops, currentIndex, statuses, visitStartTime } = session;
   const current = stops[currentIndex];
   const status = statuses[currentIndex] || 'planned';
   const completedCount = Object.values(statuses).filter(s => s === 'completed').length;
@@ -64,44 +63,48 @@ export function TourMode({ stops: initialStops, onExit, onReorder, allCustomers 
   const getPriorityLabel = (p: number) => p >= 60 ? 'Haut potentiel' : p >= 30 ? 'Moyen' : 'Standard';
   const getPriorityBg = (p: number) => p >= 60 ? 'bg-destructive/10 border-destructive/30' : p >= 30 ? 'bg-accent/10 border-accent/30' : 'bg-muted/50 border-border';
 
+  const persist = (patch: Partial<typeof session>) => updateSession(patch);
+
   const handleStartVisit = () => {
-    setStatuses(prev => ({ ...prev, [currentIndex]: 'in_progress' }));
-    setVisitStartTime(new Date());
+    const newStatuses = { ...statuses, [currentIndex]: 'in_progress' as StopStatus };
+    persist({ statuses: newStatuses, visitStartTime: new Date().toISOString() });
   };
 
   const handleEndVisit = () => setReportOpen(true);
 
   const handleSkip = () => {
-    setStatuses(prev => ({ ...prev, [currentIndex]: 'skipped' }));
-    moveToNext();
+    const newStatuses = { ...statuses, [currentIndex]: 'skipped' as StopStatus };
+    const nextIdx = currentIndex + 1;
+    if (nextIdx >= stops.length) {
+      persist({ statuses: newStatuses, currentIndex: nextIdx });
+      setSummaryOpen(true);
+    } else {
+      persist({ statuses: newStatuses, currentIndex: nextIdx, visitStartTime: null });
+    }
   };
 
   const handleReportSubmit = () => {
-    setStatuses(prev => ({ ...prev, [currentIndex]: 'completed' }));
-    setReportOpen(false);
-    setVisitStartTime(null);
-    moveToNext();
-  };
-
-  const moveToNext = useCallback(() => {
+    const newStatuses = { ...statuses, [currentIndex]: 'completed' as StopStatus };
     const nextIdx = currentIndex + 1;
-    if (nextIdx >= stops.length) setSummaryOpen(true);
-    else setCurrentIndex(nextIdx);
-  }, [currentIndex, stops.length]);
+    setReportOpen(false);
+    if (nextIdx >= stops.length) {
+      persist({ statuses: newStatuses, currentIndex: nextIdx, visitStartTime: null });
+      setSummaryOpen(true);
+    } else {
+      persist({ statuses: newStatuses, currentIndex: nextIdx, visitStartTime: null });
+    }
+  };
 
   const handleGoToStop = (index: number) => {
     if (index >= 0 && index < stops.length) {
-      setCurrentIndex(index);
-      setVisitStartTime(null);
+      persist({ currentIndex: index, visitStartTime: null });
     }
   };
 
   const handleStopsReorder = (newStops: TourStop[]) => {
-    setStops(newStops);
-    onReorder?.(newStops);
+    persist({ stops: newStops });
   };
 
-  // Filter out customers already in today's route
   const stopIds = new Set(stops.map(s => s.customer.id));
   const availableCustomers = allCustomers.filter(c => !stopIds.has(c.id));
 
@@ -109,8 +112,7 @@ export function TourMode({ stops: initialStops, onExit, onReorder, allCustomers 
     const newStops = [...stops];
     const insertAt = position === 'next' ? currentIndex + 1 : newStops.length;
     newStops.splice(insertAt, 0, stop);
-    setStops(newStops);
-    onReorder?.(newStops);
+    persist({ stops: newStops });
   };
 
   const handleAddProspect = (data: any, position: 'next' | 'end' | 'manual') => {
@@ -135,6 +137,11 @@ export function TourMode({ stops: initialStops, onExit, onReorder, allCustomers 
     insertStop({ customer, priority }, position);
   };
 
+  const handleEndTour = () => {
+    endSession();
+    onExit();
+  };
+
   if (allDone || summaryOpen) {
     const completedStops = stops.filter((_, i) => statuses[i] === 'completed');
     const skippedStops = stops.filter((_, i) => statuses[i] === 'skipped');
@@ -145,7 +152,7 @@ export function TourMode({ stops: initialStops, onExit, onReorder, allCustomers 
 
     return (
       <DaySummarySheet
-        open={true} onClose={onExit}
+        open={true} onClose={handleEndTour}
         completed={completedStops.length} total={stops.length}
         skipped={skippedStops.length} missed={missedStops.length}
         potentialCovered={potentialCovered} potentialMissed={potentialMissed}
@@ -155,6 +162,7 @@ export function TourMode({ stops: initialStops, onExit, onReorder, allCustomers 
   }
 
   const lastReport = demoLastReports[current.customer.id] || null;
+  const visitStartDate = visitStartTime ? new Date(visitStartTime) : null;
 
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
@@ -280,9 +288,9 @@ export function TourMode({ stops: initialStops, onExit, onReorder, allCustomers 
           </div>
         ) : (
           <div>
-            {visitStartTime && (
+            {visitStartDate && (
               <p className="text-[11px] text-center text-muted-foreground mb-1.5">
-                En cours depuis {Math.floor((Date.now() - visitStartTime.getTime()) / 60000)} min
+                En cours depuis {Math.floor((Date.now() - visitStartDate.getTime()) / 60000)} min
               </p>
             )}
           </div>
