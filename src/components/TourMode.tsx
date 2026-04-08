@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import {
   Phone, Navigation, Play, Square, SkipForward, X,
   MapPin, TrendingUp, AlertTriangle, FileText, UserPlus,
-  Bell, ArrowUpDown, List, Plus, Tag,
+  Bell, ArrowUpDown, List, Plus, Tag, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import { TourReportSheet } from './TourReportSheet';
 import { DaySummarySheet } from './DaySummarySheet';
@@ -53,11 +53,18 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
   if (!session) return null;
 
   const { stops, currentIndex, statuses, visitStartTime } = session;
+
+  // Build list of remaining (non-completed) stop indices
+  const remainingIndices = stops.map((_, i) => i).filter(i => statuses[i] !== 'completed');
+  const currentRemainingPos = remainingIndices.indexOf(currentIndex);
+  const prevRemainingIndex = currentRemainingPos > 0 ? remainingIndices[currentRemainingPos - 1] : null;
+  const nextRemainingIndex = currentRemainingPos < remainingIndices.length - 1 ? remainingIndices[currentRemainingPos + 1] : null;
+
   const current = stops[currentIndex];
   const status = statuses[currentIndex] || 'planned';
   const completedCount = Object.values(statuses).filter(s => s === 'completed').length;
   const isVisitActive = status === 'in_progress';
-  const allDone = currentIndex >= stops.length;
+  const allDone = remainingIndices.length === 0;
 
   const getPriorityColor = (p: number) => p >= 60 ? 'text-destructive' : p >= 30 ? 'text-accent' : 'text-muted-foreground';
   const getPriorityLabel = (p: number) => p >= 60 ? 'Haut potentiel' : p >= 30 ? 'Moyen' : 'Standard';
@@ -74,24 +81,44 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
 
   const handleSkip = () => {
     const newStatuses = { ...statuses, [currentIndex]: 'skipped' as StopStatus };
-    const nextIdx = currentIndex + 1;
-    if (nextIdx >= stops.length) {
-      persist({ statuses: newStatuses, currentIndex: nextIdx });
-      setSummaryOpen(true);
+    // Find next remaining (non-completed) stop after current
+    const nextRemaining = stops.findIndex((_, i) => i > currentIndex && newStatuses[i] !== 'completed');
+    if (nextRemaining === -1) {
+      // Check if any remaining at all
+      const anyRemaining = stops.some((_, i) => newStatuses[i] !== 'completed' && newStatuses[i] !== 'skipped');
+      if (!anyRemaining) {
+        persist({ statuses: newStatuses, currentIndex: currentIndex });
+        setSummaryOpen(true);
+      } else {
+        persist({ statuses: newStatuses, visitStartTime: null });
+      }
     } else {
-      persist({ statuses: newStatuses, currentIndex: nextIdx, visitStartTime: null });
+      persist({ statuses: newStatuses, currentIndex: nextRemaining, visitStartTime: null });
     }
   };
 
   const handleReportSubmit = () => {
     const newStatuses = { ...statuses, [currentIndex]: 'completed' as StopStatus };
-    const nextIdx = currentIndex + 1;
     setReportOpen(false);
-    if (nextIdx >= stops.length) {
-      persist({ statuses: newStatuses, currentIndex: nextIdx, visitStartTime: null });
+    // Find next remaining non-completed stop
+    const nextRemaining = stops.findIndex((_, i) => i !== currentIndex && newStatuses[i] !== 'completed');
+    if (nextRemaining === -1) {
+      persist({ statuses: newStatuses, visitStartTime: null });
       setSummaryOpen(true);
     } else {
-      persist({ statuses: newStatuses, currentIndex: nextIdx, visitStartTime: null });
+      persist({ statuses: newStatuses, currentIndex: nextRemaining, visitStartTime: null });
+    }
+  };
+
+  const handleGoPrev = () => {
+    if (prevRemainingIndex !== null) {
+      persist({ currentIndex: prevRemainingIndex, visitStartTime: null });
+    }
+  };
+
+  const handleGoNext = () => {
+    if (nextRemainingIndex !== null) {
+      persist({ currentIndex: nextRemainingIndex, visitStartTime: null });
     }
   };
 
@@ -215,7 +242,7 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
       {/* ── Main content ── */}
       <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center px-5 py-4 min-h-0">
         <p className="text-[11px] text-muted-foreground mb-1.5">
-          Visite {currentIndex + 1} sur {stops.length}
+          {remainingIndices.length} visite{remainingIndices.length > 1 ? 's' : ''} restante{remainingIndices.length > 1 ? 's' : ''}
         </p>
 
         <div className={`rounded-full px-3.5 py-1 border text-xs font-semibold mb-3 ${getPriorityBg(current.priority)}`}>
@@ -274,16 +301,34 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
         </div>
       </div>
 
-      {/* ── Visit state action (Start / End) ── */}
+      {/* ── Visit state action (Start / End) with nav arrows ── */}
       <div className="px-4 pt-2 bg-card border-t shrink-0">
         {!isVisitActive ? (
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-14 w-14 shrink-0"
+              disabled={prevRemainingIndex === null}
+              onClick={handleGoPrev}
+            >
+              <ChevronLeft className="h-6 w-6" />
+            </Button>
             <Button className="flex-1 h-14 text-base font-bold" onClick={handleStartVisit}>
               <Play className="h-5 w-5 mr-2" />
               Démarrer la visite
             </Button>
-            <Button variant="outline" className="h-14 px-5 text-muted-foreground" onClick={handleSkip}>
+            <Button variant="outline" className="h-14 px-4 text-muted-foreground shrink-0" onClick={handleSkip}>
               <SkipForward className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-14 w-14 shrink-0"
+              disabled={nextRemainingIndex === null}
+              onClick={handleGoNext}
+            >
+              <ChevronRight className="h-6 w-6" />
             </Button>
           </div>
         ) : (
