@@ -37,6 +37,7 @@ export default function AppLayout() {
           </main>
         </div>
         <MobileBottomBar />
+        <FloatingActionButton />
       </div>
     </SidebarProvider>
   );
