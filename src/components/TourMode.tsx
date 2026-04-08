@@ -1,12 +1,13 @@
 import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import {
   Phone, Navigation, Play, Square, SkipForward, X,
-  MapPin, TrendingUp, Clock, AlertTriangle, CheckCircle,
+  MapPin, TrendingUp, AlertTriangle, FileText, UserPlus,
 } from 'lucide-react';
 import { TourReportSheet } from './TourReportSheet';
 import { DaySummarySheet } from './DaySummarySheet';
+import { LastReportCard } from './LastReportCard';
+import { QuickProspectSheet } from './QuickProspectSheet';
 import type { CustomerForRouting } from '@/lib/routeCycleEngine';
 
 export interface TourStop {
@@ -21,46 +22,38 @@ interface TourModeProps {
 
 type StopStatus = 'planned' | 'in_progress' | 'completed' | 'skipped';
 
+// Demo last reports
+const demoLastReports: Record<string, any> = {
+  '1': { date: '25 mars 2026', contactMet: 'M. Martin', summary: 'Commande de 12 pneus passée', nextAction: 'Livraison à confirmer', notes: 'Client satisfait', outcome: 'productive' },
+  '3': { date: '18 mars 2026', contactMet: 'Mme Dupont', summary: 'Présentation du nouveau catalogue', nextAction: 'Envoyer devis personnalisé', notes: 'Intéressé par les pneus hiver', outcome: 'followup' },
+  '5': { date: '12 mars 2026', contactMet: 'M. Leclerc', summary: 'Discussion tarifs flotte', nextAction: 'Revoir les prix volume', notes: 'Flotte de 25 véhicules', outcome: 'productive' },
+};
+
 export function TourMode({ stops, onExit }: TourModeProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [statuses, setStatuses] = useState<Record<number, StopStatus>>({});
   const [visitStartTime, setVisitStartTime] = useState<Date | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
+  const [lastReportOpen, setLastReportOpen] = useState(false);
+  const [prospectOpen, setProspectOpen] = useState(false);
 
   const current = stops[currentIndex];
   const status = statuses[currentIndex] || 'planned';
   const completedCount = Object.values(statuses).filter(s => s === 'completed').length;
-  const skippedCount = Object.values(statuses).filter(s => s === 'skipped').length;
   const isVisitActive = status === 'in_progress';
   const allDone = currentIndex >= stops.length;
 
-  const getPriorityColor = (priority: number) => {
-    if (priority >= 60) return 'text-destructive';
-    if (priority >= 30) return 'text-accent';
-    return 'text-muted-foreground';
-  };
-
-  const getPriorityLabel = (priority: number) => {
-    if (priority >= 60) return 'Haut potentiel';
-    if (priority >= 30) return 'Moyen';
-    return 'Standard';
-  };
-
-  const getPriorityBg = (priority: number) => {
-    if (priority >= 60) return 'bg-destructive/10 border-destructive/30';
-    if (priority >= 30) return 'bg-accent/10 border-accent/30';
-    return 'bg-muted/50 border-border';
-  };
+  const getPriorityColor = (p: number) => p >= 60 ? 'text-destructive' : p >= 30 ? 'text-accent' : 'text-muted-foreground';
+  const getPriorityLabel = (p: number) => p >= 60 ? 'Haut potentiel' : p >= 30 ? 'Moyen' : 'Standard';
+  const getPriorityBg = (p: number) => p >= 60 ? 'bg-destructive/10 border-destructive/30' : p >= 30 ? 'bg-accent/10 border-accent/30' : 'bg-muted/50 border-border';
 
   const handleStartVisit = () => {
     setStatuses(prev => ({ ...prev, [currentIndex]: 'in_progress' }));
     setVisitStartTime(new Date());
   };
 
-  const handleEndVisit = () => {
-    setReportOpen(true);
-  };
+  const handleEndVisit = () => setReportOpen(true);
 
   const handleSkip = () => {
     setStatuses(prev => ({ ...prev, [currentIndex]: 'skipped' }));
@@ -76,15 +69,13 @@ export function TourMode({ stops, onExit }: TourModeProps) {
 
   const moveToNext = useCallback(() => {
     const nextIdx = currentIndex + 1;
-    if (nextIdx >= stops.length) {
-      setSummaryOpen(true);
-    } else {
-      setCurrentIndex(nextIdx);
-    }
+    if (nextIdx >= stops.length) setSummaryOpen(true);
+    else setCurrentIndex(nextIdx);
   }, [currentIndex, stops.length]);
 
-  const handleEndDay = () => {
-    setSummaryOpen(true);
+  const handleProspectSubmit = (data: any) => {
+    setProspectOpen(false);
+    // In real app: save to DB
   };
 
   // Show summary if all done
@@ -111,6 +102,8 @@ export function TourMode({ stops, onExit }: TourModeProps) {
     );
   }
 
+  const lastReport = demoLastReports[current.customer.id] || null;
+
   return (
     <div className="fixed inset-0 z-50 bg-background flex flex-col">
       {/* Top bar */}
@@ -124,9 +117,14 @@ export function TourMode({ stops, onExit }: TourModeProps) {
             <p className="text-sm font-bold">{completedCount} / {stops.length} visites</p>
           </div>
         </div>
-        <Button variant="outline" size="sm" className="h-9 text-xs" onClick={handleEndDay}>
-          Fin de journée
-        </Button>
+        <div className="flex items-center gap-1.5">
+          <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setProspectOpen(true)}>
+            <UserPlus className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="sm" className="h-9 text-xs" onClick={() => setSummaryOpen(true)}>
+            Fin
+          </Button>
+        </div>
       </div>
 
       {/* Progress bar */}
@@ -149,31 +147,27 @@ export function TourMode({ stops, onExit }: TourModeProps) {
         );
       })()}
 
-      {/* Main content - single visit card */}
+      {/* Main content */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-4">
-        {/* Visit number */}
         <p className="text-xs text-muted-foreground mb-2">
           Visite {currentIndex + 1} sur {stops.length}
         </p>
 
-        {/* Priority indicator */}
         <div className={`rounded-full px-4 py-1.5 border text-xs font-semibold mb-4 ${getPriorityBg(current.priority)}`}>
           <span className={getPriorityColor(current.priority)}>● {getPriorityLabel(current.priority)}</span>
         </div>
 
-        {/* Customer name - large */}
         <h1 className="font-heading text-2xl md:text-3xl font-bold text-center mb-2">
           {current.customer.company_name}
         </h1>
 
-        {/* Address */}
         <div className="flex items-center gap-1.5 text-muted-foreground mb-4">
           <MapPin className="h-4 w-4 shrink-0" />
           <p className="text-sm text-center">{current.customer.address || 'Adresse non renseignée'}</p>
         </div>
 
-        {/* Key info pills */}
-        <div className="flex flex-wrap gap-2 justify-center mb-6">
+        {/* Info pills */}
+        <div className="flex flex-wrap gap-2 justify-center mb-4">
           {current.customer.annual_revenue_potential > 0 && (
             <div className="flex items-center gap-1.5 rounded-full bg-accent/10 px-3 py-1.5">
               <TrendingUp className="h-3.5 w-3.5 text-accent" />
@@ -191,7 +185,14 @@ export function TourMode({ stops, onExit }: TourModeProps) {
           )}
         </div>
 
-        {/* Quick action buttons - large */}
+        {/* Last report button */}
+        <Button variant="outline" size="sm" className="mb-6 text-xs h-9"
+          onClick={() => setLastReportOpen(true)}>
+          <FileText className="h-3.5 w-3.5 mr-1.5" />
+          Dernier rapport
+        </Button>
+
+        {/* Quick action buttons */}
         <div className="flex gap-3 mb-8 w-full max-w-xs">
           <a href={`tel:${current.customer.phone}`} className="flex-1">
             <Button variant="outline" className="w-full h-14 flex-col gap-1 text-xs font-medium">
@@ -209,7 +210,7 @@ export function TourMode({ stops, onExit }: TourModeProps) {
         </div>
       </div>
 
-      {/* Bottom action area - big buttons */}
+      {/* Bottom action area */}
       <div className="px-4 pb-6 pt-2 border-t bg-card space-y-2 safe-area-bottom">
         {!isVisitActive ? (
           <div className="flex gap-2">
@@ -236,12 +237,26 @@ export function TourMode({ stops, onExit }: TourModeProps) {
         )}
       </div>
 
-      {/* Quick Report */}
+      {/* Sheets */}
       <TourReportSheet
         open={reportOpen}
         onOpenChange={setReportOpen}
         clientName={current.customer.company_name}
         onSubmit={handleReportSubmit}
+        onAddProspect={() => { setReportOpen(false); setProspectOpen(true); }}
+      />
+
+      <LastReportCard
+        open={lastReportOpen}
+        onOpenChange={setLastReportOpen}
+        clientName={current.customer.company_name}
+        report={lastReport}
+      />
+
+      <QuickProspectSheet
+        open={prospectOpen}
+        onOpenChange={setProspectOpen}
+        onSubmit={handleProspectSubmit}
       />
     </div>
   );
