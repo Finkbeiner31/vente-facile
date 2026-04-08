@@ -40,6 +40,18 @@ export default function RoutesPage() {
   const [reportOpen, setReportOpen] = useState(false);
   const [activeClient, setActiveClient] = useState('');
   const [dayStarted, setDayStarted] = useState(false);
+  const [tourMode, setTourMode] = useState(false);
+
+  const todayStops = cycle[selectedDay] || [];
+
+  if (tourMode) {
+    return (
+      <TourMode
+        stops={todayStops.map(s => ({ customer: s.customer, priority: s.priority }))}
+        onExit={() => setTourMode(false)}
+      />
+    );
+  }
 
   const todayStops = cycle[selectedDay] || [];
   const completedCount = todayStops.filter(s => statuses[`${selectedDay}-${s.customer.id}`] === 'completed').length;
