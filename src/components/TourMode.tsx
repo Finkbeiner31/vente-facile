@@ -237,7 +237,6 @@ export function TourMode({ stops: initialStops, onExit, onReorder, allCustomers 
               </div>
             );
           })()}
-          )}
           {current.customer.number_of_vehicles > 0 && (
             <div className="flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5">
               <span className="text-xs font-medium text-muted-foreground">
