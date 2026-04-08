@@ -5,6 +5,7 @@ import {
   FileText,
   CheckSquare,
   TrendingUp,
+  Tag,
   Settings,
   LogOut,
   Flame,
@@ -34,6 +35,7 @@ const mainNav = [
   { title: 'Rapports de visite', url: '/rapports', icon: FileText },
   { title: 'Tâches', url: '/taches', icon: CheckSquare },
   { title: 'Opportunités', url: '/opportunites', icon: TrendingUp },
+  { title: 'Promotions', url: '/promotions', icon: Tag },
 ];
 
 const adminNav = [

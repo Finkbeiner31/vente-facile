@@ -5,8 +5,13 @@ import { Input } from '@/components/ui/input';
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from '@/components/ui/sheet';
-import { CheckCircle, XCircle, Clock, Repeat, Mic, MicOff, ArrowRight, UserPlus } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Repeat, Mic, MicOff, ArrowRight, UserPlus, Tag } from 'lucide-react';
 import { FollowUpActionSection, type FollowUpAction } from './FollowUpActionSection';
+import { PromotionPickerSheet } from './PromotionPickerSheet';
+import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import type { Promotion } from '@/pages/PromotionsPage';
 
 const OUTCOMES = [
   { value: 'productive', label: 'Productif', icon: CheckCircle, color: 'bg-success/10 text-success border-success/30' },
@@ -34,6 +39,10 @@ export function TourReportSheet({ open, onOpenChange, clientName, onSubmit, onAd
   const [nextActionDate, setNextActionDate] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [followUpAction, setFollowUpAction] = useState<FollowUpAction | null>(null);
+  const [promotionPresented, setPromotionPresented] = useState(false);
+  const [selectedPromotion, setSelectedPromotion] = useState<Promotion | null>(null);
+  const [promoPickerOpen, setPromoPickerOpen] = useState(false);
+  const [promoComment, setPromoComment] = useState('');
 
   const handleVoice = () => {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) return;
@@ -62,9 +71,13 @@ export function TourReportSheet({ open, onOpenChange, clientName, onSubmit, onAd
     setNotes('');
     setNextActionDate('');
     setFollowUpAction(null);
+    setPromotionPresented(false);
+    setSelectedPromotion(null);
+    setPromoComment('');
   };
 
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="h-auto max-h-[90vh] rounded-t-2xl px-5 pb-8 overflow-y-auto">
         <SheetHeader className="pb-3">
@@ -124,6 +137,36 @@ export function TourReportSheet({ open, onOpenChange, clientName, onSubmit, onAd
             <Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes rapides..." rows={2} />
           </div>
 
+          {/* Promotion */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between rounded-lg border border-border p-3">
+              <Label className="text-sm font-medium flex items-center gap-2">
+                <Tag className="h-4 w-4 text-chart-4" />
+                Promotion présentée
+              </Label>
+              <Switch checked={promotionPresented} onCheckedChange={(checked) => {
+                setPromotionPresented(checked);
+                if (!checked) { setSelectedPromotion(null); setPromoComment(''); }
+              }} />
+            </div>
+            {promotionPresented && (
+              <div className="space-y-2 pl-1">
+                {selectedPromotion ? (
+                  <div className="flex items-center gap-2 rounded-lg bg-chart-4/10 border border-chart-4/20 p-2.5">
+                    <Tag className="h-4 w-4 text-chart-4 shrink-0" />
+                    <span className="text-sm font-medium flex-1 truncate">{selectedPromotion.title}</span>
+                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setPromoPickerOpen(true)}>Changer</Button>
+                  </div>
+                ) : (
+                  <Button variant="outline" className="w-full h-10 text-xs gap-2" onClick={() => setPromoPickerOpen(true)}>
+                    <Tag className="h-4 w-4" /> Choisir une promotion
+                  </Button>
+                )}
+                <Input placeholder="Commentaire (optionnel)" value={promoComment} onChange={e => setPromoComment(e.target.value)} className="h-10" />
+              </div>
+            )}
+          </div>
+
           {/* Follow-up action */}
           <FollowUpActionSection onActionChange={setFollowUpAction} />
 
@@ -146,5 +189,13 @@ export function TourReportSheet({ open, onOpenChange, clientName, onSubmit, onAd
         </div>
       </SheetContent>
     </Sheet>
+
+    <PromotionPickerSheet
+      open={promoPickerOpen}
+      onOpenChange={setPromoPickerOpen}
+      mode="select"
+      onSelect={(promo) => setSelectedPromotion(promo)}
+    />
+    </>
   );
 }

@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import {
   Phone, Navigation, Play, Square, SkipForward, X,
   MapPin, TrendingUp, AlertTriangle, FileText, UserPlus,
-  Bell, ArrowUpDown, List, Plus,
+  Bell, ArrowUpDown, List, Plus, Tag,
 } from 'lucide-react';
 import { TourReportSheet } from './TourReportSheet';
 import { DaySummarySheet } from './DaySummarySheet';
@@ -13,6 +13,7 @@ import { QuickReminderSheet } from './QuickReminderSheet';
 import { SortableRouteList } from './SortableRouteList';
 import { DayListDrawer } from './DayListDrawer';
 import { AddUnplannedVisitSheet } from './AddUnplannedVisitSheet';
+import { PromotionPickerSheet } from './PromotionPickerSheet';
 import { formatMonthly, formatAnnual, getRevenueTier, getRevenueTierColor, getRevenueTierBg } from '@/lib/revenueUtils';
 import type { CustomerForRouting } from '@/lib/routeCycleEngine';
 
@@ -51,6 +52,7 @@ export function TourMode({ stops: initialStops, onExit, onReorder, allCustomers 
   const [reorderOpen, setReorderOpen] = useState(false);
   const [dayListOpen, setDayListOpen] = useState(false);
   const [addUnplannedOpen, setAddUnplannedOpen] = useState(false);
+  const [promotionsOpen, setPromotionsOpen] = useState(false);
 
   const current = stops[currentIndex];
   const status = statuses[currentIndex] || 'planned';
@@ -293,6 +295,7 @@ export function TourMode({ stops: initialStops, onExit, onReorder, allCustomers 
         {[
             { icon: FileText, label: 'Dernier\nrapport', color: 'text-primary', bg: 'bg-primary/10', onClick: () => setLastReportOpen(true) },
             ...(!isVisitActive ? [{ icon: Plus, label: 'Visite\nimprévue', color: 'text-accent', bg: 'bg-accent/10', onClick: () => setAddUnplannedOpen(true) }] : []),
+            { icon: Tag, label: 'Promos', color: 'text-chart-4', bg: 'bg-chart-4/10', onClick: () => setPromotionsOpen(true) },
             { icon: Bell, label: 'Rappel', color: 'text-warning', bg: 'bg-warning/10', onClick: () => setReminderOpen(true) },
             {
               icon: isVisitActive ? Square : Play,
@@ -392,6 +395,11 @@ export function TourMode({ stops: initialStops, onExit, onReorder, allCustomers 
         onOpenChange={setReminderOpen}
         clientName={current.customer.company_name}
         onSubmit={() => setReminderOpen(false)}
+      />
+
+      <PromotionPickerSheet
+        open={promotionsOpen}
+        onOpenChange={setPromotionsOpen}
       />
     </div>
   );

@@ -303,6 +303,60 @@ export type Database = {
         }
         Relationships: []
       }
+      promotions: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          discount_value: number | null
+          end_date: string
+          id: string
+          image_url: string | null
+          pdf_url: string | null
+          product_or_category: string | null
+          promotion_type: string
+          start_date: string
+          target_customer_type: string | null
+          target_region: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          discount_value?: number | null
+          end_date: string
+          id?: string
+          image_url?: string | null
+          pdf_url?: string | null
+          product_or_category?: string | null
+          promotion_type?: string
+          start_date: string
+          target_customer_type?: string | null
+          target_region?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          discount_value?: number | null
+          end_date?: string
+          id?: string
+          image_url?: string | null
+          pdf_url?: string | null
+          product_or_category?: string | null
+          promotion_type?: string
+          start_date?: string
+          target_customer_type?: string | null
+          target_region?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       route_stops: {
         Row: {
           created_at: string
@@ -480,6 +534,8 @@ export type Database = {
           id: string
           next_actions: string | null
           opportunities_detected: string | null
+          promotion_id: string | null
+          promotion_presented: boolean | null
           quick_outcome: string | null
           rep_id: string
           route_stop_id: string | null
@@ -501,6 +557,8 @@ export type Database = {
           id?: string
           next_actions?: string | null
           opportunities_detected?: string | null
+          promotion_id?: string | null
+          promotion_presented?: boolean | null
           quick_outcome?: string | null
           rep_id: string
           route_stop_id?: string | null
@@ -522,6 +580,8 @@ export type Database = {
           id?: string
           next_actions?: string | null
           opportunities_detected?: string | null
+          promotion_id?: string | null
+          promotion_presented?: boolean | null
           quick_outcome?: string | null
           rep_id?: string
           route_stop_id?: string | null
@@ -545,6 +605,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "visit_reports_promotion_id_fkey"
+            columns: ["promotion_id"]
+            isOneToOne: false
+            referencedRelation: "promotions"
             referencedColumns: ["id"]
           },
           {
