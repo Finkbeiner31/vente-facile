@@ -99,13 +99,26 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
 
   const handleReportSubmit = () => {
     const newStatuses = { ...statuses, [currentIndex]: 'completed' as StopStatus };
-    const nextIdx = currentIndex + 1;
     setReportOpen(false);
-    if (nextIdx >= stops.length) {
-      persist({ statuses: newStatuses, currentIndex: nextIdx, visitStartTime: null });
+    // Find next remaining non-completed stop
+    const nextRemaining = stops.findIndex((_, i) => i !== currentIndex && newStatuses[i] !== 'completed');
+    if (nextRemaining === -1) {
+      persist({ statuses: newStatuses, visitStartTime: null });
       setSummaryOpen(true);
     } else {
-      persist({ statuses: newStatuses, currentIndex: nextIdx, visitStartTime: null });
+      persist({ statuses: newStatuses, currentIndex: nextRemaining, visitStartTime: null });
+    }
+  };
+
+  const handleGoPrev = () => {
+    if (prevRemainingIndex !== null) {
+      persist({ currentIndex: prevRemainingIndex, visitStartTime: null });
+    }
+  };
+
+  const handleGoNext = () => {
+    if (nextRemainingIndex !== null) {
+      persist({ currentIndex: nextRemainingIndex, visitStartTime: null });
     }
   };
 
