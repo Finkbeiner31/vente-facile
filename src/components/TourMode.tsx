@@ -113,9 +113,15 @@ export function TourMode({ stops: initialStops, onExit, onReorder }: TourModePro
             <p className="text-sm font-bold leading-tight">{completedCount} / {stops.length} visites</p>
           </div>
         </div>
-        <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setSummaryOpen(true)}>
-          Fin de journée
-        </Button>
+        <div className="flex items-center gap-1.5">
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={() => setReorderOpen(true)}>
+            <ArrowUpDown className="h-3.5 w-3.5" />
+            Ordre
+          </Button>
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setSummaryOpen(true)}>
+            Fin de journée
+          </Button>
+        </div>
       </div>
 
       {/* ── Progress bar ── */}
