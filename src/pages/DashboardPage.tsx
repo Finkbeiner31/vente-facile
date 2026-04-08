@@ -120,26 +120,9 @@ export default function DashboardPage() {
             <div className="h-full bg-primary rounded-full transition-all duration-500"
               style={{ width: `${todayStops.length > 0 ? (completedCount / todayStops.length) * 100 : 0}%` }} />
           </div>
-          <div className="flex gap-2">
-            {!dayStarted && (
-              <Button className="flex-1 h-12 font-semibold" onClick={() => { setDayStarted(true); handleNextVisit(); }}>
-                <Sun className="h-4 w-4 mr-2" /> Démarrer la journée
-              </Button>
-            )}
-            {dayStarted && !inProgress && completedCount < todayStops.length && (
-              <Button className="flex-1 h-12 font-semibold" onClick={handleNextVisit}>
-                <Play className="h-4 w-4 mr-2" /> Visite suivante
-              </Button>
-            )}
-            {dayStarted && completedCount === todayStops.length && todayStops.length > 0 && (
-              <Button variant="outline" className="flex-1 h-12 font-semibold border-success text-success"
-                onClick={() => setDayStarted(false)}>
-                <Flag className="h-4 w-4 mr-2" /> Journée terminée 🎉
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+          <Button className="flex-1 h-14 font-bold text-base" onClick={() => setTourMode(true)}>
+            <Sun className="h-5 w-5 mr-2" /> Lancer la tournée
+          </Button>
 
       {/* In-progress visit */}
       {inProgress && (
