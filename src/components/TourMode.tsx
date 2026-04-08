@@ -32,7 +32,8 @@ const demoLastReports: Record<string, any> = {
   '5': { date: '12 mars 2026', contactMet: 'M. Leclerc', summary: 'Discussion tarifs flotte', nextAction: 'Revoir les prix volume', notes: 'Flotte de 25 véhicules', outcome: 'productive' },
 };
 
-export function TourMode({ stops, onExit }: TourModeProps) {
+export function TourMode({ stops: initialStops, onExit, onReorder }: TourModeProps) {
+  const [stops, setStops] = useState(initialStops);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [statuses, setStatuses] = useState<Record<number, StopStatus>>({});
   const [visitStartTime, setVisitStartTime] = useState<Date | null>(null);
@@ -41,6 +42,7 @@ export function TourMode({ stops, onExit }: TourModeProps) {
   const [lastReportOpen, setLastReportOpen] = useState(false);
   const [prospectOpen, setProspectOpen] = useState(false);
   const [reminderOpen, setReminderOpen] = useState(false);
+  const [reorderOpen, setReorderOpen] = useState(false);
 
   const current = stops[currentIndex];
   const status = statuses[currentIndex] || 'planned';
