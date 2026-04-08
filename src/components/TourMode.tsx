@@ -301,16 +301,34 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
         </div>
       </div>
 
-      {/* ── Visit state action (Start / End) ── */}
+      {/* ── Visit state action (Start / End) with nav arrows ── */}
       <div className="px-4 pt-2 bg-card border-t shrink-0">
         {!isVisitActive ? (
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-14 w-14 shrink-0"
+              disabled={prevRemainingIndex === null}
+              onClick={handleGoPrev}
+            >
+              <ChevronLeft className="h-6 w-6" />
+            </Button>
             <Button className="flex-1 h-14 text-base font-bold" onClick={handleStartVisit}>
               <Play className="h-5 w-5 mr-2" />
               Démarrer la visite
             </Button>
-            <Button variant="outline" className="h-14 px-5 text-muted-foreground" onClick={handleSkip}>
+            <Button variant="outline" className="h-14 px-4 text-muted-foreground shrink-0" onClick={handleSkip}>
               <SkipForward className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-14 w-14 shrink-0"
+              disabled={nextRemainingIndex === null}
+              onClick={handleGoNext}
+            >
+              <ChevronRight className="h-6 w-6" />
             </Button>
           </div>
         ) : (
