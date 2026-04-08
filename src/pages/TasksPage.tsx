@@ -140,62 +140,64 @@ export default function TasksPage() {
           const isExpanded = expandedHistory === task.id;
           return (
             <Card key={task.id} className={`transition-all ${taskOverdue ? 'border-destructive/40 bg-destructive/5' : ''}`}>
-              <CardContent className="p-3">
-                <div className="flex items-start gap-3">
-                  <div className={`mt-0.5 h-3 w-3 shrink-0 rounded-full ${
+              <CardContent className="p-3 space-y-2.5">
+                {/* Row 1: priority dot + title + client */}
+                <div className="flex items-start gap-2.5">
+                  <div className={`mt-1 h-3 w-3 shrink-0 rounded-full ${
                     task.priority === 'high' ? 'bg-destructive' :
                     task.priority === 'medium' ? 'bg-warning' : 'bg-success'
                   }`} />
                   <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium ${task.status === 'done' ? 'line-through text-muted-foreground' : ''}`}>
+                    <p className={`text-sm font-semibold leading-snug ${task.status === 'done' ? 'line-through text-muted-foreground' : ''}`}>
                       {task.title}
                     </p>
-                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      {task.client !== '—' && (
-                        <Badge variant="secondary" className="text-[9px] h-5 gap-1">
-                          <Building2 className="h-2.5 w-2.5" />
-                          {task.client}
-                        </Badge>
-                      )}
-                      {task.visitRef && (
-                        <Badge variant="outline" className="text-[9px] h-5">
-                          {task.visitRef}
-                        </Badge>
-                      )}
-                      {task.reminderMode && (
-                        <Badge variant="outline" className="text-[9px] h-5 gap-0.5 border-primary/30 text-primary">
-                          {task.reminderMode === 'agenda' ? <CalendarDays className="h-2.5 w-2.5" /> : <Bell className="h-2.5 w-2.5" />}
-                          {REMINDER_LABELS[task.reminderMode]}
-                        </Badge>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    <Badge
-                      variant="secondary"
-                      className={`text-[10px] ${taskOverdue ? 'bg-destructive/10 text-destructive' : ''}`}
-                    >
-                      <Clock className="h-2.5 w-2.5 mr-0.5" />
-                      {task.due}
-                    </Badge>
-                    {taskOverdue && (
-                      <span className="flex items-center gap-0.5 text-[10px] text-destructive font-semibold">
-                        <AlertTriangle className="h-3 w-3" />
-                        En retard
-                      </span>
-                    )}
-                    {task.status === 'done' && task.completedAt && (
-                      <span className="text-[10px] text-success font-medium">
-                        ✓ {formatDate(task.completedAt.split('T')[0])}
-                      </span>
+                    {task.client !== '—' && (
+                      <div className="flex items-center gap-1 mt-0.5 text-xs text-muted-foreground">
+                        <Building2 className="h-3 w-3" />
+                        {task.client}
+                      </div>
                     )}
                   </div>
                 </div>
 
-                {/* Action buttons */}
+                {/* Row 2: Due date + reminder + visit ref — info strip */}
+                <div className="flex items-center gap-2 flex-wrap pl-[22px]">
+                  <Badge
+                    variant="secondary"
+                    className={`text-[11px] h-6 gap-1 font-semibold ${taskOverdue ? 'bg-destructive/10 text-destructive' : ''}`}
+                  >
+                    <Clock className="h-3 w-3" />
+                    {taskOverdue && <AlertTriangle className="h-3 w-3" />}
+                    {task.due}
+                    {taskOverdue && ' · En retard'}
+                  </Badge>
+
+                  {task.reminderMode && (
+                    <Badge variant="outline" className="text-[11px] h-6 gap-1 border-primary/30 text-primary font-medium">
+                      {task.reminderMode === 'agenda' ? <CalendarDays className="h-3 w-3" /> : <Bell className="h-3 w-3" />}
+                      {REMINDER_LABELS[task.reminderMode]}
+                      {task.reminderDate && ` · ${formatDate(task.reminderDate)}`}
+                    </Badge>
+                  )}
+
+                  {task.visitRef && (
+                    <Badge variant="outline" className="text-[10px] h-5">
+                      {task.visitRef}
+                    </Badge>
+                  )}
+
+                  {task.status === 'done' && task.completedAt && (
+                    <Badge variant="secondary" className="text-[11px] h-6 gap-1 bg-success/10 text-success font-medium">
+                      <CheckCircle className="h-3 w-3" />
+                      Terminée {formatDate(task.completedAt.split('T')[0])}
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Row 3: Action buttons */}
                 {task.status !== 'done' && (
-                  <div className="flex gap-2 mt-2.5">
-                    <Button variant="outline" size="sm" className="h-9 text-xs flex-1"
+                  <div className="flex gap-2 pl-[22px]">
+                    <Button size="sm" className="h-9 text-xs flex-1 font-semibold"
                       onClick={() => completeTask(task.id)}>
                       <CheckCircle className="h-3.5 w-3.5 mr-1" /> Terminer
                     </Button>
@@ -209,14 +211,14 @@ export default function TasksPage() {
                 {/* History toggle */}
                 <button
                   onClick={() => setExpandedHistory(isExpanded ? null : task.id)}
-                  className="flex items-center gap-1 mt-2 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                  className="flex items-center gap-1 pl-[22px] text-[10px] text-muted-foreground hover:text-foreground transition-colors"
                 >
                   <History className="h-3 w-3" />
                   Historique ({task.history.length})
                 </button>
 
                 {isExpanded && (
-                  <div className="mt-1.5 pl-4 border-l-2 border-border space-y-1">
+                  <div className="ml-[22px] pl-3 border-l-2 border-border space-y-1">
                     {task.history.map((h, i) => (
                       <div key={i} className="text-[10px] text-muted-foreground">
                         <span className="font-medium">
