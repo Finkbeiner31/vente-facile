@@ -101,9 +101,9 @@ export function DayListDrawer({
                             </span>
                           )}
                           {stop.customer.annual_revenue_potential > 0 && (
-                            <span className="flex items-center gap-0.5 text-[10px] text-accent shrink-0">
+                            <span className={`flex items-center gap-0.5 text-[10px] font-medium shrink-0 ${getRevenueTierColor(getRevenueTier(stop.customer.annual_revenue_potential))}`}>
                               <TrendingUp className="h-3 w-3" />
-                              {(stop.customer.annual_revenue_potential / 1000).toFixed(0)}k€
+                              {formatMonthly(stop.customer.annual_revenue_potential)}
                             </span>
                           )}
                         </div>

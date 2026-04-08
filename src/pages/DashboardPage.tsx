@@ -169,7 +169,10 @@ export default function DashboardPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{stop.customer.company_name}</p>
                   {stop.customer.annual_revenue_potential > 0 && (
-                    <p className="text-[10px] text-accent">{(stop.customer.annual_revenue_potential / 1000).toFixed(0)}k€/an</p>
+                    <p className={`text-[10px] font-medium ${getRevenueTierColor(getRevenueTier(stop.customer.annual_revenue_potential))}`}>
+                      {formatMonthly(stop.customer.annual_revenue_potential)}
+                      <span className="text-muted-foreground ml-1">({formatAnnual(stop.customer.annual_revenue_potential)})</span>
+                    </p>
                   )}
                 </div>
                 {status === 'planned' && (

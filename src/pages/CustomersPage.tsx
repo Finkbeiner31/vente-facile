@@ -74,7 +74,7 @@ export default function CustomersPage() {
                         <Car className="h-2.5 w-2.5" /> {customer.vehicles}
                       </span>
                       <span>·</span>
-                      <span className="text-accent font-medium">{(customer.revenue / 1000).toFixed(0)}k€</span>
+                      <span className={`font-semibold ${getRevenueTierColor(getRevenueTier(customer.revenue))}`}>{formatMonthly(customer.revenue)}</span>
                     </div>
                     {customer.nextAction && (
                       <p className="text-[10px] text-primary font-medium mt-0.5 truncate">→ {customer.nextAction}</p>

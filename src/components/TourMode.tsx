@@ -13,6 +13,7 @@ import { QuickReminderSheet } from './QuickReminderSheet';
 import { SortableRouteList } from './SortableRouteList';
 import { DayListDrawer } from './DayListDrawer';
 import { AddUnplannedVisitSheet } from './AddUnplannedVisitSheet';
+import { formatMonthly, formatAnnual, getRevenueTier, getRevenueTierColor, getRevenueTierBg } from '@/lib/revenueUtils';
 import type { CustomerForRouting } from '@/lib/routeCycleEngine';
 
 export interface TourStop {
@@ -222,13 +223,20 @@ export function TourMode({ stops: initialStops, onExit, onReorder, allCustomers 
 
         {/* Info pills */}
         <div className="flex flex-wrap gap-2 justify-center mb-5">
-          {current.customer.annual_revenue_potential > 0 && (
-            <div className="flex items-center gap-1.5 rounded-full bg-accent/10 px-3 py-1.5">
-              <TrendingUp className="h-3.5 w-3.5 text-accent" />
-              <span className="text-xs font-semibold text-accent">
-                {(current.customer.annual_revenue_potential / 1000).toFixed(0)}k€/an
-              </span>
-            </div>
+          {current.customer.annual_revenue_potential > 0 && (() => {
+            const tier = getRevenueTier(current.customer.annual_revenue_potential);
+            return (
+              <div className={`flex items-center gap-1.5 rounded-full ${getRevenueTierBg(tier)} px-3 py-1.5`}>
+                <TrendingUp className={`h-3.5 w-3.5 ${getRevenueTierColor(tier)}`} />
+                <span className={`text-xs font-bold ${getRevenueTierColor(tier)}`}>
+                  {formatMonthly(current.customer.annual_revenue_potential)}
+                </span>
+                <span className="text-[10px] text-muted-foreground ml-1">
+                  ({formatAnnual(current.customer.annual_revenue_potential)})
+                </span>
+              </div>
+            );
+          })()}
           )}
           {current.customer.number_of_vehicles > 0 && (
             <div className="flex items-center gap-1.5 rounded-full bg-muted px-3 py-1.5">
