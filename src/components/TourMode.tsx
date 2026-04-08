@@ -81,12 +81,19 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
 
   const handleSkip = () => {
     const newStatuses = { ...statuses, [currentIndex]: 'skipped' as StopStatus };
-    const nextIdx = currentIndex + 1;
-    if (nextIdx >= stops.length) {
-      persist({ statuses: newStatuses, currentIndex: nextIdx });
-      setSummaryOpen(true);
+    // Find next remaining (non-completed) stop after current
+    const nextRemaining = stops.findIndex((_, i) => i > currentIndex && newStatuses[i] !== 'completed');
+    if (nextRemaining === -1) {
+      // Check if any remaining at all
+      const anyRemaining = stops.some((_, i) => newStatuses[i] !== 'completed' && newStatuses[i] !== 'skipped');
+      if (!anyRemaining) {
+        persist({ statuses: newStatuses, currentIndex: currentIndex });
+        setSummaryOpen(true);
+      } else {
+        persist({ statuses: newStatuses, visitStartTime: null });
+      }
     } else {
-      persist({ statuses: newStatuses, currentIndex: nextIdx, visitStartTime: null });
+      persist({ statuses: newStatuses, currentIndex: nextRemaining, visitStartTime: null });
     }
   };
 
