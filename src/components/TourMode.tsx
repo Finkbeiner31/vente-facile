@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import {
   Phone, Navigation, Play, Square, SkipForward, X,
   MapPin, TrendingUp, AlertTriangle, FileText, UserPlus,
-  Bell, ChevronUp, ArrowUpDown,
+  Bell, ArrowUpDown, List, Plus,
 } from 'lucide-react';
 import { TourReportSheet } from './TourReportSheet';
 import { DaySummarySheet } from './DaySummarySheet';
@@ -11,6 +11,8 @@ import { LastReportCard } from './LastReportCard';
 import { QuickProspectSheet } from './QuickProspectSheet';
 import { QuickReminderSheet } from './QuickReminderSheet';
 import { SortableRouteList } from './SortableRouteList';
+import { DayListDrawer } from './DayListDrawer';
+import { AddUnplannedVisitSheet } from './AddUnplannedVisitSheet';
 import type { CustomerForRouting } from '@/lib/routeCycleEngine';
 
 export interface TourStop {
@@ -22,6 +24,7 @@ interface TourModeProps {
   stops: TourStop[];
   onExit: () => void;
   onReorder?: (stops: TourStop[]) => void;
+  allCustomers?: CustomerForRouting[];
 }
 
 type StopStatus = 'planned' | 'in_progress' | 'completed' | 'skipped';
@@ -32,17 +35,21 @@ const demoLastReports: Record<string, any> = {
   '5': { date: '12 mars 2026', contactMet: 'M. Leclerc', summary: 'Discussion tarifs flotte', nextAction: 'Revoir les prix volume', notes: 'Flotte de 25 véhicules', outcome: 'productive' },
 };
 
-export function TourMode({ stops: initialStops, onExit, onReorder }: TourModeProps) {
+export function TourMode({ stops: initialStops, onExit, onReorder, allCustomers = [] }: TourModeProps) {
   const [stops, setStops] = useState(initialStops);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [statuses, setStatuses] = useState<Record<number, StopStatus>>({});
   const [visitStartTime, setVisitStartTime] = useState<Date | null>(null);
+
+  // Sheet states
   const [reportOpen, setReportOpen] = useState(false);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [lastReportOpen, setLastReportOpen] = useState(false);
   const [prospectOpen, setProspectOpen] = useState(false);
   const [reminderOpen, setReminderOpen] = useState(false);
   const [reorderOpen, setReorderOpen] = useState(false);
+  const [dayListOpen, setDayListOpen] = useState(false);
+  const [addUnplannedOpen, setAddUnplannedOpen] = useState(false);
 
   const current = stops[currentIndex];
   const status = statuses[currentIndex] || 'planned';
@@ -79,6 +86,52 @@ export function TourMode({ stops: initialStops, onExit, onReorder }: TourModePro
     else setCurrentIndex(nextIdx);
   }, [currentIndex, stops.length]);
 
+  const handleGoToStop = (index: number) => {
+    if (index >= 0 && index < stops.length) {
+      setCurrentIndex(index);
+      setVisitStartTime(null);
+    }
+  };
+
+  const handleStopsReorder = (newStops: TourStop[]) => {
+    setStops(newStops);
+    onReorder?.(newStops);
+  };
+
+  // Filter out customers already in today's route
+  const stopIds = new Set(stops.map(s => s.customer.id));
+  const availableCustomers = allCustomers.filter(c => !stopIds.has(c.id));
+
+  const insertStop = (stop: TourStop, position: 'next' | 'end' | 'manual') => {
+    const newStops = [...stops];
+    const insertAt = position === 'next' ? currentIndex + 1 : newStops.length;
+    newStops.splice(insertAt, 0, stop);
+    setStops(newStops);
+    onReorder?.(newStops);
+  };
+
+  const handleAddProspect = (data: any, position: 'next' | 'end' | 'manual') => {
+    const prospectCustomer: CustomerForRouting = {
+      id: `prospect-${Date.now()}`,
+      company_name: data.company_name,
+      address: data.address || null,
+      city: data.city,
+      phone: data.contact_name ? data.phone : null,
+      visit_frequency: null,
+      number_of_vehicles: data.number_of_vehicles || 0,
+      annual_revenue_potential: (data.number_of_vehicles || 0) * 3500,
+      latitude: null,
+      longitude: null,
+      sales_potential: null,
+    };
+    insertStop({ customer: prospectCustomer, priority: 30 }, position);
+  };
+
+  const handleAddExistingCustomer = (customer: CustomerForRouting, position: 'next' | 'end' | 'manual') => {
+    const priority = customer.annual_revenue_potential >= 50000 ? 60 : customer.annual_revenue_potential >= 20000 ? 30 : 10;
+    insertStop({ customer, priority }, position);
+  };
+
   if (allDone || summaryOpen) {
     const completedStops = stops.filter((_, i) => statuses[i] === 'completed');
     const skippedStops = stops.filter((_, i) => statuses[i] === 'skipped');
@@ -114,12 +167,16 @@ export function TourMode({ stops: initialStops, onExit, onReorder }: TourModePro
           </div>
         </div>
         <div className="flex items-center gap-1.5">
+          <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={() => setDayListOpen(true)}>
+            <List className="h-3.5 w-3.5" />
+            Jour
+          </Button>
           <Button variant="outline" size="sm" className="h-8 text-xs gap-1" onClick={() => setReorderOpen(true)}>
             <ArrowUpDown className="h-3.5 w-3.5" />
             Ordre
           </Button>
           <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setSummaryOpen(true)}>
-            Fin de journée
+            Fin
           </Button>
         </div>
       </div>
@@ -144,7 +201,7 @@ export function TourMode({ stops: initialStops, onExit, onReorder }: TourModePro
         );
       })()}
 
-      {/* ── Main content (scrollable center) ── */}
+      {/* ── Main content ── */}
       <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center px-5 py-4 min-h-0">
         <p className="text-[11px] text-muted-foreground mb-1.5">
           Visite {currentIndex + 1} sur {stops.length}
@@ -223,12 +280,12 @@ export function TourMode({ stops: initialStops, onExit, onReorder }: TourModePro
         )}
       </div>
 
-      {/* ── Sticky bottom action bar (always visible) ── */}
+      {/* ── Sticky bottom action bar ── */}
       <div className="shrink-0 bg-card border-t px-4 sm:px-6" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 12px), 12px)' }}>
         <div className="flex justify-around items-start gap-2 py-2.5 max-w-md mx-auto">
           {[
             { icon: FileText, label: 'Dernier\nrapport', color: 'text-primary', bg: 'bg-primary/10', onClick: () => setLastReportOpen(true) },
-            { icon: UserPlus, label: 'Prospect', color: 'text-accent', bg: 'bg-accent/10', onClick: () => setProspectOpen(true) },
+            { icon: Plus, label: 'Visite\nimprévue', color: 'text-accent', bg: 'bg-accent/10', onClick: () => setAddUnplannedOpen(true) },
             { icon: Bell, label: 'Rappel', color: 'text-warning', bg: 'bg-warning/10', onClick: () => setReminderOpen(true) },
             {
               icon: isVisitActive ? Square : Play,
@@ -267,17 +324,39 @@ export function TourMode({ stops: initialStops, onExit, onReorder }: TourModePro
           </div>
           <div className="flex-1 overflow-y-auto p-4">
             <SortableRouteList
-              stops={stops.map((s, i) => ({ customer: s.customer, priority: s.priority, dayIndex: 0 }))}
+              stops={stops.map((s) => ({ customer: s.customer, priority: s.priority, dayIndex: 0 }))}
               onReorder={(newStops) => {
                 const reordered = newStops.map(s => ({ customer: s.customer, priority: s.priority }));
-                setStops(reordered);
-                onReorder?.(reordered);
+                handleStopsReorder(reordered);
               }}
               compact
             />
           </div>
         </div>
       )}
+
+      {/* ── Day list drawer ── */}
+      <DayListDrawer
+        open={dayListOpen}
+        onOpenChange={setDayListOpen}
+        stops={stops}
+        statuses={statuses}
+        currentIndex={currentIndex}
+        onGoToStop={handleGoToStop}
+        onReorder={handleStopsReorder}
+        onAddUnplanned={() => setAddUnplannedOpen(true)}
+      />
+
+      {/* ── Add unplanned visit ── */}
+      <AddUnplannedVisitSheet
+        open={addUnplannedOpen}
+        onOpenChange={setAddUnplannedOpen}
+        existingCustomers={availableCustomers}
+        currentIndex={currentIndex}
+        totalStops={stops.length}
+        onAddProspect={handleAddProspect}
+        onAddExistingCustomer={handleAddExistingCustomer}
+      />
 
       {/* ── Sheets ── */}
       <TourReportSheet
