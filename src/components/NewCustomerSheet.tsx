@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/select';
 import { Building2, Save } from 'lucide-react';
 import { formatMonthly, formatAnnual } from '@/lib/revenueUtils';
+import { AddressAutocomplete, type AddressSelection } from '@/components/AddressAutocomplete';
 
 interface NewCustomerSheetProps {
   open: boolean;
@@ -18,6 +19,9 @@ interface NewCustomerSheetProps {
     company_name: string;
     city: string;
     address: string;
+    postal_code: string;
+    latitude: number | null;
+    longitude: number | null;
     contact_name: string;
     phone: string;
     email: string;
@@ -33,6 +37,9 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
     company_name: '',
     city: '',
     address: '',
+    postal_code: '',
+    latitude: null as number | null,
+    longitude: null as number | null,
     contact_name: '',
     phone: '',
     email: '',
@@ -63,6 +70,9 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
       await onSubmit({
         ...form,
         number_of_vehicles: vehicles,
+        latitude: form.latitude,
+        longitude: form.longitude,
+        postal_code: form.postal_code,
       });
       setForm(getInitialForm());
       onOpenChange(false);
@@ -127,8 +137,22 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
 
           <div>
             <label className="text-xs font-medium text-muted-foreground">Adresse</label>
-            <Input value={form.address} onChange={e => set('address', e.target.value)}
-              placeholder="Adresse complète" className="h-12 mt-1" />
+            <AddressAutocomplete
+              value={form.address}
+              onChange={v => set('address', v)}
+              onSelect={(sel: AddressSelection) => {
+                setForm(prev => ({
+                  ...prev,
+                  address: sel.fullAddress,
+                  city: sel.city,
+                  postal_code: sel.postalCode,
+                  latitude: sel.latitude,
+                  longitude: sel.longitude,
+                }));
+              }}
+              placeholder="Tapez une adresse..."
+              className="mt-1"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-2">

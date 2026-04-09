@@ -115,6 +115,9 @@ export default function CustomersPage() {
       company_name: string;
       city: string;
       address: string;
+      postal_code: string;
+      latitude: number | null;
+      longitude: number | null;
       contact_name: string;
       phone: string;
       email: string;
@@ -130,6 +133,9 @@ export default function CustomersPage() {
           company_name: data.company_name.trim(),
           city: data.city.trim(),
           address: data.address.trim() || null,
+          postal_code: data.postal_code?.trim() || null,
+          latitude: data.latitude,
+          longitude: data.longitude,
           phone: data.phone.trim() || null,
           email: data.email.trim() || null,
           notes: data.notes.trim() || null,
@@ -202,6 +208,9 @@ export default function CustomersPage() {
     company_name: string;
     city: string;
     address: string;
+    postal_code: string;
+    latitude: number | null;
+    longitude: number | null;
     contact_name: string;
     phone: string;
     email: string;
