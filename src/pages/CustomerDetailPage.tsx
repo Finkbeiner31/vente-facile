@@ -354,9 +354,25 @@ export default function CustomerDetailPage() {
             <ArrowRightCircle className="h-5 w-5 text-warning shrink-0" />
             <div className="flex-1">
               <p className="text-sm font-medium">Ce compte est un prospect</p>
-              <p className="text-[11px] text-muted-foreground">Soumettez une demande de conversion pour validation admin</p>
+              <p className="text-[11px] text-muted-foreground">Qualifiez ce prospect pour pouvoir demander sa conversion</p>
             </div>
             <Button size="sm" variant="outline" className="shrink-0 border-warning/30 text-warning hover:bg-warning/10"
+              onClick={() => qualifyMutation.mutate()} disabled={qualifyMutation.isPending}>
+              {qualifyMutation.isPending ? 'Qualification...' : 'Qualifier le prospect'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {status === 'prospect_qualifie' && (
+        <Card className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30">
+          <CardContent className="p-3 flex items-center gap-3">
+            <ArrowRightCircle className="h-5 w-5 text-blue-600 dark:text-blue-400 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Prospect qualifié</p>
+              <p className="text-[11px] text-muted-foreground">Ce prospect a du potentiel. Demandez la conversion en client.</p>
+            </div>
+            <Button size="sm" variant="outline" className="shrink-0 border-blue-300 text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-900/50"
               onClick={() => setConversionSheetOpen(true)}>
               Demander la conversion
             </Button>
@@ -370,7 +386,7 @@ export default function CustomerDetailPage() {
             <Loader2 className="h-5 w-5 text-primary shrink-0 animate-spin" />
             <div className="flex-1">
               <p className="text-sm font-medium text-primary">Validation admin en attente</p>
-              <p className="text-[11px] text-muted-foreground">La demande de conversion a été soumise et attend l'approbation d'un administrateur</p>
+              <p className="text-[11px] text-muted-foreground">La demande de conversion attend l'approbation d'un administrateur</p>
             </div>
           </CardContent>
         </Card>
@@ -381,10 +397,10 @@ export default function CustomerDetailPage() {
           <CardContent className="p-3 flex items-center gap-3">
             <ArrowRightCircle className="h-5 w-5 text-muted-foreground shrink-0" />
             <div className="flex-1">
-              <p className="text-[11px] text-muted-foreground">Action admin uniquement</p>
+              <p className="text-[11px] text-muted-foreground">Action admin</p>
             </div>
             <Button size="sm" variant="ghost" className="shrink-0 text-xs text-muted-foreground hover:text-destructive"
-              onClick={() => setRollbackDialogOpen(true)}>
+              onClick={() => { setRollbackTarget('prospect_qualifie'); setRollbackDialogOpen(true); }}>
               Rebasculer en prospect
             </Button>
           </CardContent>
