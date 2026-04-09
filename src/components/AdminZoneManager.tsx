@@ -276,10 +276,21 @@ export function AdminZoneManager() {
                   </SelectContent>
                 </Select>
               )}
+              {isAdmin && (
+                <Button variant="outline" size="sm" onClick={() => setMapMode('create')} className="gap-1">
+                  <Map className="h-4 w-4" />Définir sur la carte
+                </Button>
+              )}
               <Button size="sm" onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>
                 <Plus className="h-4 w-4 mr-1" />Ajouter
               </Button>
             </div>
+            {form.polygonCoordinates && (
+              <Badge variant="outline" className="text-[10px] h-4 gap-1">
+                <Map className="h-2.5 w-2.5" />Polygone défini ({form.polygonCoordinates.length} points)
+                <button className="ml-1 underline" onClick={() => setForm(f => ({ ...f, polygonCoordinates: null }))}>×</button>
+              </Badge>
+            )}
             <p className="text-[10px] text-muted-foreground">
               Prochain numéro : <span className="font-semibold">{getNextSystemName(zones)}</span>
             </p>
