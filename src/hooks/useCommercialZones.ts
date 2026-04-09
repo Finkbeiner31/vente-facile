@@ -10,6 +10,7 @@ export interface CommercialZone {
   user_id: string | null;
   cities: string[];
   postal_codes: string[];
+  polygon_coordinates: { lat: number; lng: number }[] | null;
 }
 
 /** Format zone display: "Zone 1 — Label" or just "Zone 1" */
@@ -30,6 +31,7 @@ export function useCommercialZones() {
         ...z,
         cities: z.cities || [],
         postal_codes: z.postal_codes || [],
+        polygon_coordinates: z.polygon_coordinates || null,
       })) as CommercialZone[];
     },
     enabled: !!user,

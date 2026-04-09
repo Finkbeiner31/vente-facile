@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,12 +7,15 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { MapPin, Plus, Pencil, Trash2, Save, Loader2, Users, Building2, Palette } from 'lucide-react';
+import { MapPin, Plus, Pencil, Trash2, Save, Loader2, Users, Building2, Palette, Map } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatZoneName, getNextSystemName, type CommercialZone } from '@/hooks/useCommercialZones';
+import type { LatLng } from '@/components/MapZoneDrawer';
+
+const MapZoneDrawer = lazy(() => import('@/components/MapZoneDrawer'));
 
 // 30 visually distinct colors — good contrast on white & map backgrounds
 const ZONE_PALETTE = [
@@ -92,7 +95,7 @@ function ColorPicker({ value, onChange, usedColors }: { value: string; onChange:
   );
 }
 
-const defaultForm = { customLabel: '', color: '', userId: '', cities: '', postalCodes: '' };
+const defaultForm = { customLabel: '', color: '', userId: '', cities: '', postalCodes: '', polygonCoordinates: null as LatLng[] | null };
 
 export function AdminZoneManager() {
   const { user, role } = useAuth();
@@ -101,6 +104,7 @@ export function AdminZoneManager() {
   const [form, setForm] = useState(defaultForm);
   const [editingZone, setEditingZone] = useState<CommercialZone | null>(null);
   const [editForm, setEditForm] = useState(defaultForm);
+  const [mapMode, setMapMode] = useState<'create' | 'edit' | null>(null);
 
   const { data: profiles = [] } = useQuery({
     queryKey: ['profiles-list'],
@@ -125,7 +129,7 @@ export function AdminZoneManager() {
   const parseArray = (s: string) => s.split(',').map(v => v.trim()).filter(Boolean);
 
   const createMutation = useMutation({
-    mutationFn: async () => {
+   mutationFn: async () => {
       const userId = isAdmin && form.userId ? form.userId : user?.id;
       if (!userId) throw new Error('Utilisateur requis');
       const systemName = getNextSystemName(zones);
@@ -137,6 +141,7 @@ export function AdminZoneManager() {
         user_id: userId,
         cities: parseArray(form.cities),
         postal_codes: parseArray(form.postalCodes),
+        polygon_coordinates: form.polygonCoordinates,
       });
       if (error) throw error;
     },
@@ -156,6 +161,7 @@ export function AdminZoneManager() {
         color: normalizeColor(editForm.color || FALLBACK_COLOR),
         cities: parseArray(editForm.cities),
         postal_codes: parseArray(editForm.postalCodes),
+        polygon_coordinates: editForm.polygonCoordinates,
       }).eq('id', editingZone.id);
       if (error) throw error;
     },
@@ -192,7 +198,31 @@ export function AdminZoneManager() {
       userId: z.user_id || '',
       cities: z.cities.join(', '),
       postalCodes: z.postal_codes.join(', '),
+      polygonCoordinates: z.polygon_coordinates || null,
     });
+  };
+
+  const handleMapConfirm = (polygon: LatLng[], suggestedPostalCodes: string[], suggestedCities: string[]) => {
+    if (mapMode === 'create') {
+      setForm(f => {
+        const existingCities = parseArray(f.cities);
+        const existingPc = parseArray(f.postalCodes);
+        const mergedCities = Array.from(new Set([...existingCities, ...suggestedCities]));
+        const mergedPc = Array.from(new Set([...existingPc, ...suggestedPostalCodes]));
+        return { ...f, cities: mergedCities.join(', '), postalCodes: mergedPc.join(', '), polygonCoordinates: polygon };
+      });
+      toast.success(`${suggestedPostalCodes.length} codes postaux et ${suggestedCities.length} villes suggérés`);
+    } else if (mapMode === 'edit') {
+      setEditForm(f => {
+        const existingCities = parseArray(f.cities);
+        const existingPc = parseArray(f.postalCodes);
+        const mergedCities = Array.from(new Set([...existingCities, ...suggestedCities]));
+        const mergedPc = Array.from(new Set([...existingPc, ...suggestedPostalCodes]));
+        return { ...f, cities: mergedCities.join(', '), postalCodes: mergedPc.join(', '), polygonCoordinates: polygon };
+      });
+      toast.success(`${suggestedPostalCodes.length} codes postaux et ${suggestedCities.length} villes suggérés`);
+    }
+    setMapMode(null);
   };
 
   return (
@@ -246,10 +276,21 @@ export function AdminZoneManager() {
                   </SelectContent>
                 </Select>
               )}
+              {isAdmin && (
+                <Button variant="outline" size="sm" onClick={() => setMapMode('create')} className="gap-1">
+                  <Map className="h-4 w-4" />Définir sur la carte
+                </Button>
+              )}
               <Button size="sm" onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>
                 <Plus className="h-4 w-4 mr-1" />Ajouter
               </Button>
             </div>
+            {form.polygonCoordinates && (
+              <Badge variant="outline" className="text-[10px] h-4 gap-1">
+                <Map className="h-2.5 w-2.5" />Polygone défini ({form.polygonCoordinates.length} points)
+                <button className="ml-1 underline" onClick={() => setForm(f => ({ ...f, polygonCoordinates: null }))}>×</button>
+              </Badge>
+            )}
             <p className="text-[10px] text-muted-foreground">
               Prochain numéro : <span className="font-semibold">{getNextSystemName(zones)}</span>
             </p>
@@ -281,8 +322,13 @@ export function AdminZoneManager() {
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
-                  {(z.cities.length > 0 || z.postal_codes.length > 0) && (
+                  {(z.cities.length > 0 || z.postal_codes.length > 0 || z.polygon_coordinates) && (
                     <div className="flex flex-wrap gap-1.5 pl-7">
+                      {z.polygon_coordinates && (
+                        <Badge variant="outline" className="text-[9px] h-4 gap-1">
+                          <Map className="h-2.5 w-2.5" />Carte
+                        </Badge>
+                      )}
                       {z.cities.map(c => (
                         <Badge key={c} variant="outline" className="text-[9px] h-4 gap-1">
                           <Building2 className="h-2.5 w-2.5" />{c}
@@ -327,6 +373,22 @@ export function AdminZoneManager() {
               <Label className="text-xs">Codes postaux (séparés par des virgules)</Label>
               <Input value={editForm.postalCodes} onChange={e => setEditForm(f => ({ ...f, postalCodes: e.target.value }))} placeholder="31100, 31600, 31770" />
             </div>
+            {isAdmin && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Zone sur la carte</Label>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => setMapMode('edit')}>
+                    <Map className="h-3 w-3" />{editForm.polygonCoordinates ? 'Modifier le polygone' : 'Définir sur la carte'}
+                  </Button>
+                  {editForm.polygonCoordinates && (
+                    <Badge variant="outline" className="text-[10px] h-4 gap-1">
+                      {editForm.polygonCoordinates.length} points
+                      <button className="ml-1 underline" onClick={() => setEditForm(f => ({ ...f, polygonCoordinates: null }))}>×</button>
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setEditingZone(null)}>Annuler</Button>
@@ -335,6 +397,22 @@ export function AdminZoneManager() {
               Enregistrer
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Map drawer dialog */}
+      <Dialog open={!!mapMode} onOpenChange={open => !open && setMapMode(null)}>
+        <DialogContent className="sm:max-w-3xl h-[80vh] p-0 gap-0 flex flex-col">
+          <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}>
+            {mapMode && (
+              <MapZoneDrawer
+                initialPolygon={mapMode === 'edit' ? editForm.polygonCoordinates : form.polygonCoordinates}
+                zoneColor={mapMode === 'edit' ? (editForm.color || FALLBACK_COLOR) : (form.color || pickAutoColor(usedColors))}
+                onConfirm={handleMapConfirm}
+                onCancel={() => setMapMode(null)}
+              />
+            )}
+          </Suspense>
         </DialogContent>
       </Dialog>
     </>

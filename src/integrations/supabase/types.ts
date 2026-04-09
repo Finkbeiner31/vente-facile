@@ -92,6 +92,7 @@ export type Database = {
           created_at: string
           custom_label: string | null
           id: string
+          polygon_coordinates: Json | null
           postal_codes: string[]
           system_name: string
           updated_at: string
@@ -103,6 +104,7 @@ export type Database = {
           created_at?: string
           custom_label?: string | null
           id?: string
+          polygon_coordinates?: Json | null
           postal_codes?: string[]
           system_name: string
           updated_at?: string
@@ -114,6 +116,7 @@ export type Database = {
           created_at?: string
           custom_label?: string | null
           id?: string
+          polygon_coordinates?: Json | null
           postal_codes?: string[]
           system_name?: string
           updated_at?: string
