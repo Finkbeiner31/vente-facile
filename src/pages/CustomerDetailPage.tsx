@@ -111,11 +111,11 @@ export default function CustomerDetailPage() {
               <TrendingUp className="h-6 w-6 text-accent" />
             </div>
             <div className="flex-1">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Potentiel mensuel</p>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">CA potentiel</p>
               <p className={`font-heading text-2xl font-bold ${getRevenueTierColor(tier)}`}>
                 {formatMonthly(revenue)}
               </p>
-              <p className="text-xs text-muted-foreground">{formatAnnual(revenue)}</p>
+              <p className="text-xs text-muted-foreground">{formatAnnual(revenue)} · CA potentiel</p>
             </div>
             <div className="text-right">
               <div className="flex items-center gap-1.5 text-muted-foreground">

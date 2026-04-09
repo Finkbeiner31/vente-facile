@@ -107,7 +107,7 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
 
           {vehicles > 0 && (
             <div className="rounded-lg bg-accent/10 p-3 flex items-center justify-between">
-              <span className="text-xs text-muted-foreground">Potentiel estimé</span>
+              <span className="text-xs text-muted-foreground">CA potentiel estimé</span>
               <div className="text-right">
                 <span className="text-sm font-bold text-accent">{formatMonthly(annualRevenue)}</span>
                 <span className="text-xs text-muted-foreground ml-2">({formatAnnual(annualRevenue)})</span>
