@@ -143,7 +143,7 @@ export default function CustomerDetailPage() {
       // Audit log
       await (supabase as any).from('activity_logs').insert({
         user_id: user!.id, entity_type: 'customer', entity_id: id,
-        action: 'conversion_requested', details: { from: 'prospect', to: 'pending_conversion', comment },
+        action: 'conversion_requested', details: { from: 'prospect_qualifie', to: 'pending_conversion', comment },
       });
     },
     onSuccess: () => {
