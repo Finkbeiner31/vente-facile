@@ -246,11 +246,14 @@ export function AdminZoneManager() {
               {showMapOverview ? 'Liste' : 'Carte des zones'}
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Le numéro est attribué automatiquement. La couleur est auto-assignée si vous n'en choisissez pas.
-          </p>
-          </p>
         </CardHeader>
+        {showMapOverview ? (
+          <CardContent>
+            <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}>
+              <ZoneMapOverview zones={zones} profiles={profiles} />
+            </Suspense>
+          </CardContent>
+        ) : (
         <CardContent className="space-y-3">
           {/* Create form */}
           <div className="space-y-2">
