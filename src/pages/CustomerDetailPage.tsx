@@ -756,6 +756,36 @@ export default function CustomerDetailPage() {
       )}
 
       <QuickReportDialog open={reportOpen} onOpenChange={setReportOpen} clientName={customer.company_name} />
+
+      <ConversionRequestSheet
+        open={conversionSheetOpen}
+        onOpenChange={setConversionSheetOpen}
+        customer={customer}
+        onSubmit={(comment) => conversionRequestMutation.mutate(comment)}
+        isPending={conversionRequestMutation.isPending}
+      />
+
+      {/* Rollback dialog (admin only) */}
+      <Dialog open={rollbackDialogOpen} onOpenChange={setRollbackDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rebasculer en prospect</DialogTitle>
+            <DialogDescription>Le client sera remis en statut "Prospect". Toutes les données (rapports, tâches, contacts, CA) seront conservées.</DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={rollbackReason}
+            onChange={e => setRollbackReason(e.target.value)}
+            placeholder="Raison du changement (optionnel)..."
+            rows={3}
+          />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRollbackDialogOpen(false)}>Annuler</Button>
+            <Button variant="destructive" onClick={() => rollbackMutation.mutate(rollbackReason)} disabled={rollbackMutation.isPending}>
+              {rollbackMutation.isPending ? 'En cours...' : 'Confirmer'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
