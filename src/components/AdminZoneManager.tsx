@@ -361,6 +361,7 @@ export function AdminZoneManager() {
             </div>
           )}
         </CardContent>
+        )}
       </Card>
 
       {/* Edit zone dialog */}
