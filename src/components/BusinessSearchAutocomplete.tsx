@@ -1,6 +1,13 @@
+/// <reference types="google.maps" />
 import { useEffect, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Building2, Loader2 } from 'lucide-react';
+
+declare global {
+  interface Window {
+    google?: typeof google;
+  }
+}
 
 export interface BusinessSelection {
   companyName: string;
