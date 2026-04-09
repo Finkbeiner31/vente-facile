@@ -105,7 +105,7 @@ export default function CustomerDetailPage() {
 
   const updateCustomerMutation = useMutation({
     mutationFn: async (updates: Record<string, any>) => {
-      const { error } = await supabase.from('customers').update(updates).eq('id', id!);
+      const { error } = await (supabase as any).from('customers').update(updates).eq('id', id!);
       if (error) throw error;
     },
     onSuccess: () => {
