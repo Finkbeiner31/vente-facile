@@ -328,17 +328,16 @@ export default function CustomersPage() {
                       <Building2 className="h-5 w-5 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <p className="text-sm font-semibold truncate">{customer.company_name}</p>
-                        {customer.perf.status !== 'no_data' ? (
+                        <Badge className={`text-[9px] h-4 ${prioConfig.bgColor} ${prioConfig.color}`}>
+                          {prioConfig.emoji} {customer.priority.score}
+                        </Badge>
+                        {customer.perf.status !== 'no_data' && (
                           <Badge className={`text-[9px] h-4 ${perfSc.bgColor} ${perfSc.color}`}>
                             {perfSc.emoji} {Math.round(customer.perf.coverageRate)}%
                           </Badge>
-                        ) : customer.revenue > 0 && customer.perf.latestKnownCA === null ? (
-                          <Badge className="text-[9px] h-4 bg-destructive/15 text-destructive">🔴 À travailler</Badge>
-                        ) : customer.revenue <= 0 ? (
-                          <Badge className="text-[9px] h-4 bg-muted text-muted-foreground">⚪ À qualifier</Badge>
-                        ) : null}
+                        )}
                         <Badge className={`text-[9px] h-4 ${sc.class}`}>{sc.label}</Badge>
                       </div>
                       <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
