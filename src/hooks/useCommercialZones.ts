@@ -4,11 +4,19 @@ import { useAuth } from '@/contexts/AuthContext';
 
 export interface CommercialZone {
   id: string;
-  name: string;
+  system_name: string;
+  custom_label: string | null;
   color: string;
   user_id: string | null;
   cities: string[];
   postal_codes: string[];
+}
+
+/** Format zone display: "Zone 1 — Label" or just "Zone 1" */
+export function formatZoneName(zone: CommercialZone): string {
+  return zone.custom_label
+    ? `${zone.system_name} — ${zone.custom_label}`
+    : zone.system_name;
 }
 
 export function useCommercialZones() {
@@ -16,7 +24,7 @@ export function useCommercialZones() {
   return useQuery({
     queryKey: ['commercial-zones', user?.id],
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from('commercial_zones').select('*').order('name');
+      const { data, error } = await (supabase as any).from('commercial_zones').select('*').order('system_name');
       if (error) throw error;
       return (data || []).map((z: any) => ({
         ...z,
@@ -26,6 +34,18 @@ export function useCommercialZones() {
     },
     enabled: !!user,
   });
+}
+
+/** Compute the next system_name based on existing zones */
+export function getNextSystemName(zones: CommercialZone[]): string {
+  const numbers = zones
+    .map(z => {
+      const m = z.system_name.match(/^Zone (\d+)$/);
+      return m ? parseInt(m[1], 10) : 0;
+    })
+    .filter(n => n > 0);
+  const next = numbers.length > 0 ? Math.max(...numbers) + 1 : 1;
+  return `Zone ${next}`;
 }
 
 /** Find matching zone for a customer based on city/postal_code */

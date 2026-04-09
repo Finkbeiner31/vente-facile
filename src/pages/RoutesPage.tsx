@@ -85,7 +85,7 @@ export default function RoutesPage() {
 
       // Build OR filter: zone name match OR city in zone.cities OR postal_code in zone.postal_codes
       const filters: string[] = [];
-      filters.push(`zone.eq.${zone.name}`);
+      filters.push(`zone.eq.${zone.system_name}`);
       if (zone.cities.length > 0) {
         filters.push(`city.in.(${zone.cities.join(',')})`);
       }
@@ -306,7 +306,7 @@ export default function RoutesPage() {
       {todayZone && (
         <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ backgroundColor: `${todayZone.color}15` }}>
           <div className="h-3 w-3 rounded-full" style={{ backgroundColor: todayZone.color }} />
-          <span className="text-sm font-semibold" style={{ color: todayZone.color }}>{todayZone.name}</span>
+          <span className="text-sm font-semibold" style={{ color: todayZone.color }}>{formatZoneName(todayZone)}</span>
           <span className="text-xs text-muted-foreground ml-auto">{zoneCustomers.length} clients dans cette zone</span>
         </div>
       )}

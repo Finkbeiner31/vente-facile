@@ -6,11 +6,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { MapPin, Plus, Pencil, Trash2, Save, X, Loader2, Users, Building2 } from 'lucide-react';
+import { MapPin, Plus, Pencil, Trash2, Save, Loader2, Users, Building2 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { formatZoneName, getNextSystemName, type CommercialZone } from '@/hooks/useCommercialZones';
 
 const ZONE_COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
 
@@ -20,23 +21,14 @@ interface Profile {
   email: string | null;
 }
 
-interface ZoneData {
-  id: string;
-  name: string;
-  color: string;
-  user_id: string | null;
-  cities: string[];
-  postal_codes: string[];
-}
-
-const defaultForm = { name: '', color: ZONE_COLORS[0], userId: '', cities: '', postalCodes: '' };
+const defaultForm = { customLabel: '', color: ZONE_COLORS[0], userId: '', cities: '', postalCodes: '' };
 
 export function AdminZoneManager() {
   const { user, role } = useAuth();
   const queryClient = useQueryClient();
   const isAdmin = role === 'admin' || role === 'manager';
   const [form, setForm] = useState(defaultForm);
-  const [editingZone, setEditingZone] = useState<ZoneData | null>(null);
+  const [editingZone, setEditingZone] = useState<CommercialZone | null>(null);
   const [editForm, setEditForm] = useState(defaultForm);
 
   const { data: profiles = [] } = useQuery({
@@ -52,9 +44,9 @@ export function AdminZoneManager() {
   const { data: zones = [], isLoading } = useQuery({
     queryKey: ['commercial-zones'],
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from('commercial_zones').select('*').order('name');
+      const { data, error } = await (supabase as any).from('commercial_zones').select('*').order('system_name');
       if (error) throw error;
-      return (data || []).map((z: any) => ({ ...z, cities: z.cities || [], postal_codes: z.postal_codes || [] })) as ZoneData[];
+      return (data || []).map((z: any) => ({ ...z, cities: z.cities || [], postal_codes: z.postal_codes || [] })) as CommercialZone[];
     },
   });
 
@@ -62,11 +54,12 @@ export function AdminZoneManager() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      if (!form.name.trim()) throw new Error('Nom requis');
       const userId = isAdmin && form.userId ? form.userId : user?.id;
       if (!userId) throw new Error('Utilisateur requis');
+      const systemName = getNextSystemName(zones);
       const { error } = await (supabase as any).from('commercial_zones').insert({
-        name: form.name.trim(),
+        system_name: systemName,
+        custom_label: form.customLabel.trim() || null,
         color: form.color,
         user_id: userId,
         cities: parseArray(form.cities),
@@ -86,7 +79,7 @@ export function AdminZoneManager() {
     mutationFn: async () => {
       if (!editingZone) return;
       const { error } = await (supabase as any).from('commercial_zones').update({
-        name: editForm.name.trim(),
+        custom_label: editForm.customLabel.trim() || null,
         color: editForm.color,
         cities: parseArray(editForm.cities),
         postal_codes: parseArray(editForm.postalCodes),
@@ -118,10 +111,10 @@ export function AdminZoneManager() {
     return profiles.find(p => p.id === userId)?.full_name || 'Utilisateur';
   };
 
-  const openEdit = (z: ZoneData) => {
+  const openEdit = (z: CommercialZone) => {
     setEditingZone(z);
     setEditForm({
-      name: z.name,
+      customLabel: z.custom_label || '',
       color: z.color,
       userId: z.user_id || '',
       cities: z.cities.join(', '),
@@ -138,14 +131,14 @@ export function AdminZoneManager() {
             Zones commerciales
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            Créez et configurez les zones géographiques avec villes et codes postaux.
+            Créez et configurez les zones géographiques. Le numéro (Zone 1, Zone 2…) est attribué automatiquement.
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
           {/* Create form */}
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <Input placeholder="Nom de la zone" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="h-9 flex-1" />
+              <Input placeholder="Libellé de la zone (ex: Toulouse Sud)" value={form.customLabel} onChange={e => setForm(f => ({ ...f, customLabel: e.target.value }))} className="h-9 flex-1" />
               <div className="flex gap-1">
                 {ZONE_COLORS.map(c => (
                   <button key={c} onClick={() => setForm(f => ({ ...f, color: c }))}
@@ -171,10 +164,14 @@ export function AdminZoneManager() {
                   </SelectContent>
                 </Select>
               )}
-              <Button size="sm" onClick={() => createMutation.mutate()} disabled={createMutation.isPending || !form.name.trim()}>
+              <Button size="sm" onClick={() => createMutation.mutate()} disabled={createMutation.isPending}>
                 <Plus className="h-4 w-4 mr-1" />Ajouter
               </Button>
             </div>
+            {/* Preview next system name */}
+            <p className="text-[10px] text-muted-foreground">
+              Prochain numéro automatique : <span className="font-semibold">{getNextSystemName(zones)}</span>
+            </p>
           </div>
 
           {/* Zone list */}
@@ -189,7 +186,7 @@ export function AdminZoneManager() {
                   <div className="flex items-center gap-3">
                     <div className="h-4 w-4 rounded-full shrink-0" style={{ backgroundColor: z.color }} />
                     <div className="flex-1 min-w-0">
-                      <span className="text-sm font-medium">{z.name}</span>
+                      <span className="text-sm font-medium">{formatZoneName(z)}</span>
                       {isAdmin && (
                         <p className="text-[10px] text-muted-foreground flex items-center gap-1">
                           <Users className="h-2.5 w-2.5" />{getProfileName(z.user_id)}
@@ -203,7 +200,6 @@ export function AdminZoneManager() {
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
-                  {/* Geographic info */}
                   {(z.cities.length > 0 || z.postal_codes.length > 0) && (
                     <div className="flex flex-wrap gap-1.5 pl-7">
                       {z.cities.map(c => (
@@ -227,12 +223,12 @@ export function AdminZoneManager() {
       <Dialog open={!!editingZone} onOpenChange={open => !open && setEditingZone(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Modifier la zone</DialogTitle>
+            <DialogTitle>Modifier {editingZone?.system_name}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
-              <Label className="text-xs">Nom</Label>
-              <Input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
+              <Label className="text-xs">Libellé personnalisé</Label>
+              <Input value={editForm.customLabel} onChange={e => setEditForm(f => ({ ...f, customLabel: e.target.value }))} placeholder="Ex: Toulouse Sud - Portet" />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Couleur</Label>
@@ -255,7 +251,7 @@ export function AdminZoneManager() {
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setEditingZone(null)}>Annuler</Button>
-            <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending || !editForm.name.trim()}>
+            <Button onClick={() => updateMutation.mutate()} disabled={updateMutation.isPending}>
               {updateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
               Enregistrer
             </Button>
