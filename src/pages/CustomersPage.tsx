@@ -21,7 +21,7 @@ import { useAllCustomerRevenues } from '@/hooks/useCustomerPerformance';
 import { analyzeCustomerPerformance, getStatusConfig, formatCompactRevenue, type PerformanceStatus } from '@/lib/performanceUtils';
 import { computeVisitPriority, PRIORITY_CONFIGS, type PriorityLevel } from '@/lib/priorityEngine';
 
-type CustomerStatus = 'prospect' | 'client_actif' | 'client_inactif';
+type CustomerStatus = 'prospect' | 'client_actif' | 'client_inactif' | 'pending_conversion';
 
 interface CustomerListItem {
   id: string;
@@ -43,6 +43,7 @@ interface CustomerListItem {
 
 const statusConfig: Record<CustomerStatus, { label: string; class: string }> = {
   prospect: { label: 'Prospect', class: 'bg-warning/15 text-warning' },
+  pending_conversion: { label: 'Conversion en attente', class: 'bg-primary/15 text-primary' },
   client_actif: { label: 'Client actif', class: 'bg-accent/15 text-accent' },
   client_inactif: { label: 'Inactif', class: 'bg-muted text-muted-foreground' },
 };
