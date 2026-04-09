@@ -56,6 +56,8 @@ const potentialColors: Record<string, string> = {
 type FilterTab = 'tous' | 'clients' | 'prospects';
 type PerfFilter = 'tous' | 'optimise' | 'a_developper' | 'sous_exploite';
 type TrendFilter = 'tous' | 'up' | 'down' | 'stable';
+type PriorityFilter = 'tous' | 'high' | 'medium' | 'low';
+type SortMode = 'potential' | 'priority' | 'caM1';
 
 const formatLastVisit = (value: string | null) => {
   if (!value) return '—';
@@ -84,6 +86,8 @@ export default function CustomersPage() {
   const [tab, setTab] = useState<FilterTab>('tous');
   const [perfFilter, setPerfFilter] = useState<PerfFilter>('tous');
   const [trendFilter, setTrendFilter] = useState<TrendFilter>('tous');
+  const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('tous');
+  const [sortMode, setSortMode] = useState<SortMode>('priority');
   const [sheetOpen, setSheetOpen] = useState(false);
   const queryClient = useQueryClient();
 
