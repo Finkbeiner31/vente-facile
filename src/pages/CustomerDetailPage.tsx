@@ -329,18 +329,45 @@ export default function CustomerDetailPage() {
         )}
       </div>
 
-      {/* Convert banner */}
+      {/* Convert / status banners */}
       {status === 'prospect' && (
         <Card className="border-warning/30 bg-warning/5">
           <CardContent className="p-3 flex items-center gap-3">
             <ArrowRightCircle className="h-5 w-5 text-warning shrink-0" />
             <div className="flex-1">
               <p className="text-sm font-medium">Ce compte est un prospect</p>
-              <p className="text-[11px] text-muted-foreground">Convertissez-le après validation commerciale</p>
+              <p className="text-[11px] text-muted-foreground">Soumettez une demande de conversion pour validation admin</p>
             </div>
             <Button size="sm" variant="outline" className="shrink-0 border-warning/30 text-warning hover:bg-warning/10"
-              onClick={() => convertMutation.mutate()} disabled={convertMutation.isPending}>
-              {convertMutation.isPending ? 'Conversion...' : 'Convertir'}
+              onClick={() => setConversionSheetOpen(true)}>
+              Demander la conversion
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {status === 'pending_conversion' && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="p-3 flex items-center gap-3">
+            <Loader2 className="h-5 w-5 text-primary shrink-0 animate-spin" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-primary">Validation admin en attente</p>
+              <p className="text-[11px] text-muted-foreground">La demande de conversion a été soumise et attend l'approbation d'un administrateur</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {(status === 'client_actif' || status === 'client_inactif') && role === 'admin' && (
+        <Card className="border-muted">
+          <CardContent className="p-3 flex items-center gap-3">
+            <ArrowRightCircle className="h-5 w-5 text-muted-foreground shrink-0" />
+            <div className="flex-1">
+              <p className="text-[11px] text-muted-foreground">Action admin uniquement</p>
+            </div>
+            <Button size="sm" variant="ghost" className="shrink-0 text-xs text-muted-foreground hover:text-destructive"
+              onClick={() => setRollbackDialogOpen(true)}>
+              Rebasculer en prospect
             </Button>
           </CardContent>
         </Card>
