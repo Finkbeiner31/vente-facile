@@ -85,6 +85,31 @@ export default function AdminPage() {
 
   const isAdmin = currentRole === 'admin';
 
+  // Manage user (delete/deactivate/reactivate)
+  const manageUserMutation = useMutation({
+    mutationFn: async ({ userId, action }: { userId: string; action: 'delete' | 'deactivate' | 'reactivate' }) => {
+      const { data, error } = await supabase.functions.invoke('manage-user', {
+        body: { user_id: userId, action },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      setShowDeleteModal(null);
+      if (data.result === 'deleted') {
+        setSelectedUserId(null);
+        toast.success('Profil supprimé');
+      } else if (data.result === 'deactivated') {
+        toast.success(data.reason || 'Profil désactivé');
+      } else if (data.result === 'reactivated') {
+        toast.success('Profil réactivé');
+      }
+    },
+    onError: (e: any) => toast.error(e.message || 'Erreur'),
+  });
+
   // Create user mutation
   const createUserMutation = useMutation({
     mutationFn: async () => {
