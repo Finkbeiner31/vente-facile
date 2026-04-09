@@ -84,7 +84,9 @@ export default function CustomersPage() {
     <div className="space-y-4 animate-fade-in pb-20 md:pb-0">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-heading text-xl md:text-2xl font-bold">Clients</h1>
+          <h1 className="font-heading text-xl md:text-2xl font-bold">
+            {tab === 'prospects' ? 'Prospects' : tab === 'clients' ? 'Clients' : 'Clients et prospects'}
+          </h1>
           <p className="text-xs text-muted-foreground">{filtered.length} comptes · trié par potentiel</p>
         </div>
         <Button size="sm" className="h-10 px-4 font-semibold" onClick={() => setSheetOpen(true)}>
@@ -109,12 +111,12 @@ export default function CustomersPage() {
         {filtered.map(customer => {
           const sc = statusConfig[customer.status];
           return (
-            <Card key={customer.id} className={`transition-all hover:border-primary/30 ${
-              customer.potential === 'A' ? 'border-l-2 border-l-accent' : ''
-            }`}>
-              <CardContent className="p-3">
-                <div className="flex items-center gap-3">
-                  <Link to={`/clients/${customer.id}`} className="flex items-center gap-3 flex-1 min-w-0">
+            <Link key={customer.id} to={`/clients/${customer.id}`} className="block">
+              <Card className={`transition-all hover:border-primary/30 cursor-pointer ${
+                customer.potential === 'A' ? 'border-l-2 border-l-accent' : ''
+              }`}>
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                       <Building2 className="h-5 w-5 text-primary" />
                     </div>
@@ -131,29 +133,32 @@ export default function CustomersPage() {
                           <Car className="h-2.5 w-2.5" /> {customer.vehicles}
                         </span>
                         <span>·</span>
-                        <span className={`font-semibold ${getRevenueTierColor(getRevenueTier(customer.revenue))}`}>{formatMonthly(customer.revenue)}</span>
+                        <span className={`font-semibold ${getRevenueTierColor(getRevenueTier(customer.revenue))}`}>
+                          {formatMonthly(customer.revenue)}
+                          <span className="font-normal text-muted-foreground ml-1 text-[10px]">CA pot.</span>
+                        </span>
                       </div>
                       {customer.nextAction && (
                         <p className="text-[10px] text-primary font-medium mt-0.5 truncate">→ {customer.nextAction}</p>
                       )}
                     </div>
-                  </Link>
-                  <div className="flex gap-1.5 shrink-0">
-                    <a href={`tel:${customer.phone}`}>
-                      <Button variant="outline" size="icon" className="h-9 w-9">
-                        <Phone className="h-3.5 w-3.5" />
-                      </Button>
-                    </a>
-                    <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address)}`}
-                      target="_blank" rel="noopener noreferrer">
-                      <Button variant="outline" size="icon" className="h-9 w-9">
-                        <Navigation className="h-3.5 w-3.5" />
-                      </Button>
-                    </a>
+                    <div className="flex gap-1.5 shrink-0" onClick={e => e.preventDefault()}>
+                      <a href={`tel:${customer.phone}`} onClick={e => e.stopPropagation()}>
+                        <Button variant="outline" size="icon" className="h-9 w-9">
+                          <Phone className="h-3.5 w-3.5" />
+                        </Button>
+                      </a>
+                      <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address)}`}
+                        target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
+                        <Button variant="outline" size="icon" className="h-9 w-9">
+                          <Navigation className="h-3.5 w-3.5" />
+                        </Button>
+                      </a>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </Link>
           );
         })}
       </div>
