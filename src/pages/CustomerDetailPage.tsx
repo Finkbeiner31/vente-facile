@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { QuickReportDialog } from '@/components/QuickReportDialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatMonthly, getRevenueTierColor, getRevenueTier } from '@/lib/revenueUtils';
@@ -14,11 +15,15 @@ import {
   ArrowLeft, Phone, Navigation, FileText, CheckSquare,
   User, Clock, MapPin, ExternalLink, Car, Target,
   Loader2, AlertTriangle, ArrowRightCircle, Plus, Pencil, Trash2,
-  Star, Mail, MessageCircle,
+  Star, Mail, MessageCircle, Truck, Wrench, Building2,
 } from 'lucide-react';
 import { RevenueHistoryCard } from '@/components/RevenueHistoryCard';
 import { useCustomerPerformance } from '@/hooks/useCustomerPerformance';
 import { computeVisitPriority, PRIORITY_CONFIGS } from '@/lib/priorityEngine';
+import {
+  useVehiclePotentials, computeFleetPotential,
+  FLEET_KEYS, FLEET_LABELS, CUSTOMER_TYPES, EQUIPMENT_TYPES,
+} from '@/hooks/useVehiclePotentials';
 
 type CustomerStatus = 'prospect' | 'client_actif' | 'client_inactif';
 
@@ -28,12 +33,6 @@ const statusConfig: Record<CustomerStatus, { label: string; class: string }> = {
   client_inactif: { label: 'Inactif', class: 'bg-muted text-muted-foreground' },
 };
 
-const typeColors: Record<string, string> = {
-  visit: 'bg-primary/10 text-primary',
-  task: 'bg-accent/10 text-accent',
-  opportunity: 'bg-warning/10 text-warning',
-};
-
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export default function CustomerDetailPage() {
@@ -41,11 +40,12 @@ export default function CustomerDetailPage() {
   const { user, loading: authLoading } = useAuth();
   const [reportOpen, setReportOpen] = useState(false);
   const [editingVehicles, setEditingVehicles] = useState(false);
-  const [vehicleValue, setVehicleValue] = useState('');
   const [editingContact, setEditingContact] = useState<string | null>(null);
   const [addingContact, setAddingContact] = useState(false);
   const [newContact, setNewContact] = useState({ first_name: '', last_name: '', role: '', phone: '', email: '' });
   const [editContactData, setEditContactData] = useState({ first_name: '', last_name: '', role: '', phone: '', email: '' });
+  const [editingBusiness, setEditingBusiness] = useState(false);
+  const [fleetForm, setFleetForm] = useState({ fleet_pl: 0, fleet_vu: 0, fleet_remorque: 0, fleet_car_bus: 0, activity_type: '', equipment_type: '' });
   const queryClient = useQueryClient();
   const isValidId = Boolean(id && UUID_REGEX.test(id));
 
@@ -66,15 +66,12 @@ export default function CustomerDetailPage() {
 
   const revenue = customer?.annual_revenue_potential || 0;
   const perf = useCustomerPerformance(customer?.id, revenue);
+  const { data: potentials = [] } = useVehiclePotentials();
 
   const { data: contacts = [] } = useQuery({
     queryKey: ['contacts', id, user?.id],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('contacts')
-        .select('*')
-        .eq('customer_id', id!)
-        .order('is_primary', { ascending: false });
+      const { data } = await supabase.from('contacts').select('*').eq('customer_id', id!).order('is_primary', { ascending: false });
       return data || [];
     },
     enabled: !authLoading && !!user && isValidId,
@@ -83,12 +80,7 @@ export default function CustomerDetailPage() {
   const { data: visitReports = [] } = useQuery({
     queryKey: ['visit-reports', id, user?.id],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('visit_reports')
-        .select('*')
-        .eq('customer_id', id!)
-        .order('visit_date', { ascending: false })
-        .limit(5);
+      const { data } = await supabase.from('visit_reports').select('*, profiles:rep_id(full_name)').eq('customer_id', id!).order('visit_date', { ascending: false }).limit(10);
       return data || [];
     },
     enabled: !authLoading && !!user && isValidId,
@@ -97,12 +89,7 @@ export default function CustomerDetailPage() {
   const { data: tasks = [] } = useQuery({
     queryKey: ['customer-tasks', id, user?.id],
     queryFn: async () => {
-      const { data } = await supabase
-        .from('tasks')
-        .select('*')
-        .eq('customer_id', id!)
-        .order('created_at', { ascending: false })
-        .limit(5);
+      const { data } = await supabase.from('tasks').select('*').eq('customer_id', id!).order('created_at', { ascending: false }).limit(5);
       return data || [];
     },
     enabled: !authLoading && !!user && isValidId,
@@ -110,121 +97,70 @@ export default function CustomerDetailPage() {
 
   const convertMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase
-        .from('customers')
-        .update({ customer_type: 'client_actif' })
-        .eq('id', id!);
+      const { error } = await supabase.from('customers').update({ customer_type: 'client_actif' }).eq('id', id!);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['customer', id] });
-      queryClient.invalidateQueries({ queryKey: ['customers'] });
-      toast.success('Converti en Client actif');
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['customer', id] }); queryClient.invalidateQueries({ queryKey: ['customers'] }); toast.success('Converti en Client actif'); },
   });
 
-  const vehicleMutation = useMutation({
-    mutationFn: async (count: number) => {
-      const { error } = await supabase
-        .from('customers')
-        .update({ number_of_vehicles: count })
-        .eq('id', id!);
+  const updateCustomerMutation = useMutation({
+    mutationFn: async (updates: Record<string, any>) => {
+      const { error } = await supabase.from('customers').update(updates).eq('id', id!);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['customer', id] });
       setEditingVehicles(false);
-      toast.success('Nombre de véhicules mis à jour');
+      setEditingBusiness(false);
+      toast.success('Informations mises à jour');
     },
   });
 
   const addContactMutation = useMutation({
     mutationFn: async (contact: typeof newContact) => {
       const isPrimary = contacts.length === 0;
-      const { error } = await supabase.from('contacts').insert({
-        customer_id: id!,
-        first_name: contact.first_name,
-        last_name: contact.last_name,
-        role: contact.role || null,
-        phone: contact.phone || null,
-        email: contact.email || null,
-        is_primary: isPrimary,
-      });
+      const { error } = await supabase.from('contacts').insert({ customer_id: id!, first_name: contact.first_name, last_name: contact.last_name, role: contact.role || null, phone: contact.phone || null, email: contact.email || null, is_primary: isPrimary });
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['contacts', id] });
-      setAddingContact(false);
-      setNewContact({ first_name: '', last_name: '', role: '', phone: '', email: '' });
-      toast.success('Contact ajouté');
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['contacts', id] }); setAddingContact(false); setNewContact({ first_name: '', last_name: '', role: '', phone: '', email: '' }); toast.success('Contact ajouté'); },
   });
 
   const updateContactMutation = useMutation({
     mutationFn: async ({ contactId, data }: { contactId: string; data: typeof editContactData }) => {
-      const { error } = await supabase.from('contacts').update({
-        first_name: data.first_name,
-        last_name: data.last_name,
-        role: data.role || null,
-        phone: data.phone || null,
-        email: data.email || null,
-      }).eq('id', contactId);
+      const { error } = await supabase.from('contacts').update({ first_name: data.first_name, last_name: data.last_name, role: data.role || null, phone: data.phone || null, email: data.email || null }).eq('id', contactId);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['contacts', id] });
-      setEditingContact(null);
-      toast.success('Contact modifié');
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['contacts', id] }); setEditingContact(null); toast.success('Contact modifié'); },
   });
 
   const deleteContactMutation = useMutation({
-    mutationFn: async (contactId: string) => {
-      const { error } = await supabase.from('contacts').delete().eq('id', contactId);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['contacts', id] });
-      toast.success('Contact supprimé');
-    },
+    mutationFn: async (contactId: string) => { const { error } = await supabase.from('contacts').delete().eq('id', contactId); if (error) throw error; },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['contacts', id] }); toast.success('Contact supprimé'); },
   });
 
   const setPrimaryMutation = useMutation({
     mutationFn: async (contactId: string) => {
-      // Unset all primary
       await supabase.from('contacts').update({ is_primary: false }).eq('customer_id', id!);
       const { error } = await supabase.from('contacts').update({ is_primary: true }).eq('id', contactId);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['contacts', id] });
-      toast.success('Contact principal défini');
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['contacts', id] }); toast.success('Contact principal défini'); },
   });
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
 
   if (!isValidId || error || !customer) {
     return (
       <div className="space-y-4 animate-fade-in pb-20 md:pb-0">
         <div className="flex items-center gap-3">
-          <Link to="/clients">
-            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
+          <Link to="/clients"><Button variant="ghost" size="icon" className="h-9 w-9 shrink-0"><ArrowLeft className="h-5 w-5" /></Button></Link>
           <h1 className="font-heading text-lg font-bold">Retour</h1>
         </div>
         <div className="py-12 text-center">
           <AlertTriangle className="mx-auto h-10 w-10 text-warning" />
           <p className="mt-3 text-sm font-medium">Client introuvable</p>
-          <p className="text-xs text-muted-foreground mt-1">L'identifiant "{id}" ne correspond à aucun client.</p>
         </div>
       </div>
     );
@@ -232,48 +168,60 @@ export default function CustomerDetailPage() {
 
   const status = (customer.customer_type || 'prospect') as CustomerStatus;
   const sc = statusConfig[status] || statusConfig.prospect;
-  const tier = getRevenueTier(revenue);
+  const cust = customer as any; // for new fields not yet in generated types
+  const fleetData = { fleet_pl: cust.fleet_pl || 0, fleet_vu: cust.fleet_vu || 0, fleet_remorque: cust.fleet_remorque || 0, fleet_car_bus: cust.fleet_car_bus || 0 };
+  const totalVehicles = fleetData.fleet_pl + fleetData.fleet_vu + fleetData.fleet_remorque + fleetData.fleet_car_bus;
+  const fleetPotential = computeFleetPotential(fleetData, potentials);
+  const displayRevenue = fleetPotential.annual > 0 ? fleetPotential.annual : revenue;
 
-  const priority = computeVisitPriority(
-    perf, customer.last_visit_date, customer.visit_frequency,
-    null, null, customer.latitude, customer.longitude,
-  );
+  const priority = computeVisitPriority(perf, customer.last_visit_date, customer.visit_frequency, null, null, customer.latitude, customer.longitude);
   const prioConfig = PRIORITY_CONFIGS[priority.level];
-
-  const timeline = [
-    ...visitReports.map(r => ({
-      date: new Date(r.visit_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }),
-      type: 'visit' as const,
-      title: r.visit_purpose || r.summary || 'Visite',
-      detail: r.quick_outcome || r.summary || '',
-    })),
-    ...tasks.map(t => ({
-      date: new Date(t.created_at).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }),
-      type: 'task' as const,
-      title: t.title,
-      detail: t.description || '',
-    })),
-  ].sort((a, b) => 0).slice(0, 6);
 
   const primaryContact = contacts.find(c => c.is_primary) || contacts[0];
   const phoneNumber = primaryContact?.phone || customer.phone || '';
   const address = customer.address ? `${customer.address}${customer.city ? ', ' + customer.city : ''}` : customer.city || '';
   const fullAddress = [customer.address, customer.postal_code, customer.city].filter(Boolean).join(', ');
 
+  const startEditBusiness = () => {
+    setFleetForm({
+      fleet_pl: cust.fleet_pl || 0,
+      fleet_vu: cust.fleet_vu || 0,
+      fleet_remorque: cust.fleet_remorque || 0,
+      fleet_car_bus: cust.fleet_car_bus || 0,
+      activity_type: cust.activity_type || '',
+      equipment_type: cust.equipment_type || '',
+    });
+    setEditingBusiness(true);
+  };
+
+  const saveBusiness = () => {
+    const totalV = fleetForm.fleet_pl + fleetForm.fleet_vu + fleetForm.fleet_remorque + fleetForm.fleet_car_bus;
+    updateCustomerMutation.mutate({
+      fleet_pl: fleetForm.fleet_pl,
+      fleet_vu: fleetForm.fleet_vu,
+      fleet_remorque: fleetForm.fleet_remorque,
+      fleet_car_bus: fleetForm.fleet_car_bus,
+      number_of_vehicles: totalV,
+      activity_type: fleetForm.activity_type || null,
+      equipment_type: fleetForm.equipment_type || null,
+    });
+  };
+
   return (
     <div className="space-y-4 animate-fade-in pb-20 md:pb-0">
       {/* ─── 1. HEADER ─── */}
       <div className="flex items-start gap-3">
         <Link to="/clients">
-          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 mt-0.5">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
+          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 mt-0.5"><ArrowLeft className="h-5 w-5" /></Button>
         </Link>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="font-heading text-xl md:text-2xl font-bold truncate">{customer.company_name}</h1>
             <Badge className={`text-[10px] shrink-0 ${sc.class}`}>{sc.label}</Badge>
           </div>
+          {cust.activity_type && (
+            <p className="text-xs text-primary font-medium mt-0.5">{cust.activity_type}</p>
+          )}
           {(customer.city || customer.address) && (
             <p className="text-xs text-muted-foreground mt-0.5 truncate">
               <MapPin className="inline h-3 w-3 mr-0.5 -mt-0.5" />
@@ -283,59 +231,31 @@ export default function CustomerDetailPage() {
         </div>
       </div>
 
-      {/* Key metrics row */}
-      <div className="flex items-center gap-3 flex-wrap">
+      {/* Key metrics */}
+      <div className="flex items-center gap-2 flex-wrap">
         <div className="flex items-center gap-1.5 rounded-lg bg-accent/10 px-3 py-1.5">
           <span className="text-xs text-muted-foreground">CA pot.</span>
-          <span className={`text-sm font-bold ${getRevenueTierColor(tier)}`}>{formatMonthly(revenue)}</span>
+          <span className={`text-sm font-bold ${getRevenueTierColor(getRevenueTier(displayRevenue))}`}>{formatMonthly(displayRevenue)}</span>
         </div>
         <div className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5">
-          <Car className="h-3.5 w-3.5 text-muted-foreground" />
-          {editingVehicles ? (
-            <form className="flex items-center gap-1" onSubmit={(e) => {
-              e.preventDefault();
-              const v = parseInt(vehicleValue, 10);
-              if (!isNaN(v) && v >= 0) vehicleMutation.mutate(v);
-            }}>
-              <Input
-                type="number"
-                min={0}
-                value={vehicleValue}
-                onChange={e => setVehicleValue(e.target.value)}
-                className="h-6 w-16 text-xs px-1.5"
-                autoFocus
-              />
-              <Button type="submit" size="sm" className="h-6 px-2 text-[10px]" disabled={vehicleMutation.isPending}>OK</Button>
-              <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5 text-[10px]" onClick={() => setEditingVehicles(false)}>✕</Button>
-            </form>
-          ) : (
-            <button
-              type="button"
-              className="flex items-center gap-1 text-sm font-bold hover:text-primary transition-colors"
-              onClick={() => { setVehicleValue(String(customer.number_of_vehicles || 0)); setEditingVehicles(true); }}
-            >
-              {customer.number_of_vehicles || 0} véh.
-              <Pencil className="h-3 w-3 text-muted-foreground" />
-            </button>
-          )}
+          <Truck className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-sm font-bold">{totalVehicles || customer.number_of_vehicles || 0} véh.</span>
         </div>
-        {customer.visit_frequency && (
+        {cust.equipment_type && (
           <div className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5">
-            <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-xs">{customer.visit_frequency}</span>
+            <Wrench className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-xs">{cust.equipment_type}</span>
           </div>
         )}
         {customer.last_visit_date && (
           <div className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5">
-            <span className="text-[10px] text-muted-foreground">Dernière visite</span>
-            <span className="text-xs font-medium">
-              {new Date(customer.last_visit_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
-            </span>
+            <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-xs">{new Date(customer.last_visit_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</span>
           </div>
         )}
       </div>
 
-      {/* Convert banner for prospects */}
+      {/* Convert banner */}
       {status === 'prospect' && (
         <Card className="border-warning/30 bg-warning/5">
           <CardContent className="p-3 flex items-center gap-3">
@@ -356,101 +276,159 @@ export default function CustomerDetailPage() {
       <div className="grid grid-cols-4 gap-2">
         {phoneNumber ? (
           <a href={`tel:${phoneNumber}`}>
-            <Button variant="outline" className="w-full h-14 flex-col gap-1 text-xs font-medium">
-              <Phone className="h-5 w-5 text-primary" />
-              Appeler
-            </Button>
+            <Button variant="outline" className="w-full h-14 flex-col gap-1 text-xs font-medium"><Phone className="h-5 w-5 text-primary" />Appeler</Button>
           </a>
         ) : (
-          <Button variant="outline" className="w-full h-14 flex-col gap-1 text-xs font-medium" disabled>
-            <Phone className="h-5 w-5 text-muted-foreground" />
-            Appeler
-          </Button>
+          <Button variant="outline" className="w-full h-14 flex-col gap-1 text-xs font-medium" disabled><Phone className="h-5 w-5 text-muted-foreground" />Appeler</Button>
         )}
         {address ? (
-          <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress || address)}`}
-            target="_blank" rel="noopener noreferrer">
-            <Button variant="outline" className="w-full h-14 flex-col gap-1 text-xs font-medium">
-              <Navigation className="h-5 w-5 text-primary" />
-              Naviguer
-            </Button>
+          <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress || address)}`} target="_blank" rel="noopener noreferrer">
+            <Button variant="outline" className="w-full h-14 flex-col gap-1 text-xs font-medium"><Navigation className="h-5 w-5 text-primary" />Naviguer</Button>
           </a>
         ) : (
-          <Button variant="outline" className="w-full h-14 flex-col gap-1 text-xs font-medium" disabled>
-            <Navigation className="h-5 w-5 text-muted-foreground" />
-            Naviguer
-          </Button>
+          <Button variant="outline" className="w-full h-14 flex-col gap-1 text-xs font-medium" disabled><Navigation className="h-5 w-5 text-muted-foreground" />Naviguer</Button>
         )}
         <Button variant="outline" className="h-14 flex-col gap-1 text-xs font-medium" onClick={() => setReportOpen(true)}>
-          <FileText className="h-5 w-5 text-primary" />
-          Rapport
+          <FileText className="h-5 w-5 text-primary" />Rapport
         </Button>
         <Link to="/taches">
-          <Button variant="outline" className="w-full h-14 flex-col gap-1 text-xs font-medium">
-            <CheckSquare className="h-5 w-5 text-primary" />
-            Tâche
-          </Button>
+          <Button variant="outline" className="w-full h-14 flex-col gap-1 text-xs font-medium"><CheckSquare className="h-5 w-5 text-primary" />Tâche</Button>
         </Link>
       </div>
 
-      {/* Next Action */}
-      {customer.next_action_description && (
-        <Card className="border-primary/20">
-          <CardContent className="p-3 flex items-center gap-3">
-            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-              <Clock className="h-4 w-4 text-primary" />
+      {/* ─── 3. BUSINESS PROFILE ─── */}
+      <Card>
+        <CardHeader className="pb-2 px-4 pt-4">
+          <CardTitle className="font-heading text-sm flex items-center justify-between">
+            <span className="flex items-center gap-2"><Building2 className="h-4 w-4 text-primary" />Profil commercial</span>
+            {!editingBusiness && (
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={startEditBusiness}>
+                <Pencil className="h-3.5 w-3.5 mr-1" />Modifier
+              </Button>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4 space-y-3">
+          {editingBusiness ? (
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Type de client</label>
+                <Select value={fleetForm.activity_type} onValueChange={v => setFleetForm(f => ({ ...f, activity_type: v }))}>
+                  <SelectTrigger className="h-10 mt-1"><SelectValue placeholder="Sélectionner..." /></SelectTrigger>
+                  <SelectContent>
+                    {CUSTOMER_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Équipement principal</label>
+                <Select value={fleetForm.equipment_type} onValueChange={v => setFleetForm(f => ({ ...f, equipment_type: v }))}>
+                  <SelectTrigger className="h-10 mt-1"><SelectValue placeholder="Sélectionner..." /></SelectTrigger>
+                  <SelectContent>
+                    {EQUIPMENT_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-2 block">Flotte véhicules</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {FLEET_KEYS.map(key => (
+                    <div key={key} className="flex items-center gap-2 rounded-lg border p-2">
+                      <span className="text-xs flex-1">{FLEET_LABELS[key]}</span>
+                      <Input
+                        type="number" min={0}
+                        value={fleetForm[key]}
+                        onChange={e => setFleetForm(f => ({ ...f, [key]: parseInt(e.target.value) || 0 }))}
+                        className="h-8 w-16 text-sm text-center px-1"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={saveBusiness} disabled={updateCustomerMutation.isPending}>
+                  {updateCustomerMutation.isPending ? 'Enregistrement...' : 'Enregistrer'}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setEditingBusiness(false)}>Annuler</Button>
+              </div>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs text-muted-foreground">
-                Action à faire{customer.next_action_date ? ` · ${new Date(customer.next_action_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}
-              </p>
-              <p className="text-sm font-medium truncate">{customer.next_action_description}</p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+          ) : (
+            <div className="space-y-3">
+              {/* Customer type & equipment */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Type de client</p>
+                  <p className="text-sm font-medium mt-0.5">{cust.activity_type || <span className="text-muted-foreground italic">Non renseigné</span>}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Équipement principal</p>
+                  <p className="text-sm font-medium mt-0.5">{cust.equipment_type || <span className="text-muted-foreground italic">Non renseigné</span>}</p>
+                </div>
+              </div>
 
-      {/* ─── 3. PERFORMANCE (Priority) ─── */}
+              {/* Fleet breakdown */}
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">Flotte véhicules</p>
+                {totalVehicles > 0 ? (
+                  <div className="grid grid-cols-4 gap-2">
+                    {FLEET_KEYS.map(key => (
+                      <div key={key} className="rounded-lg bg-muted p-2 text-center">
+                        <p className="text-lg font-bold">{fleetData[key]}</p>
+                        <p className="text-[10px] text-muted-foreground">{FLEET_LABELS[key]}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">Aucune flotte renseignée</p>
+                )}
+              </div>
+
+              {/* Potential breakdown */}
+              {fleetPotential.annual > 0 && (
+                <div className="rounded-lg bg-accent/5 border border-accent/20 p-3 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-accent">CA potentiel calculé</p>
+                    <span className="text-sm font-bold text-accent">{formatMonthly(fleetPotential.annual)}</span>
+                  </div>
+                  <div className="space-y-0.5">
+                    {fleetPotential.breakdown.filter(b => b.count > 0).map(b => (
+                      <div key={b.label} className="flex items-center justify-between text-[11px] text-muted-foreground">
+                        <span>{b.count} {b.label} × {b.unitPotential}€/an</span>
+                        <span className="font-medium">{(b.total / 12).toFixed(0)}€/mois</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ─── 4. PRIORITY ─── */}
       <Card className={`border-l-4 ${priority.level === 'high' ? 'border-l-destructive' : priority.level === 'medium' ? 'border-l-warning' : 'border-l-muted'}`}>
         <CardHeader className="pb-2 px-4 pt-4">
           <CardTitle className="font-heading text-sm flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              <Target className="h-4 w-4 text-primary" />
-              Priorité commerciale
-            </span>
-            <Badge className={`text-[10px] ${prioConfig.bgColor} ${prioConfig.color}`}>
-              {prioConfig.emoji} {prioConfig.label} ({priority.score})
-            </Badge>
+            <span className="flex items-center gap-2"><Target className="h-4 w-4 text-primary" />Priorité commerciale</span>
+            <Badge className={`text-[10px] ${prioConfig.bgColor} ${prioConfig.color}`}>{prioConfig.emoji} {prioConfig.label} ({priority.score})</Badge>
           </CardTitle>
         </CardHeader>
         {priority.reasons.length > 0 && (
           <CardContent className="px-4 pb-3">
             <div className="flex flex-wrap gap-1.5">
-              {priority.reasons.map((r, i) => (
-                <Badge key={i} variant="outline" className="text-[10px]">{r}</Badge>
-              ))}
+              {priority.reasons.map((r, i) => <Badge key={i} variant="outline" className="text-[10px]">{r}</Badge>)}
             </div>
           </CardContent>
         )}
       </Card>
 
-      {/* ─── 4. CONTACTS ─── */}
+      {/* ─── 5. CONTACTS ─── */}
       <Card>
         <CardHeader className="pb-2 px-4 pt-4">
           <CardTitle className="font-heading text-sm flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              <User className="h-4 w-4 text-primary" />
-              Contacts
-            </span>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs"
-              onClick={() => setAddingContact(true)}
-            >
-              <Plus className="h-3.5 w-3.5 mr-1" />
-              Ajouter
+            <span className="flex items-center gap-2"><User className="h-4 w-4 text-primary" />Contacts</span>
+            <Button type="button" variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAddingContact(true)}>
+              <Plus className="h-3.5 w-3.5 mr-1" />Ajouter
             </Button>
           </CardTitle>
         </CardHeader>
@@ -459,9 +437,7 @@ export default function CustomerDetailPage() {
             <div className="text-center py-4 space-y-2">
               <User className="mx-auto h-8 w-8 text-muted-foreground/30" />
               <p className="text-sm text-muted-foreground">Aucun contact renseigné</p>
-              <Button variant="outline" size="sm" onClick={() => setAddingContact(true)}>
-                <Plus className="h-3.5 w-3.5 mr-1" /> Ajouter un contact
-              </Button>
+              <Button variant="outline" size="sm" onClick={() => setAddingContact(true)}><Plus className="h-3.5 w-3.5 mr-1" />Ajouter un contact</Button>
             </div>
           )}
 
@@ -479,10 +455,7 @@ export default function CustomerDetailPage() {
                     <Input type="email" value={editContactData.email} onChange={e => setEditContactData(d => ({ ...d, email: e.target.value }))} placeholder="Email" className="h-9 text-sm" />
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" className="h-8 text-xs" onClick={() => updateContactMutation.mutate({ contactId: contact.id, data: editContactData })}
-                      disabled={!editContactData.first_name || !editContactData.last_name || updateContactMutation.isPending}>
-                      Enregistrer
-                    </Button>
+                    <Button size="sm" className="h-8 text-xs" onClick={() => updateContactMutation.mutate({ contactId: contact.id, data: editContactData })} disabled={!editContactData.first_name || !editContactData.last_name || updateContactMutation.isPending}>Enregistrer</Button>
                     <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setEditingContact(null)}>Annuler</Button>
                   </div>
                 </div>
@@ -490,9 +463,7 @@ export default function CustomerDetailPage() {
                 <>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 min-w-0">
-                      <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                        <User className="h-4 w-4 text-primary" />
-                      </div>
+                      <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0"><User className="h-4 w-4 text-primary" /></div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
                           <p className="text-sm font-semibold truncate">{contact.first_name} {contact.last_name}</p>
@@ -503,55 +474,26 @@ export default function CustomerDetailPage() {
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       {!contact.is_primary && (
-                        <button type="button" onClick={() => setPrimaryMutation.mutate(contact.id)}
-                          className="p-1.5 rounded-md text-muted-foreground hover:text-primary transition-colors" title="Définir comme principal">
-                          <Star className="h-3.5 w-3.5" />
-                        </button>
+                        <button type="button" onClick={() => setPrimaryMutation.mutate(contact.id)} className="p-1.5 rounded-md text-muted-foreground hover:text-primary transition-colors" title="Définir comme principal"><Star className="h-3.5 w-3.5" /></button>
                       )}
-                      <button type="button" onClick={() => {
-                        setEditingContact(contact.id);
-                        setEditContactData({ first_name: contact.first_name, last_name: contact.last_name, role: contact.role || '', phone: contact.phone || '', email: contact.email || '' });
-                      }} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground transition-colors">
-                        <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button type="button" onClick={() => { if (confirm('Supprimer ce contact ?')) deleteContactMutation.mutate(contact.id); }}
-                        className="p-1.5 rounded-md text-muted-foreground hover:text-destructive transition-colors">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      <button type="button" onClick={() => { setEditingContact(contact.id); setEditContactData({ first_name: contact.first_name, last_name: contact.last_name, role: contact.role || '', phone: contact.phone || '', email: contact.email || '' }); }} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground transition-colors"><Pencil className="h-3.5 w-3.5" /></button>
+                      <button type="button" onClick={() => { if (confirm('Supprimer ce contact ?')) deleteContactMutation.mutate(contact.id); }} className="p-1.5 rounded-md text-muted-foreground hover:text-destructive transition-colors"><Trash2 className="h-3.5 w-3.5" /></button>
                     </div>
                   </div>
-                  {/* Contact actions */}
                   <div className="flex items-center gap-2 ml-11">
                     {contact.phone && (
                       <>
-                        <a href={`tel:${contact.phone}`}>
-                          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
-                            <Phone className="h-3.5 w-3.5" />
-                            {contact.phone}
-                          </Button>
-                        </a>
-                        <a href={`https://wa.me/${contact.phone.replace(/\s+/g, '').replace(/^0/, '33')}`} target="_blank" rel="noopener noreferrer">
-                          <Button variant="outline" size="icon" className="h-8 w-8" title="WhatsApp">
-                            <MessageCircle className="h-3.5 w-3.5" />
-                          </Button>
-                        </a>
+                        <a href={`tel:${contact.phone}`}><Button variant="outline" size="sm" className="h-8 text-xs gap-1.5"><Phone className="h-3.5 w-3.5" />{contact.phone}</Button></a>
+                        <a href={`https://wa.me/${contact.phone.replace(/\s+/g, '').replace(/^0/, '33')}`} target="_blank" rel="noopener noreferrer"><Button variant="outline" size="icon" className="h-8 w-8" title="WhatsApp"><MessageCircle className="h-3.5 w-3.5" /></Button></a>
                       </>
                     )}
-                    {contact.email && (
-                      <a href={`mailto:${contact.email}`}>
-                        <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
-                          <Mail className="h-3.5 w-3.5" />
-                          {contact.email}
-                        </Button>
-                      </a>
-                    )}
+                    {contact.email && <a href={`mailto:${contact.email}`}><Button variant="outline" size="sm" className="h-8 text-xs gap-1.5"><Mail className="h-3.5 w-3.5" />{contact.email}</Button></a>}
                   </div>
                 </>
               )}
             </div>
           ))}
 
-          {/* Add contact form */}
           {addingContact && (
             <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-2">
               <p className="text-xs font-medium text-primary">Nouveau contact</p>
@@ -565,20 +507,15 @@ export default function CustomerDetailPage() {
                 <Input type="email" value={newContact.email} onChange={e => setNewContact(c => ({ ...c, email: e.target.value }))} placeholder="Email" className="h-9 text-sm" />
               </div>
               <div className="flex gap-2">
-                <Button size="sm" className="h-8 text-xs" onClick={() => addContactMutation.mutate(newContact)}
-                  disabled={!newContact.first_name || !newContact.last_name || addContactMutation.isPending}>
-                  Ajouter
-                </Button>
-                <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => { setAddingContact(false); setNewContact({ first_name: '', last_name: '', role: '', phone: '', email: '' }); }}>
-                  Annuler
-                </Button>
+                <Button size="sm" className="h-8 text-xs" onClick={() => addContactMutation.mutate(newContact)} disabled={!newContact.first_name || !newContact.last_name || addContactMutation.isPending}>Ajouter</Button>
+                <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => { setAddingContact(false); setNewContact({ first_name: '', last_name: '', role: '', phone: '', email: '' }); }}>Annuler</Button>
               </div>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* ─── 5. ADDRESS ─── */}
+      {/* ─── 6. ADDRESS ─── */}
       {(fullAddress || address) && (
         <Card>
           <CardContent className="p-3 space-y-2">
@@ -586,43 +523,97 @@ export default function CustomerDetailPage() {
               <MapPin className="h-4 w-4 text-primary shrink-0" />
               <p className="text-sm flex-1">{fullAddress || address}</p>
             </div>
-            <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress || address)}`}
-              target="_blank" rel="noopener noreferrer">
+            <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress || address)}`} target="_blank" rel="noopener noreferrer">
               <Button variant="outline" size="sm" className="w-full h-9 text-xs gap-1.5">
-                <Navigation className="h-3.5 w-3.5" />
-                Ouvrir dans Google Maps
-                <ExternalLink className="h-3 w-3 ml-auto" />
+                <Navigation className="h-3.5 w-3.5" />Ouvrir dans Google Maps<ExternalLink className="h-3 w-3 ml-auto" />
               </Button>
             </a>
           </CardContent>
         </Card>
       )}
 
-      {/* ─── 6. REVENUE HISTORY ─── */}
-      <RevenueHistoryCard customerId={customer.id} annualRevenuePotential={revenue} />
+      {/* ─── 7. REVENUE HISTORY ─── */}
+      <RevenueHistoryCard customerId={customer.id} annualRevenuePotential={displayRevenue} />
 
-      {/* ─── 7. TIMELINE ─── */}
-      {timeline.length > 0 ? (
+      {/* ─── 8. VISIT REPORT HISTORY ─── */}
+      <Card>
+        <CardHeader className="pb-2 px-4 pt-4">
+          <CardTitle className="font-heading text-sm flex items-center justify-between">
+            <span className="flex items-center gap-2"><FileText className="h-4 w-4 text-primary" />Historique des rapports de visite</span>
+            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setReportOpen(true)}>
+              <Plus className="h-3.5 w-3.5 mr-1" />Rapport
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4 space-y-2">
+          {visitReports.length === 0 ? (
+            <div className="text-center py-4 space-y-2">
+              <FileText className="mx-auto h-8 w-8 text-muted-foreground/30" />
+              <p className="text-sm text-muted-foreground">Aucun rapport de visite</p>
+              <Button variant="outline" size="sm" onClick={() => setReportOpen(true)}>
+                <Plus className="h-3.5 w-3.5 mr-1" />Créer un rapport
+              </Button>
+            </div>
+          ) : (
+            visitReports.map((report: any) => (
+              <div key={report.id} className="rounded-xl border border-border p-3 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-[10px]">
+                      {new Date(report.visit_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </Badge>
+                    {report.quick_outcome && (
+                      <Badge className={`text-[9px] ${
+                        report.quick_outcome === 'positive' ? 'bg-accent/15 text-accent' :
+                        report.quick_outcome === 'negative' ? 'bg-destructive/15 text-destructive' :
+                        'bg-muted text-muted-foreground'
+                      }`}>
+                        {report.quick_outcome === 'positive' ? '✓ Positif' : report.quick_outcome === 'negative' ? '✗ Négatif' : '◌ Neutre'}
+                      </Badge>
+                    )}
+                  </div>
+                  {report.profiles && (
+                    <span className="text-[10px] text-muted-foreground">{(report.profiles as any)?.full_name}</span>
+                  )}
+                </div>
+                {(report.visit_purpose || report.summary) && (
+                  <p className="text-sm font-medium line-clamp-1">{report.visit_purpose || report.summary}</p>
+                )}
+                {report.summary && report.visit_purpose && (
+                  <p className="text-[11px] text-muted-foreground line-clamp-2">{report.summary}</p>
+                )}
+                {report.next_actions && (
+                  <div className="flex items-center gap-1.5 text-[11px] text-primary">
+                    <ArrowRightCircle className="h-3 w-3 shrink-0" />
+                    <span className="line-clamp-1">{report.next_actions}</span>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ─── 9. TIMELINE (tasks + older interactions) ─── */}
+      {tasks.length > 0 && (
         <Card>
           <CardHeader className="pb-2 px-4 pt-4">
-            <CardTitle className="font-heading text-sm">Historique récent</CardTitle>
+            <CardTitle className="font-heading text-sm flex items-center gap-2">
+              <CheckSquare className="h-4 w-4 text-primary" />Tâches récentes
+            </CardTitle>
           </CardHeader>
           <CardContent className="px-4 pb-4 space-y-2">
-            {timeline.map((item, i) => (
-              <div key={i} className="flex items-start gap-3 rounded-lg border p-3">
-                <Badge className={`text-[9px] shrink-0 ${typeColors[item.type]}`}>{item.date}</Badge>
+            {tasks.map((task) => (
+              <div key={task.id} className="flex items-start gap-3 rounded-lg border p-3">
+                <Badge className={`text-[9px] shrink-0 ${task.status === 'done' ? 'bg-accent/10 text-accent' : task.priority === 'high' ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'}`}>
+                  {task.due_date ? new Date(task.due_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) : 'Sans date'}
+                </Badge>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{item.title}</p>
-                  {item.detail && <p className="text-[11px] text-muted-foreground line-clamp-2">{item.detail}</p>}
+                  <p className="text-sm font-medium truncate">{task.title}</p>
+                  {task.description && <p className="text-[11px] text-muted-foreground line-clamp-1">{task.description}</p>}
                 </div>
               </div>
             ))}
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardContent className="p-6 text-center">
-            <p className="text-sm text-muted-foreground">Aucun historique pour ce client</p>
           </CardContent>
         </Card>
       )}
