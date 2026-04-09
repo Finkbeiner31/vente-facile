@@ -22,8 +22,9 @@ import { useCustomerPerformance } from '@/hooks/useCustomerPerformance';
 import { computeVisitPriority, PRIORITY_CONFIGS } from '@/lib/priorityEngine';
 import {
   useVehiclePotentials, computeFleetPotential,
-  FLEET_KEYS, FLEET_LABELS, CUSTOMER_TYPES, EQUIPMENT_TYPES,
+  FLEET_KEYS, FLEET_LABELS, CUSTOMER_TYPES, EQUIPMENT_TYPES, EQUIPMENT_SUB_TYPES,
 } from '@/hooks/useVehiclePotentials';
+import { Checkbox } from '@/components/ui/checkbox';
 
 type CustomerStatus = 'prospect' | 'client_actif' | 'client_inactif';
 
@@ -45,7 +46,7 @@ export default function CustomerDetailPage() {
   const [newContact, setNewContact] = useState({ first_name: '', last_name: '', role: '', phone: '', email: '' });
   const [editContactData, setEditContactData] = useState({ first_name: '', last_name: '', role: '', phone: '', email: '' });
   const [editingBusiness, setEditingBusiness] = useState(false);
-  const [fleetForm, setFleetForm] = useState({ fleet_pl: 0, fleet_vu: 0, fleet_remorque: 0, fleet_car_bus: 0, activity_type: '', equipment_type: '' });
+  const [fleetForm, setFleetForm] = useState({ fleet_pl: 0, fleet_vu: 0, fleet_remorque: 0, fleet_car_bus: 0, activity_type: '', equipment_type: '', equipment_types: [] as string[] });
   const queryClient = useQueryClient();
   const isValidId = Boolean(id && UUID_REGEX.test(id));
 
@@ -183,6 +184,7 @@ export default function CustomerDetailPage() {
   const fullAddress = [customer.address, customer.postal_code, customer.city].filter(Boolean).join(', ');
 
   const startEditBusiness = () => {
+    const eqTypes = (cust as any).equipment_types;
     setFleetForm({
       fleet_pl: cust.fleet_pl || 0,
       fleet_vu: cust.fleet_vu || 0,
@@ -190,12 +192,20 @@ export default function CustomerDetailPage() {
       fleet_car_bus: cust.fleet_car_bus || 0,
       activity_type: cust.activity_type || '',
       equipment_type: cust.equipment_type || '',
+      equipment_types: Array.isArray(eqTypes) ? eqTypes : [],
     });
     setEditingBusiness(true);
   };
 
   const saveBusiness = () => {
+    if (fleetForm.equipment_type === 'Multi-équipement' && fleetForm.equipment_types.length === 0) {
+      toast.error('Veuillez sélectionner au moins un type d\'équipement');
+      return;
+    }
     const totalV = fleetForm.fleet_pl + fleetForm.fleet_vu + fleetForm.fleet_remorque + fleetForm.fleet_car_bus;
+    const eqTypes = fleetForm.equipment_type === 'Multi-équipement'
+      ? fleetForm.equipment_types
+      : fleetForm.equipment_type ? [fleetForm.equipment_type] : [];
     updateCustomerMutation.mutate({
       fleet_pl: fleetForm.fleet_pl,
       fleet_vu: fleetForm.fleet_vu,
@@ -204,7 +214,8 @@ export default function CustomerDetailPage() {
       number_of_vehicles: totalV,
       activity_type: fleetForm.activity_type || null,
       equipment_type: fleetForm.equipment_type || null,
-    });
+      equipment_types: eqTypes,
+    } as any);
   };
 
   return (
@@ -241,12 +252,17 @@ export default function CustomerDetailPage() {
           <Truck className="h-3.5 w-3.5 text-muted-foreground" />
           <span className="text-sm font-bold">{totalVehicles || customer.number_of_vehicles || 0} véh.</span>
         </div>
-        {cust.equipment_type && (
-          <div className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5">
-            <Wrench className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-xs">{cust.equipment_type}</span>
-          </div>
-        )}
+        {(() => {
+          const eqTypes = (cust as any).equipment_types as string[] | undefined;
+          const isMulti = cust.equipment_type === 'Multi-équipement' && Array.isArray(eqTypes) && eqTypes.length > 0;
+          const displayEq = isMulti ? eqTypes.join(', ') : cust.equipment_type;
+          return displayEq ? (
+            <div className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5">
+              <Wrench className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs">{displayEq}</span>
+            </div>
+          ) : null;
+        })()}
         {customer.last_visit_date && (
           <div className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5">
             <Clock className="h-3.5 w-3.5 text-muted-foreground" />
@@ -322,13 +338,39 @@ export default function CustomerDetailPage() {
               </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground">Équipement principal</label>
-                <Select value={fleetForm.equipment_type} onValueChange={v => setFleetForm(f => ({ ...f, equipment_type: v }))}>
+                <Select value={fleetForm.equipment_type} onValueChange={v => setFleetForm(f => ({ ...f, equipment_type: v, equipment_types: v === 'Multi-équipement' ? f.equipment_types : [] }))}>
                   <SelectTrigger className="h-10 mt-1"><SelectValue placeholder="Sélectionner..." /></SelectTrigger>
                   <SelectContent>
                     {EQUIPMENT_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
+              {fleetForm.equipment_type === 'Multi-équipement' && (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-2 block">Types d'équipements présents</label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {EQUIPMENT_SUB_TYPES.map(t => (
+                      <label key={t} className="flex items-center gap-2 rounded-md border p-2 cursor-pointer hover:bg-muted/50 text-sm">
+                        <Checkbox
+                          checked={fleetForm.equipment_types.includes(t)}
+                          onCheckedChange={(checked) => {
+                            setFleetForm(f => ({
+                              ...f,
+                              equipment_types: checked
+                                ? [...f.equipment_types, t]
+                                : f.equipment_types.filter(x => x !== t),
+                            }));
+                          }}
+                        />
+                        {t}
+                      </label>
+                    ))}
+                  </div>
+                  {fleetForm.equipment_types.length === 0 && (
+                    <p className="text-xs text-destructive mt-1">Veuillez sélectionner au moins un type d'équipement</p>
+                  )}
+                </div>
+              )}
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-2 block">Flotte véhicules</label>
                 <div className="grid grid-cols-2 gap-2">
@@ -361,8 +403,18 @@ export default function CustomerDetailPage() {
                   <p className="text-sm font-medium mt-0.5">{cust.activity_type || <span className="text-muted-foreground italic">Non renseigné</span>}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Équipement principal</p>
-                  <p className="text-sm font-medium mt-0.5">{cust.equipment_type || <span className="text-muted-foreground italic">Non renseigné</span>}</p>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {cust.equipment_type === 'Multi-équipement' ? 'Équipements' : 'Équipement principal'}
+                  </p>
+                  <p className="text-sm font-medium mt-0.5">
+                    {(() => {
+                      const eqTypes = (cust as any).equipment_types as string[] | undefined;
+                      if (cust.equipment_type === 'Multi-équipement' && Array.isArray(eqTypes) && eqTypes.length > 0) {
+                        return eqTypes.join(', ');
+                      }
+                      return cust.equipment_type || <span className="text-muted-foreground italic">Non renseigné</span>;
+                    })()}
+                  </p>
                 </div>
               </div>
 

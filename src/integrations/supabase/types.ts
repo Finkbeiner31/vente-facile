@@ -142,6 +142,7 @@ export type Database = {
           customer_type: string
           email: string | null
           equipment_type: string | null
+          equipment_types: string[] | null
           fleet_car_bus: number
           fleet_pl: number
           fleet_remorque: number
@@ -173,6 +174,7 @@ export type Database = {
           customer_type?: string
           email?: string | null
           equipment_type?: string | null
+          equipment_types?: string[] | null
           fleet_car_bus?: number
           fleet_pl?: number
           fleet_remorque?: number
@@ -204,6 +206,7 @@ export type Database = {
           customer_type?: string
           email?: string | null
           equipment_type?: string | null
+          equipment_types?: string[] | null
           fleet_car_bus?: number
           fleet_pl?: number
           fleet_remorque?: number

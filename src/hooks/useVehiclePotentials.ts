@@ -64,5 +64,9 @@ export const CUSTOMER_TYPES = [
 ];
 
 export const EQUIPMENT_TYPES = [
+  'Hydrocureur', 'BOM', 'Grue', 'Benne', 'Plateau', 'Frigorifique', 'Citerne', 'Porte-engins', 'Multi-équipement', 'Autre',
+];
+
+export const EQUIPMENT_SUB_TYPES = [
   'Hydrocureur', 'BOM', 'Grue', 'Benne', 'Plateau', 'Frigorifique', 'Citerne', 'Porte-engins', 'Autre',
 ];
