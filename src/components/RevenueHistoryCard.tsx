@@ -81,13 +81,26 @@ export function RevenueHistoryCard({ customerId, annualRevenuePotential }: Props
               <p className="text-[10px] text-muted-foreground">/mois</p>
             </div>
             <div className="rounded-lg bg-muted/50 p-2.5">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">CA M-1</p>
-              <div className="flex items-center gap-1.5">
-                <p className="font-heading text-lg font-bold">
-                  {perf.caM1 !== null ? `${perf.caM1.toLocaleString('fr-FR')}€` : '—'}
-                </p>
-                {perf.caM1 !== null && <TrendIcon className={`h-4 w-4 ${trendColor}`} />}
-              </div>
+              {perf.caM1 !== null && perf.caM1 > 0 ? (
+                <>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">CA M-1</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-heading text-lg font-bold">{perf.caM1.toLocaleString('fr-FR')}€</p>
+                    <TrendIcon className={`h-4 w-4 ${trendColor}`} />
+                  </div>
+                </>
+              ) : perf.latestKnownCA !== null ? (
+                <>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Dernier CA</p>
+                  <p className="font-heading text-lg font-bold">{perf.latestKnownCA.toLocaleString('fr-FR')}€</p>
+                  <p className="text-[9px] text-muted-foreground">{perf.latestKnownLabel}</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">CA M-1</p>
+                  <p className="font-heading text-lg font-bold text-muted-foreground">—</p>
+                </>
+              )}
             </div>
           </div>
 
