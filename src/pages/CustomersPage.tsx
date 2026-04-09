@@ -108,10 +108,14 @@ export default function CustomersPage() {
           phone: customer.phone || '',
           potential: getPotential(revenue, customer.sales_potential),
           lastVisit: formatLastVisit(customer.last_visit_date),
+          lastVisitDate: customer.last_visit_date,
+          visitFrequency: customer.visit_frequency,
           nextAction: customer.next_action_description,
           address: [customer.address, customer.city].filter(Boolean).join(', '),
           vehicles: customer.number_of_vehicles || 0,
           revenue,
+          latitude: customer.latitude,
+          longitude: customer.longitude,
         };
       });
     },
