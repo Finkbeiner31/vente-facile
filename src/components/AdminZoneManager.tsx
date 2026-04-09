@@ -238,15 +238,39 @@ export function AdminZoneManager() {
               <MapPin className="h-5 w-5 text-primary" />
               Zones commerciales
             </CardTitle>
-            <Button
-              variant={showMapOverview ? 'default' : 'outline'}
-              size="sm"
-              className="h-8 gap-1.5 text-xs"
-              onClick={() => setShowMapOverview(!showMapOverview)}
-            >
-              <Map className="h-4 w-4" />
-              {showMapOverview ? 'Liste' : 'Carte des zones'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 text-xs"
+                disabled={recalculating}
+                onClick={async () => {
+                  setRecalculating(true);
+                  try {
+                    const result = await bulkRecalculate();
+                    toast.success(
+                      `Recalcul terminé : ${result.assigned} assigné(s), ${result.conflicts} à confirmer, ${result.outside} hors zone, ${result.skippedManual} manuel(s) conservé(s)`
+                    );
+                  } catch {
+                    toast.error('Erreur lors du recalcul');
+                  } finally {
+                    setRecalculating(false);
+                  }
+                }}
+              >
+                {recalculating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Recalculer les zones
+              </Button>
+              <Button
+                variant={showMapOverview ? 'default' : 'outline'}
+                size="sm"
+                className="h-8 gap-1.5 text-xs"
+                onClick={() => setShowMapOverview(!showMapOverview)}
+              >
+                <Map className="h-4 w-4" />
+                {showMapOverview ? 'Liste' : 'Carte des zones'}
+              </Button>
+            </div>
           </div>
         </CardHeader>
         {showMapOverview ? (
