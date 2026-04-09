@@ -270,11 +270,21 @@ export default function AdminPage() {
 
         {/* ===== PROFILS TAB ===== */}
         <TabsContent value="users" className="mt-4 space-y-4">
-          {/* Header with create button */}
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Gestion des profils ({allUsers.length})
-            </p>
+          {/* Header with create button and filter */}
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Gestion des profils ({filteredUsers.length})
+              </p>
+              <div className="flex gap-1">
+                {(['all', 'active', 'inactive'] as const).map(f => (
+                  <Button key={f} variant={statusFilter === f ? 'default' : 'ghost'} size="sm" className="h-6 text-[10px] px-2"
+                    onClick={() => setStatusFilter(f)}>
+                    {f === 'all' ? 'Tous' : f === 'active' ? 'Actifs' : 'Inactifs'}
+                  </Button>
+                ))}
+              </div>
+            </div>
             {isAdmin && (
               <Button size="sm" onClick={() => setShowCreateModal(true)}>
                 <UserPlus className="h-4 w-4 mr-1" />Créer un profil
@@ -284,12 +294,14 @@ export default function AdminPage() {
 
           {usersLoading ? (
             <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-          ) : allUsers.length === 0 ? (
+          ) : filteredUsers.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center">
                 <Users className="mx-auto h-10 w-10 text-muted-foreground/30" />
-                <p className="mt-3 text-sm text-muted-foreground">Aucun profil créé</p>
-                {isAdmin && (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  {statusFilter !== 'all' ? 'Aucun profil dans ce filtre' : 'Aucun profil créé'}
+                </p>
+                {isAdmin && statusFilter === 'all' && (
                   <Button size="sm" className="mt-4" onClick={() => setShowCreateModal(true)}>
                     <UserPlus className="h-4 w-4 mr-1" />Créer un profil
                   </Button>
@@ -300,22 +312,38 @@ export default function AdminPage() {
             <div className="grid gap-4 md:grid-cols-3">
               {/* User list */}
               <div className="space-y-2 md:col-span-1">
-                {allUsers.map(u => (
+                {filteredUsers.map(u => (
                   <button key={u.id} onClick={() => setSelectedUserId(u.id)}
                     className={`w-full rounded-lg border p-3 text-left transition-all ${
                       selectedUserId === u.id ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-primary/30'
-                    }`}>
+                    } ${!u.is_active ? 'opacity-60' : ''}`}>
                     <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 font-heading text-xs font-bold text-primary shrink-0">
+                      <div className={`flex h-9 w-9 items-center justify-center rounded-full font-heading text-xs font-bold shrink-0 ${
+                        u.is_active ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+                      }`}>
                         {u.full_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{u.full_name}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-medium truncate">{u.full_name}</p>
+                          {!u.is_active && <Badge variant="secondary" className="text-[8px] h-3.5 px-1">Inactif</Badge>}
+                        </div>
                         <p className="text-[10px] text-muted-foreground truncate">{u.email}</p>
                       </div>
-                      <Badge variant="outline" className={`text-[9px] shrink-0 ${roleBadgeColors[u.role] || ''}`}>
-                        {roleLabels[u.role] || u.role}
-                      </Badge>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Badge variant="outline" className={`text-[9px] ${roleBadgeColors[u.role] || ''}`}>
+                          {roleLabels[u.role] || u.role}
+                        </Badge>
+                        {isAdmin && u.role !== 'admin' && (
+                          <button
+                            onClick={e => { e.stopPropagation(); setShowDeleteModal(u.id); }}
+                            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                            title="Supprimer / Désactiver"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </button>
                 ))}
