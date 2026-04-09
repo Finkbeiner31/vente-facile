@@ -231,12 +231,24 @@ export function AdminZoneManager() {
     <>
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="font-heading text-base flex items-center gap-2">
-            <MapPin className="h-5 w-5 text-primary" />
-            Zones commerciales
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="font-heading text-base flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-primary" />
+              Zones commerciales
+            </CardTitle>
+            <Button
+              variant={showMapOverview ? 'default' : 'outline'}
+              size="sm"
+              className="h-8 gap-1.5 text-xs"
+              onClick={() => setShowMapOverview(!showMapOverview)}
+            >
+              <Map className="h-4 w-4" />
+              {showMapOverview ? 'Liste' : 'Carte des zones'}
+            </Button>
+          </div>
           <p className="text-xs text-muted-foreground">
             Le numéro est attribué automatiquement. La couleur est auto-assignée si vous n'en choisissez pas.
+          </p>
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
