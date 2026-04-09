@@ -3,11 +3,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import {
   Users, Shield, Settings as SettingsIcon, Truck, Plus, Edit, Trash2, Save,
-  Loader2, ArrowRightCircle, MapPin, Building2, Calendar, Eye,
+  Loader2, ArrowRightCircle, MapPin, Building2, Calendar, UserPlus, Power,
 } from 'lucide-react';
 import { AdminZoneManager } from '@/components/AdminZoneManager';
 import { AdminConversionRequests } from '@/components/AdminConversionRequests';
@@ -24,10 +26,18 @@ const roleLabels: Record<string, string> = {
   executive: 'Observateur',
 };
 
+const roleBadgeColors: Record<string, string> = {
+  admin: 'bg-destructive/10 text-destructive border-destructive/20',
+  manager: 'bg-blue-500/10 text-blue-700 border-blue-200',
+  sales_rep: 'bg-primary/10 text-primary border-primary/20',
+  executive: 'bg-muted text-muted-foreground border-border',
+};
+
 interface UserWithRole {
   id: string;
   full_name: string;
   email: string | null;
+  phone: string | null;
   role: string;
 }
 
@@ -37,15 +47,16 @@ export default function AdminPage() {
   const [editingPotentials, setEditingPotentials] = useState(false);
   const [potentialForm, setPotentialForm] = useState<Record<string, number>>({});
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createForm, setCreateForm] = useState({ firstName: '', lastName: '', email: '', phone: '', role: 'sales_rep', password: '' });
   const queryClient = useQueryClient();
 
-  // Load real users with roles
   const { data: allUsers = [], isLoading: usersLoading } = useQuery({
     queryKey: ['admin-users'],
     queryFn: async () => {
       const { data: profiles, error: pErr } = await supabase
         .from('profiles')
-        .select('id, full_name, email')
+        .select('id, full_name, email, phone')
         .order('full_name');
       if (pErr) throw pErr;
 
@@ -61,6 +72,7 @@ export default function AdminPage() {
         id: p.id,
         full_name: p.full_name || 'Sans nom',
         email: p.email,
+        phone: p.phone,
         role: roleMap[p.id] || 'sales_rep',
       }));
     },
@@ -69,7 +81,35 @@ export default function AdminPage() {
 
   const isAdmin = currentRole === 'admin';
 
-  // Change user role
+  // Create user mutation
+  const createUserMutation = useMutation({
+    mutationFn: async () => {
+      const fullName = `${createForm.firstName} ${createForm.lastName}`.trim();
+      if (!fullName || !createForm.email || !createForm.role) {
+        throw new Error('Champs requis manquants');
+      }
+      const { data, error } = await supabase.functions.invoke('create-user', {
+        body: {
+          email: createForm.email,
+          password: createForm.password || undefined,
+          full_name: fullName,
+          phone: createForm.phone || undefined,
+          role: createForm.role,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      setShowCreateModal(false);
+      setCreateForm({ firstName: '', lastName: '', email: '', phone: '', role: 'sales_rep', password: '' });
+      toast.success('Profil créé avec succès');
+    },
+    onError: (e: any) => toast.error(e.message || 'Erreur lors de la création'),
+  });
+
   const changeRoleMutation = useMutation({
     mutationFn: async ({ userId, newRole }: { userId: string; newRole: string }) => {
       const { error } = await (supabase as any)
@@ -85,7 +125,6 @@ export default function AdminPage() {
     onError: () => toast.error('Erreur lors du changement de rôle'),
   });
 
-  // Reassign client to another commercial
   const reassignClientMutation = useMutation({
     mutationFn: async ({ clientId, newRepId }: { clientId: string; newRepId: string }) => {
       const { error } = await supabase
@@ -102,7 +141,6 @@ export default function AdminPage() {
     onError: () => toast.error('Erreur de réassignation'),
   });
 
-  // Load selected user's data
   const selectedUser = allUsers.find(u => u.id === selectedUserId);
 
   const { data: selectedUserZones = [] } = useQuery({
@@ -182,17 +220,18 @@ export default function AdminPage() {
   };
 
   const dayNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
+  const isCommercialRole = (role: string) => role === 'sales_rep';
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
         <h1 className="font-heading text-2xl font-bold">Administration</h1>
-        <p className="text-sm text-muted-foreground">Gérez les utilisateurs, zones et paramètres</p>
+        <p className="text-sm text-muted-foreground">Gérez les profils, zones et paramètres</p>
       </div>
 
       <Tabs defaultValue="users">
         <TabsList className="flex-wrap">
-          <TabsTrigger value="users"><Users className="mr-1 h-4 w-4" />Commerciaux</TabsTrigger>
+          <TabsTrigger value="users"><Users className="mr-1 h-4 w-4" />Profils</TabsTrigger>
           <TabsTrigger value="conversions"><ArrowRightCircle className="mr-1 h-4 w-4" />Conversions</TabsTrigger>
           <TabsTrigger value="zones"><MapPin className="mr-1 h-4 w-4" />Zones</TabsTrigger>
           <TabsTrigger value="roles"><Shield className="mr-1 h-4 w-4" />Rôles</TabsTrigger>
@@ -200,15 +239,38 @@ export default function AdminPage() {
           <TabsTrigger value="settings"><SettingsIcon className="mr-1 h-4 w-4" />Paramètres</TabsTrigger>
         </TabsList>
 
-        {/* Users / Commercials tab */}
+        {/* ===== PROFILS TAB ===== */}
         <TabsContent value="users" className="mt-4 space-y-4">
+          {/* Header with create button */}
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              Gestion des profils ({allUsers.length})
+            </p>
+            {isAdmin && (
+              <Button size="sm" onClick={() => setShowCreateModal(true)}>
+                <UserPlus className="h-4 w-4 mr-1" />Créer un profil
+              </Button>
+            )}
+          </div>
+
           {usersLoading ? (
             <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
+          ) : allUsers.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Users className="mx-auto h-10 w-10 text-muted-foreground/30" />
+                <p className="mt-3 text-sm text-muted-foreground">Aucun profil créé</p>
+                {isAdmin && (
+                  <Button size="sm" className="mt-4" onClick={() => setShowCreateModal(true)}>
+                    <UserPlus className="h-4 w-4 mr-1" />Créer un profil
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
           ) : (
             <div className="grid gap-4 md:grid-cols-3">
               {/* User list */}
               <div className="space-y-2 md:col-span-1">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">Équipe ({allUsers.length})</p>
                 {allUsers.map(u => (
                   <button key={u.id} onClick={() => setSelectedUserId(u.id)}
                     className={`w-full rounded-lg border p-3 text-left transition-all ${
@@ -222,7 +284,9 @@ export default function AdminPage() {
                         <p className="text-sm font-medium truncate">{u.full_name}</p>
                         <p className="text-[10px] text-muted-foreground truncate">{u.email}</p>
                       </div>
-                      <Badge variant="secondary" className="text-[9px] shrink-0">{roleLabels[u.role] || u.role}</Badge>
+                      <Badge variant="outline" className={`text-[9px] shrink-0 ${roleBadgeColors[u.role] || ''}`}>
+                        {roleLabels[u.role] || u.role}
+                      </Badge>
                     </div>
                   </button>
                 ))}
@@ -233,7 +297,7 @@ export default function AdminPage() {
                 {!selectedUser ? (
                   <div className="py-12 text-center">
                     <Users className="mx-auto h-10 w-10 text-muted-foreground/30" />
-                    <p className="mt-3 text-sm text-muted-foreground">Sélectionnez un commercial pour voir ses données</p>
+                    <p className="mt-3 text-sm text-muted-foreground">Sélectionnez un profil pour voir ses données</p>
                   </div>
                 ) : (
                   <>
@@ -247,6 +311,9 @@ export default function AdminPage() {
                           <div className="flex-1 min-w-0">
                             <p className="text-base font-semibold">{selectedUser.full_name}</p>
                             <p className="text-xs text-muted-foreground">{selectedUser.email}</p>
+                            {selectedUser.phone && (
+                              <p className="text-xs text-muted-foreground">{selectedUser.phone}</p>
+                            )}
                           </div>
                           {isAdmin ? (
                             <Select
@@ -263,134 +330,153 @@ export default function AdminPage() {
                               </SelectContent>
                             </Select>
                           ) : (
-                            <Badge>{roleLabels[selectedUser.role]}</Badge>
+                            <Badge variant="outline" className={roleBadgeColors[selectedUser.role]}>
+                              {roleLabels[selectedUser.role]}
+                            </Badge>
                           )}
                         </div>
                       </CardContent>
                     </Card>
 
-                    {/* KPIs */}
-                    <div className="grid grid-cols-3 gap-3">
-                      <Card>
-                        <CardContent className="p-3 text-center">
-                          <Building2 className="mx-auto h-5 w-5 text-primary mb-1" />
-                          <p className="text-lg font-bold">{selectedUserClients.length}</p>
-                          <p className="text-[10px] text-muted-foreground">Clients</p>
-                        </CardContent>
-                      </Card>
-                      <Card>
-                        <CardContent className="p-3 text-center">
-                          <MapPin className="mx-auto h-5 w-5 text-primary mb-1" />
-                          <p className="text-lg font-bold">{selectedUserZones.length}</p>
-                          <p className="text-[10px] text-muted-foreground">Zones</p>
-                        </CardContent>
-                      </Card>
-                      <Card>
-                        <CardContent className="p-3 text-center">
-                          <Truck className="mx-auto h-5 w-5 text-primary mb-1" />
-                          <p className="text-lg font-bold">
-                            {selectedUserClients.reduce((s, c) => s + Number(c.annual_revenue_potential || 0), 0).toLocaleString('fr-FR')}€
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">CA potentiel</p>
-                        </CardContent>
-                      </Card>
-                    </div>
-
-                    {/* Zones */}
-                    <Card>
-                      <CardHeader className="pb-2 px-4 pt-4">
-                        <CardTitle className="font-heading text-sm flex items-center gap-2">
-                          <MapPin className="h-4 w-4 text-primary" />Zones ({selectedUserZones.length})
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="px-4 pb-4">
-                        {selectedUserZones.length === 0 ? (
-                          <p className="text-xs text-muted-foreground">Aucune zone assignée</p>
-                        ) : (
-                          <div className="flex flex-wrap gap-2">
-                            {selectedUserZones.map(z => (
-                              <Badge key={z.id} variant="outline" className="gap-1.5">
-                                <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: z.color }} />
-                                {z.name}
-                              </Badge>
-                            ))}
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-
-                    {/* Weekly planning */}
-                    <Card>
-                      <CardHeader className="pb-2 px-4 pt-4">
-                        <CardTitle className="font-heading text-sm flex items-center gap-2">
-                          <Calendar className="h-4 w-4 text-primary" />Planning hebdomadaire
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="px-4 pb-4">
-                        <div className="grid grid-cols-5 gap-2">
-                          {dayNames.map((day, i) => {
-                            const plan = selectedUserPlanning.find((p: any) => p.day_of_week === i + 1);
-                            const zone = plan?.commercial_zones;
-                            return (
-                              <div key={i} className="rounded-lg border p-2 text-center">
-                                <p className="text-xs font-semibold">{day.slice(0, 3)}</p>
-                                {zone ? (
-                                  <div className="mt-1">
-                                    <div className="h-2 w-full rounded-full mx-auto" style={{ backgroundColor: zone.color }} />
-                                    <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{zone.name}</p>
-                                  </div>
-                                ) : (
-                                  <p className="text-[10px] text-muted-foreground mt-1">—</p>
-                                )}
-                              </div>
-                            );
-                          })}
+                    {/* KPIs — only for commercial */}
+                    {isCommercialRole(selectedUser.role) && (
+                      <>
+                        <div className="grid grid-cols-3 gap-3">
+                          <Card>
+                            <CardContent className="p-3 text-center">
+                              <Building2 className="mx-auto h-5 w-5 text-primary mb-1" />
+                              <p className="text-lg font-bold">{selectedUserClients.length}</p>
+                              <p className="text-[10px] text-muted-foreground">Clients</p>
+                            </CardContent>
+                          </Card>
+                          <Card>
+                            <CardContent className="p-3 text-center">
+                              <MapPin className="mx-auto h-5 w-5 text-primary mb-1" />
+                              <p className="text-lg font-bold">{selectedUserZones.length}</p>
+                              <p className="text-[10px] text-muted-foreground">Zones</p>
+                            </CardContent>
+                          </Card>
+                          <Card>
+                            <CardContent className="p-3 text-center">
+                              <Truck className="mx-auto h-5 w-5 text-primary mb-1" />
+                              <p className="text-lg font-bold">
+                                {selectedUserClients.reduce((s, c) => s + Number(c.annual_revenue_potential || 0), 0).toLocaleString('fr-FR')}€
+                              </p>
+                              <p className="text-[10px] text-muted-foreground">CA potentiel</p>
+                            </CardContent>
+                          </Card>
                         </div>
-                      </CardContent>
-                    </Card>
 
-                    {/* Clients */}
-                    <Card>
-                      <CardHeader className="pb-2 px-4 pt-4">
-                        <CardTitle className="font-heading text-sm flex items-center gap-2">
-                          <Building2 className="h-4 w-4 text-primary" />Clients ({selectedUserClients.length})
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="px-4 pb-4">
-                        {selectedUserClients.length === 0 ? (
-                          <p className="text-xs text-muted-foreground">Aucun client assigné</p>
-                        ) : (
-                          <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
-                            {selectedUserClients.map(c => (
-                              <div key={c.id} className="flex items-center gap-2 rounded-lg bg-muted p-2">
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-medium truncate">{c.company_name}</p>
-                                  <p className="text-[10px] text-muted-foreground">{c.city || '—'}</p>
-                                </div>
-                                {(c as any).zone && (
-                                  <Badge variant="outline" className="text-[9px] h-4">{(c as any).zone}</Badge>
-                                )}
-                                <span className="text-[10px] text-muted-foreground shrink-0">
-                                  {Number(c.annual_revenue_potential || 0).toLocaleString('fr-FR')}€
-                                </span>
-                                {isAdmin && (
-                                  <Select onValueChange={v => reassignClientMutation.mutate({ clientId: c.id, newRepId: v })}>
-                                    <SelectTrigger className="h-6 w-6 border-0 p-0 [&>svg]:hidden">
-                                      <ArrowRightCircle className="h-3.5 w-3.5 text-muted-foreground" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {allUsers.filter(u => u.id !== selectedUserId).map(u => (
-                                        <SelectItem key={u.id} value={u.id} className="text-xs">{u.full_name}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                )}
+                        {/* Zones */}
+                        <Card>
+                          <CardHeader className="pb-2 px-4 pt-4">
+                            <CardTitle className="font-heading text-sm flex items-center gap-2">
+                              <MapPin className="h-4 w-4 text-primary" />Zones ({selectedUserZones.length})
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="px-4 pb-4">
+                            {selectedUserZones.length === 0 ? (
+                              <p className="text-xs text-muted-foreground">Aucune zone assignée</p>
+                            ) : (
+                              <div className="flex flex-wrap gap-2">
+                                {selectedUserZones.map(z => (
+                                  <Badge key={z.id} variant="outline" className="gap-1.5">
+                                    <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: z.color }} />
+                                    {z.name}
+                                  </Badge>
+                                ))}
                               </div>
-                            ))}
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
+                            )}
+                          </CardContent>
+                        </Card>
+
+                        {/* Weekly planning */}
+                        <Card>
+                          <CardHeader className="pb-2 px-4 pt-4">
+                            <CardTitle className="font-heading text-sm flex items-center gap-2">
+                              <Calendar className="h-4 w-4 text-primary" />Planning hebdomadaire
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="px-4 pb-4">
+                            <div className="grid grid-cols-5 gap-2">
+                              {dayNames.map((day, i) => {
+                                const plan = selectedUserPlanning.find((p: any) => p.day_of_week === i + 1);
+                                const zone = plan?.commercial_zones;
+                                return (
+                                  <div key={i} className="rounded-lg border p-2 text-center">
+                                    <p className="text-xs font-semibold">{day.slice(0, 3)}</p>
+                                    {zone ? (
+                                      <div className="mt-1">
+                                        <div className="h-2 w-full rounded-full mx-auto" style={{ backgroundColor: zone.color }} />
+                                        <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{zone.name}</p>
+                                      </div>
+                                    ) : (
+                                      <p className="text-[10px] text-muted-foreground mt-1">—</p>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        {/* Clients */}
+                        <Card>
+                          <CardHeader className="pb-2 px-4 pt-4">
+                            <CardTitle className="font-heading text-sm flex items-center gap-2">
+                              <Building2 className="h-4 w-4 text-primary" />Clients ({selectedUserClients.length})
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="px-4 pb-4">
+                            {selectedUserClients.length === 0 ? (
+                              <p className="text-xs text-muted-foreground">Aucun client assigné</p>
+                            ) : (
+                              <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
+                                {selectedUserClients.map(c => (
+                                  <div key={c.id} className="flex items-center gap-2 rounded-lg bg-muted p-2">
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs font-medium truncate">{c.company_name}</p>
+                                      <p className="text-[10px] text-muted-foreground">{c.city || '—'}</p>
+                                    </div>
+                                    {(c as any).zone && (
+                                      <Badge variant="outline" className="text-[9px] h-4">{(c as any).zone}</Badge>
+                                    )}
+                                    <span className="text-[10px] text-muted-foreground shrink-0">
+                                      {Number(c.annual_revenue_potential || 0).toLocaleString('fr-FR')}€
+                                    </span>
+                                    {isAdmin && (
+                                      <Select onValueChange={v => reassignClientMutation.mutate({ clientId: c.id, newRepId: v })}>
+                                        <SelectTrigger className="h-6 w-6 border-0 p-0 [&>svg]:hidden">
+                                          <ArrowRightCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {allUsers.filter(u => u.id !== selectedUserId).map(u => (
+                                            <SelectItem key={u.id} value={u.id} className="text-xs">{u.full_name}</SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      </>
+                    )}
+
+                    {/* Non-commercial roles — minimal info */}
+                    {!isCommercialRole(selectedUser.role) && (
+                      <Card>
+                        <CardContent className="p-4">
+                          <p className="text-sm text-muted-foreground">
+                            {selectedUser.role === 'admin' && 'Ce profil a un accès complet à toutes les fonctionnalités et données.'}
+                            {selectedUser.role === 'manager' && 'Ce profil peut voir les données de son équipe et gérer les commerciaux.'}
+                            {selectedUser.role === 'executive' && 'Ce profil a un accès en lecture seule aux tableaux de bord et rapports.'}
+                          </p>
+                        </CardContent>
+                      </Card>
+                    )}
                   </>
                 )}
               </div>
@@ -505,6 +591,95 @@ export default function AdminPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* ===== CREATE USER MODAL ===== */}
+      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5 text-primary" />
+              Créer un profil
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Prénom *</Label>
+                <Input
+                  placeholder="Jean"
+                  value={createForm.firstName}
+                  onChange={e => setCreateForm(f => ({ ...f, firstName: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Nom *</Label>
+                <Input
+                  placeholder="Dupont"
+                  value={createForm.lastName}
+                  onChange={e => setCreateForm(f => ({ ...f, lastName: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Email *</Label>
+              <Input
+                type="email"
+                placeholder="jean.dupont@example.com"
+                value={createForm.email}
+                onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Téléphone</Label>
+              <Input
+                type="tel"
+                placeholder="06 12 34 56 78"
+                value={createForm.phone}
+                onChange={e => setCreateForm(f => ({ ...f, phone: e.target.value }))}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Rôle *</Label>
+              <Select value={createForm.role} onValueChange={v => setCreateForm(f => ({ ...f, role: v }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(roleLabels).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>{label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Mot de passe temporaire</Label>
+              <Input
+                type="password"
+                placeholder="Laisser vide pour invitation par email"
+                value={createForm.password}
+                onChange={e => setCreateForm(f => ({ ...f, password: e.target.value }))}
+              />
+              <p className="text-[10px] text-muted-foreground">
+                Si renseigné, l'utilisateur pourra se connecter immédiatement avec ce mot de passe.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowCreateModal(false)}>Annuler</Button>
+            <Button
+              onClick={() => createUserMutation.mutate()}
+              disabled={createUserMutation.isPending || !createForm.firstName || !createForm.lastName || !createForm.email}
+            >
+              {createUserMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-1" />
+              ) : (
+                <UserPlus className="h-4 w-4 mr-1" />
+              )}
+              Créer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
