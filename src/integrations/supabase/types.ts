@@ -141,6 +141,11 @@ export type Database = {
           created_at: string
           customer_type: string
           email: string | null
+          equipment_type: string | null
+          fleet_car_bus: number
+          fleet_pl: number
+          fleet_remorque: number
+          fleet_vu: number
           id: string
           last_visit_date: string | null
           latitude: number | null
@@ -167,6 +172,11 @@ export type Database = {
           created_at?: string
           customer_type?: string
           email?: string | null
+          equipment_type?: string | null
+          fleet_car_bus?: number
+          fleet_pl?: number
+          fleet_remorque?: number
+          fleet_vu?: number
           id?: string
           last_visit_date?: string | null
           latitude?: number | null
@@ -193,6 +203,11 @@ export type Database = {
           created_at?: string
           customer_type?: string
           email?: string | null
+          equipment_type?: string | null
+          fleet_car_bus?: number
+          fleet_pl?: number
+          fleet_remorque?: number
+          fleet_vu?: number
           id?: string
           last_visit_date?: string | null
           latitude?: number | null
@@ -602,6 +617,33 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      vehicle_type_potentials: {
+        Row: {
+          annual_potential: number
+          created_at: string
+          id: string
+          label: string
+          updated_at: string
+          vehicle_type: string
+        }
+        Insert: {
+          annual_potential?: number
+          created_at?: string
+          id?: string
+          label: string
+          updated_at?: string
+          vehicle_type: string
+        }
+        Update: {
+          annual_potential?: number
+          created_at?: string
+          id?: string
+          label?: string
+          updated_at?: string
+          vehicle_type?: string
         }
         Relationships: []
       }
