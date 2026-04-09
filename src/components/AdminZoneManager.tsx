@@ -106,6 +106,7 @@ export function AdminZoneManager() {
   const [editingZone, setEditingZone] = useState<CommercialZone | null>(null);
   const [editForm, setEditForm] = useState(defaultForm);
   const [mapMode, setMapMode] = useState<'create' | 'edit' | null>(null);
+  const [showMapOverview, setShowMapOverview] = useState(false);
 
   const { data: profiles = [] } = useQuery({
     queryKey: ['profiles-list'],
