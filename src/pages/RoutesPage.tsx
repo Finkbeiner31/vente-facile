@@ -26,10 +26,10 @@ const demoCustomers: CustomerForRouting[] = [
   { id: '3', company_name: 'Restaurant Le Gourmet', address: '8 Pl. Bellecour, Lyon', city: 'Lyon', phone: '04 78 99 88 77', visit_frequency: 'biweekly', number_of_vehicles: 12, annual_revenue_potential: 42000, latitude: null, longitude: null, sales_potential: 'A' },
   { id: '4', company_name: 'Pharmacie du Centre', address: '22 Rue Nationale, Toulouse', city: 'Toulouse', phone: '05 61 77 88 99', visit_frequency: 'biweekly', number_of_vehicles: 3, annual_revenue_potential: 10500, latitude: null, longitude: null, sales_potential: 'B' },
   { id: '5', company_name: 'Garage Auto Plus', address: '8 Bd de la Prairie, Nantes', city: 'Nantes', phone: '02 40 11 22 33', visit_frequency: 'multiple_per_week', number_of_vehicles: 25, annual_revenue_potential: 87500, latitude: null, longitude: null, sales_potential: 'A' },
-  { id: '6', company_name: 'Librairie Centrale', address: '15 Rue St-Ferréol, Marseille', city: 'Marseille', phone: '04 91 55 66 77', visit_frequency: 'triweekly', number_of_vehicles: 2, annual_revenue_potential: 7000, latitude: null, longitude: null, sales_potential: 'C' },
+  { id: '6', company_name: 'Librairie Centrale', address: '15 Rue St-Ferréol, Marseille', city: 'Marseille', phone: '04 91 55 66 77', visit_frequency: 'monthly', number_of_vehicles: 2, annual_revenue_potential: 7000, latitude: null, longitude: null, sales_potential: 'C' },
   { id: '7', company_name: 'Fleuriste Rose & Lys', address: '3 Rue des Fleurs, Lyon', city: 'Lyon', phone: '04 78 11 22 33', visit_frequency: 'weekly', number_of_vehicles: 4, annual_revenue_potential: 14000, latitude: null, longitude: null, sales_potential: 'B' },
   { id: '8', company_name: 'SuperMarché Bio', address: '99 Av. de la République, Paris', city: 'Paris', phone: '01 55 66 77 88', visit_frequency: 'multiple_per_week', number_of_vehicles: 18, annual_revenue_potential: 63000, latitude: null, longitude: null, sales_potential: 'A' },
-  { id: '9', company_name: 'Pressing Express', address: '7 Rue Pasteur, Lyon', city: 'Lyon', phone: '04 78 44 55 66', visit_frequency: 'triweekly', number_of_vehicles: 1, annual_revenue_potential: 3500, latitude: null, longitude: null, sales_potential: 'C' },
+  { id: '9', company_name: 'Pressing Express', address: '7 Rue Pasteur, Lyon', city: 'Lyon', phone: '04 78 44 55 66', visit_frequency: 'monthly', number_of_vehicles: 1, annual_revenue_potential: 3500, latitude: null, longitude: null, sales_potential: 'C' },
   { id: '10', company_name: 'Opticien Vue Claire', address: '14 Pl. des Terreaux, Lyon', city: 'Lyon', phone: '04 78 77 88 99', visit_frequency: 'biweekly', number_of_vehicles: 6, annual_revenue_potential: 21000, latitude: null, longitude: null, sales_potential: 'B' },
 ];
 
@@ -140,7 +140,7 @@ export default function RoutesPage() {
         <div>
           <h1 className="font-heading text-xl md:text-2xl font-bold">Tournée</h1>
           <p className="text-xs text-muted-foreground">
-            Cycle 3 semaines · {getDayLabel(selectedDay)}
+            Cycle 4 semaines · {getDayLabel(selectedDay)}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -172,7 +172,7 @@ export default function RoutesPage() {
         </Button>
         <div className="flex-1 overflow-x-auto scrollbar-hide">
           <div className="flex gap-1">
-            {Array.from({ length: 15 }, (_, i) => {
+            {Array.from({ length: 20 }, (_, i) => {
               const dayStops = dayOverrides[i] || baseCycle[i] || [];
               return (
                 <button key={i} onClick={() => setSelectedDay(i)}
@@ -190,7 +190,7 @@ export default function RoutesPage() {
           </div>
         </div>
         <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0"
-          onClick={() => setSelectedDay(d => Math.min(14, d + 1))} disabled={selectedDay === 14}>
+          onClick={() => setSelectedDay(d => Math.min(19, d + 1))} disabled={selectedDay === 19}>
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
