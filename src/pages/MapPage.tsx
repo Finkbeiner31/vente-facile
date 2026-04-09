@@ -166,6 +166,18 @@ export default function MapPage() {
   const [showList, setShowList] = useState(!isMobile);
   const [optimizerOpen, setOptimizerOpen] = useState(false);
   const routePolylineRef = useRef<google.maps.Polyline | null>(null);
+  const { data: revenueMap } = useAllCustomerRevenues();
+
+  // Compute performance map for marker colors
+  const perfMap = useMemo(() => {
+    const map = new Map<string, PerformanceStatus>();
+    customers.forEach(c => {
+      const history = revenueMap?.get(c.id) || [];
+      const perf = analyzeCustomerPerformance(c.annual_revenue_potential, history);
+      map.set(c.id, perf.status);
+    });
+    return map;
+  }, [customers, revenueMap]);
 
   // Fetch customers with coordinates
   const { data: customers = [], isLoading } = useQuery({
@@ -243,7 +255,7 @@ export default function MapPage() {
     }
 
     const markers = filtered.map(customer => {
-      const color = getMarkerColor(customer);
+      const color = getMarkerColor(customer, perfMap.get(customer.id));
       const ring = getVisitRing(customer);
       const priority = getPriorityScore(customer) >= 70;
 
@@ -275,7 +287,7 @@ export default function MapPage() {
       map.fitBounds(bounds, 60);
       if (markers.length === 1) map.setZoom(14);
     }
-  }, [filtered]);
+  }, [filtered, perfMap]);
 
   // Geolocate
   const handleLocateMe = useCallback(() => {
@@ -380,9 +392,9 @@ export default function MapPage() {
           </Select>
           {/* Legend */}
           <div className="flex items-center gap-2 ml-auto text-[10px] text-muted-foreground">
-            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#EF4444] inline-block" />Fort</span>
-            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#F97316] inline-block" />Moyen</span>
-            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#9CA3AF] inline-block" />Faible</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#22C55E] inline-block" />Optimisé</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#F97316] inline-block" />À dév.</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#EF4444] inline-block" />Sous-exp.</span>
             <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#3B82F6] inline-block" />Prospect</span>
             <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full border-2 border-dashed border-[#EF4444] inline-block" />Retard</span>
           </div>
