@@ -1,8 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { TrendingUp, TrendingDown, Minus, DollarSign } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { TrendingUp, TrendingDown, Minus, DollarSign, Target, Lightbulb, AlertTriangle } from 'lucide-react';
+import { useCustomerPerformance } from '@/hooks/useCustomerPerformance';
+import { getStatusConfig, getActionSuggestions } from '@/lib/performanceUtils';
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, ReferenceLine, Tooltip, Cell } from 'recharts';
 
 const MONTH_SHORT = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
 
@@ -12,103 +13,154 @@ interface Props {
 }
 
 export function RevenueHistoryCard({ customerId, annualRevenuePotential }: Props) {
-  const { data: revenues = [] } = useQuery({
-    queryKey: ['customer-revenues', customerId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('monthly_revenues')
-        .select('month, year, monthly_revenue')
-        .eq('customer_id', customerId)
-        .order('year', { ascending: false })
-        .order('month', { ascending: false })
-        .limit(12);
-      return data || [];
-    },
-  });
+  const perf = useCustomerPerformance(customerId, annualRevenuePotential);
+  const sc = getStatusConfig(perf.status);
+  const actions = getActionSuggestions(perf.status);
 
-  if (revenues.length === 0) return null;
+  if (perf.status === 'no_data' && perf.monthlyPotential <= 0) return null;
 
-  const monthlyPotential = annualRevenuePotential / 12;
-  const latest = revenues[0];
-  const prev = revenues[1];
-  const latestRevenue = Number(latest.monthly_revenue);
-  const prevRevenue = prev ? Number(prev.monthly_revenue) : null;
-  const coverage = monthlyPotential > 0 ? (latestRevenue / monthlyPotential) * 100 : 0;
+  const TrendIcon = perf.trend === 'up' ? TrendingUp : perf.trend === 'down' ? TrendingDown : Minus;
+  const trendColor = perf.trend === 'up' ? 'text-accent' : perf.trend === 'down' ? 'text-destructive' : 'text-muted-foreground';
 
-  let trend: 'up' | 'down' | 'stable' = 'stable';
-  if (prevRevenue !== null) {
-    const diff = latestRevenue - prevRevenue;
-    if (diff > prevRevenue * 0.05) trend = 'up';
-    else if (diff < -prevRevenue * 0.05) trend = 'down';
-  }
-
-  const TrendIcon = trend === 'up' ? TrendingUp : trend === 'down' ? TrendingDown : Minus;
-  const trendColor = trend === 'up' ? 'text-accent' : trend === 'down' ? 'text-destructive' : 'text-muted-foreground';
-
-  // Show up to last 3 months
-  const recent = revenues.slice(0, 3);
+  // Chart data
+  const chartData = perf.recentMonths.map(m => ({
+    label: MONTH_SHORT[m.month - 1],
+    ca: m.monthly_revenue,
+  }));
 
   return (
-    <Card>
-      <CardHeader className="pb-2 px-4 pt-4">
-        <CardTitle className="font-heading text-sm flex items-center gap-2">
-          <DollarSign className="h-4 w-4 text-primary" />
-          Historique CA
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="px-4 pb-4 space-y-3">
-        {/* Latest month highlight */}
-        <div className="flex items-center gap-3 rounded-xl border p-3 bg-primary/5">
-          <div className="flex-1">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">
-              CA {MONTH_SHORT[(latest.month || 1) - 1]} {latest.year}
-            </p>
-            <div className="flex items-center gap-2">
-              <p className="font-heading text-xl font-bold">
-                {latestRevenue.toLocaleString('fr-FR')}€
-              </p>
-              <TrendIcon className={`h-4 w-4 ${trendColor}`} />
+    <div className="space-y-3">
+      {/* Performance Status */}
+      <Card className={`border-l-4 ${perf.status === 'optimise' ? 'border-l-accent' : perf.status === 'a_developper' ? 'border-l-warning' : perf.status === 'sous_exploite' ? 'border-l-destructive' : 'border-l-muted'}`}>
+        <CardHeader className="pb-2 px-4 pt-4">
+          <CardTitle className="font-heading text-sm flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-primary" />
+              Performance commerciale
+            </span>
+            <Badge className={`text-[10px] ${sc.bgColor} ${sc.color}`}>
+              {sc.emoji} {sc.label}
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4 space-y-3">
+          {/* KPI grid */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-lg bg-muted/50 p-2.5">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">CA potentiel</p>
+              <p className="font-heading text-lg font-bold">{Math.round(perf.monthlyPotential).toLocaleString('fr-FR')}€</p>
+              <p className="text-[10px] text-muted-foreground">/mois</p>
+            </div>
+            <div className="rounded-lg bg-muted/50 p-2.5">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">CA M-1</p>
+              <div className="flex items-center gap-1.5">
+                <p className="font-heading text-lg font-bold">
+                  {perf.caM1 !== null ? `${perf.caM1.toLocaleString('fr-FR')}€` : '—'}
+                </p>
+                {perf.caM1 !== null && <TrendIcon className={`h-4 w-4 ${trendColor}`} />}
+              </div>
             </div>
           </div>
-          <div className="text-right">
-            <p className="text-[10px] text-muted-foreground">Couverture</p>
-            <Badge className={`text-xs ${coverage >= 80 ? 'bg-accent/15 text-accent' : coverage >= 50 ? 'bg-warning/15 text-warning' : 'bg-destructive/15 text-destructive'}`}>
-              {Math.round(coverage)}%
-            </Badge>
+
+          {/* Coverage + Gap */}
+          {perf.caM1 !== null && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Taux de couverture</span>
+                <Badge className={`text-xs ${sc.bgColor} ${sc.color}`}>{Math.round(perf.coverageRate)}%</Badge>
+              </div>
+              <div className="h-2 rounded-full bg-muted overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${perf.coverageRate >= 80 ? 'bg-accent' : perf.coverageRate >= 40 ? 'bg-warning' : 'bg-destructive'}`}
+                  style={{ width: `${Math.min(perf.coverageRate, 100)}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Écart vs potentiel</span>
+                <span className={`font-medium ${perf.gap <= 0 ? 'text-accent' : 'text-destructive'}`}>
+                  {perf.gap <= 0 ? '+' : '-'}{Math.abs(Math.round(perf.gap)).toLocaleString('fr-FR')}€
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* M-2 M-3 */}
+          <div className="flex items-center gap-4 text-xs">
+            <div>
+              <span className="text-muted-foreground">M-2: </span>
+              <span className="font-medium">{perf.caM2 !== null ? `${perf.caM2.toLocaleString('fr-FR')}€` : '—'}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">M-3: </span>
+              <span className="font-medium">{perf.caM3 !== null ? `${perf.caM3.toLocaleString('fr-FR')}€` : '—'}</span>
+            </div>
           </div>
+
+          {/* Mini chart (last 6 months) */}
+          {chartData.some(d => d.ca > 0) && (
+            <div className="h-24 mt-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} barCategoryGap="20%">
+                  <XAxis dataKey="label" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                  <YAxis hide domain={[0, 'auto']} />
+                  <Tooltip
+                    formatter={(v: number) => [`${v.toLocaleString('fr-FR')}€`, 'CA']}
+                    contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid hsl(var(--border))' }}
+                  />
+                  {perf.monthlyPotential > 0 && (
+                    <ReferenceLine y={perf.monthlyPotential} stroke="hsl(var(--primary))" strokeDasharray="4 4" strokeWidth={1} />
+                  )}
+                  <Bar dataKey="ca" radius={[4, 4, 0, 0]}>
+                    {chartData.map((entry, i) => (
+                      <Cell
+                        key={i}
+                        fill={entry.ca >= perf.monthlyPotential ? 'hsl(var(--accent))' : entry.ca >= perf.monthlyPotential * 0.4 ? 'hsl(var(--warning))' : 'hsl(var(--destructive))'}
+                        opacity={0.8}
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Alerts */}
+      {perf.alerts.length > 0 && (
+        <div className="space-y-1.5">
+          {perf.alerts.map((alert, i) => (
+            <div key={i} className={`flex items-center gap-2 rounded-lg p-2.5 text-xs font-medium ${
+              alert.level === 'danger' ? 'bg-destructive/10 text-destructive' :
+              alert.level === 'warning' ? 'bg-warning/10 text-warning' :
+              'bg-accent/10 text-accent'
+            }`}>
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              {alert.label}
+            </div>
+          ))}
         </div>
+      )}
 
-        {/* Monthly potential comparison */}
-        {monthlyPotential > 0 && (
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">CA potentiel mensuel</span>
-            <span className="font-medium">{Math.round(monthlyPotential).toLocaleString('fr-FR')}€</span>
-          </div>
-        )}
-
-        {/* Écart */}
-        {monthlyPotential > 0 && (
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">Écart vs potentiel</span>
-            <span className={`font-medium ${latestRevenue >= monthlyPotential ? 'text-accent' : 'text-destructive'}`}>
-              {latestRevenue >= monthlyPotential ? '+' : ''}{Math.round(latestRevenue - monthlyPotential).toLocaleString('fr-FR')}€
-            </span>
-          </div>
-        )}
-
-        {/* Recent months table */}
-        {recent.length > 1 && (
-          <div className="space-y-1 pt-1">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Mois précédents</p>
-            {recent.slice(1).map((r, i) => (
-              <div key={i} className="flex items-center justify-between text-xs py-1 border-b last:border-0">
-                <span className="text-muted-foreground">{MONTH_SHORT[(r.month || 1) - 1]} {r.year}</span>
-                <span className="font-medium">{Number(r.monthly_revenue).toLocaleString('fr-FR')}€</span>
+      {/* Action suggestions */}
+      {actions.length > 0 && perf.status !== 'no_data' && (
+        <Card>
+          <CardHeader className="pb-2 px-4 pt-3">
+            <CardTitle className="font-heading text-xs flex items-center gap-1.5 text-muted-foreground">
+              <Lightbulb className="h-3.5 w-3.5" />
+              Actions recommandées
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-3 space-y-1">
+            {actions.map((a, i) => (
+              <div key={i} className="flex items-center gap-2 text-xs py-1.5 border-b last:border-0">
+                <span className="font-medium">{a.label}</span>
+                <span className="text-muted-foreground">— {a.description}</span>
               </div>
             ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }

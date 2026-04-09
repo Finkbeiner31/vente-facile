@@ -17,6 +17,8 @@ import { formatMonthly } from '@/lib/revenueUtils';
 import { MarkerClusterer } from '@googlemaps/markerclusterer';
 import { useIsMobile } from '@/hooks/use-mobile';
 import RouteOptimizerSheet, { type OptimizedRoute } from '@/components/RouteOptimizerSheet';
+import { useAllCustomerRevenues } from '@/hooks/useCustomerPerformance';
+import { analyzeCustomerPerformance, getStatusConfig, type PerformanceStatus } from '@/lib/performanceUtils';
 
 // ── Types ──
 
@@ -84,8 +86,13 @@ function getPriorityScore(c: MapCustomer): number {
   return score;
 }
 
-function getMarkerColor(c: MapCustomer): string {
+function getMarkerColor(c: MapCustomer, perfStatus?: PerformanceStatus): string {
   if (c.customer_type === 'prospect') return '#3B82F6';
+  // Use performance status if available
+  if (perfStatus === 'optimise') return '#22C55E';
+  if (perfStatus === 'a_developper') return '#F97316';
+  if (perfStatus === 'sous_exploite') return '#EF4444';
+  // Fallback to potential-based
   const monthly = getMonthly(c.annual_revenue_potential);
   if (monthly >= 5000) return '#EF4444';
   if (monthly >= 2000) return '#F97316';
@@ -159,6 +166,7 @@ export default function MapPage() {
   const [showList, setShowList] = useState(!isMobile);
   const [optimizerOpen, setOptimizerOpen] = useState(false);
   const routePolylineRef = useRef<google.maps.Polyline | null>(null);
+  const { data: revenueMap } = useAllCustomerRevenues();
 
   // Fetch customers with coordinates
   const { data: customers = [], isLoading } = useQuery({
@@ -174,6 +182,17 @@ export default function MapPage() {
     },
     enabled: !loading && !!user,
   });
+
+  // Compute performance status per customer for marker colors
+  const perfMap = useMemo(() => {
+    const m = new window.Map<string, PerformanceStatus>();
+    customers.forEach(c => {
+      const history = revenueMap?.get(c.id) || [];
+      const perf = analyzeCustomerPerformance(c.annual_revenue_potential, history);
+      m.set(c.id, perf.status);
+    });
+    return m;
+  }, [customers, revenueMap]);
 
   // Apply filters + sort by priority
   const filtered = useMemo(() => {
@@ -236,7 +255,7 @@ export default function MapPage() {
     }
 
     const markers = filtered.map(customer => {
-      const color = getMarkerColor(customer);
+      const color = getMarkerColor(customer, perfMap.get(customer.id));
       const ring = getVisitRing(customer);
       const priority = getPriorityScore(customer) >= 70;
 
@@ -268,7 +287,7 @@ export default function MapPage() {
       map.fitBounds(bounds, 60);
       if (markers.length === 1) map.setZoom(14);
     }
-  }, [filtered]);
+  }, [filtered, perfMap]);
 
   // Geolocate
   const handleLocateMe = useCallback(() => {
@@ -373,9 +392,9 @@ export default function MapPage() {
           </Select>
           {/* Legend */}
           <div className="flex items-center gap-2 ml-auto text-[10px] text-muted-foreground">
-            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#EF4444] inline-block" />Fort</span>
-            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#F97316] inline-block" />Moyen</span>
-            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#9CA3AF] inline-block" />Faible</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#22C55E] inline-block" />Optimisé</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#F97316] inline-block" />À dév.</span>
+            <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#EF4444] inline-block" />Sous-exp.</span>
             <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#3B82F6] inline-block" />Prospect</span>
             <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full border-2 border-dashed border-[#EF4444] inline-block" />Retard</span>
           </div>
