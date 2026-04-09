@@ -39,6 +39,7 @@ interface CustomerListItem {
   revenue: number;
   latitude: number | null;
   longitude: number | null;
+  zone: string | null;
 }
 
 const statusConfig: Record<CustomerStatus, { label: string; class: string }> = {
@@ -122,6 +123,7 @@ export default function CustomersPage() {
           revenue,
           latitude: customer.latitude,
           longitude: customer.longitude,
+          zone: (customer as any).zone || null,
         };
       });
     },
