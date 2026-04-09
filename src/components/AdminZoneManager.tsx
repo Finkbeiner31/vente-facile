@@ -6,22 +6,93 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { MapPin, Plus, Pencil, Trash2, Save, Loader2, Users, Building2 } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { MapPin, Plus, Pencil, Trash2, Save, Loader2, Users, Building2, Palette } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatZoneName, getNextSystemName, type CommercialZone } from '@/hooks/useCommercialZones';
 
-const ZONE_COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
+// 30 visually distinct colors — good contrast on white & map backgrounds
+const ZONE_PALETTE = [
+  '#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#db2777',
+  '#0d9488', '#ea580c', '#4f46e5', '#059669', '#b91c1c', '#0284c7',
+  '#9333ea', '#c026d3', '#65a30d', '#0891b2', '#e11d48', '#7e22ce',
+  '#ca8a04', '#0e7490', '#be123c', '#15803d', '#6d28d9', '#c2410c',
+  '#1d4ed8', '#9f1239', '#047857', '#a21caf', '#b45309', '#334155',
+];
 
-interface Profile {
-  id: string;
-  full_name: string;
-  email: string | null;
+const FALLBACK_COLOR = '#64748b';
+
+/** Pick the next color that isn't already used */
+function pickAutoColor(usedColors: string[]): string {
+  const usedSet = new Set(usedColors.map(c => c.toLowerCase()));
+  const available = ZONE_PALETTE.find(c => !usedSet.has(c.toLowerCase()));
+  if (available) return available;
+  // All palette colors used — generate a deterministic one based on count
+  const hue = (usedColors.length * 137) % 360; // golden-angle spread
+  return `hsl(${hue}, 65%, 45%)`;
 }
 
-const defaultForm = { customLabel: '', color: ZONE_COLORS[0], userId: '', cities: '', postalCodes: '' };
+function hslToHex(hslStr: string): string {
+  const m = hslStr.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
+  if (!m) return FALLBACK_COLOR;
+  const [, h, s, l] = m.map(Number);
+  const a2 = (s / 100) * Math.min(l / 100, 1 - l / 100);
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12;
+    const color = l / 100 - a2 * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+    return Math.round(255 * color).toString(16).padStart(2, '0');
+  };
+  return `#${f(0)}${f(8)}${f(4)}`;
+}
+
+function normalizeColor(c: string): string {
+  if (c.startsWith('hsl')) return hslToHex(c);
+  return c;
+}
+
+interface Profile { id: string; full_name: string; email: string | null; }
+
+function ColorPicker({ value, onChange, usedColors }: { value: string; onChange: (c: string) => void; usedColors: string[] }) {
+  const [customOpen, setCustomOpen] = useState(false);
+  const usedSet = new Set(usedColors.map(c => c.toLowerCase()));
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-1.5">
+        {ZONE_PALETTE.map(c => {
+          const isUsed = usedSet.has(c.toLowerCase());
+          const isSelected = value.toLowerCase() === c.toLowerCase();
+          return (
+            <button key={c} onClick={() => onChange(c)}
+              className={`h-6 w-6 rounded-full border-2 transition-all relative ${
+                isSelected ? 'border-foreground scale-110 ring-1 ring-foreground/20' : 'border-transparent hover:scale-105'
+              } ${isUsed && !isSelected ? 'opacity-40' : ''}`}
+              style={{ backgroundColor: c }}
+              title={isUsed ? 'Déjà utilisée' : c}
+            />
+          );
+        })}
+      </div>
+      <Popover open={customOpen} onOpenChange={setCustomOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5">
+            <Palette className="h-3 w-3" />
+            Couleur personnalisée
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-3" align="start">
+          <input type="color" value={normalizeColor(value)} onChange={e => { onChange(e.target.value); setCustomOpen(false); }}
+            className="h-10 w-20 cursor-pointer border-0 p-0 bg-transparent" />
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
+const defaultForm = { customLabel: '', color: '', userId: '', cities: '', postalCodes: '' };
 
 export function AdminZoneManager() {
   const { user, role } = useAuth();
@@ -50,6 +121,7 @@ export function AdminZoneManager() {
     },
   });
 
+  const usedColors = zones.map(z => z.color).filter(Boolean);
   const parseArray = (s: string) => s.split(',').map(v => v.trim()).filter(Boolean);
 
   const createMutation = useMutation({
@@ -57,10 +129,11 @@ export function AdminZoneManager() {
       const userId = isAdmin && form.userId ? form.userId : user?.id;
       if (!userId) throw new Error('Utilisateur requis');
       const systemName = getNextSystemName(zones);
+      const color = form.color || pickAutoColor(usedColors);
       const { error } = await (supabase as any).from('commercial_zones').insert({
         system_name: systemName,
         custom_label: form.customLabel.trim() || null,
-        color: form.color,
+        color: normalizeColor(color),
         user_id: userId,
         cities: parseArray(form.cities),
         postal_codes: parseArray(form.postalCodes),
@@ -80,7 +153,7 @@ export function AdminZoneManager() {
       if (!editingZone) return;
       const { error } = await (supabase as any).from('commercial_zones').update({
         custom_label: editForm.customLabel.trim() || null,
-        color: editForm.color,
+        color: normalizeColor(editForm.color || FALLBACK_COLOR),
         cities: parseArray(editForm.cities),
         postal_codes: parseArray(editForm.postalCodes),
       }).eq('id', editingZone.id);
@@ -115,7 +188,7 @@ export function AdminZoneManager() {
     setEditingZone(z);
     setEditForm({
       customLabel: z.custom_label || '',
-      color: z.color,
+      color: z.color || FALLBACK_COLOR,
       userId: z.user_id || '',
       cities: z.cities.join(', '),
       postalCodes: z.postal_codes.join(', '),
@@ -131,25 +204,34 @@ export function AdminZoneManager() {
             Zones commerciales
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            Créez et configurez les zones géographiques. Le numéro (Zone 1, Zone 2…) est attribué automatiquement.
+            Le numéro est attribué automatiquement. La couleur est auto-assignée si vous n'en choisissez pas.
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
           {/* Create form */}
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Input placeholder="Libellé de la zone (ex: Toulouse Sud)" value={form.customLabel} onChange={e => setForm(f => ({ ...f, customLabel: e.target.value }))} className="h-9 flex-1" />
-              <div className="flex gap-1">
-                {ZONE_COLORS.map(c => (
-                  <button key={c} onClick={() => setForm(f => ({ ...f, color: c }))}
-                    className={`h-6 w-6 rounded-full border-2 transition-all ${form.color === c ? 'border-foreground scale-110' : 'border-transparent'}`}
-                    style={{ backgroundColor: c }} />
-                ))}
-              </div>
-            </div>
+            <Input placeholder="Libellé de la zone (ex: Toulouse Sud)" value={form.customLabel} onChange={e => setForm(f => ({ ...f, customLabel: e.target.value }))} className="h-9" />
             <div className="grid grid-cols-2 gap-2">
               <Input placeholder="Villes (séparées par des virgules)" value={form.cities} onChange={e => setForm(f => ({ ...f, cities: e.target.value }))} className="h-9 text-xs" />
               <Input placeholder="Codes postaux (séparés par des virgules)" value={form.postalCodes} onChange={e => setForm(f => ({ ...f, postalCodes: e.target.value }))} className="h-9 text-xs" />
+            </div>
+            {/* Color selection */}
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-muted-foreground">Couleur</Label>
+                {form.color ? (
+                  <div className="flex items-center gap-1.5">
+                    <div className="h-4 w-4 rounded-full border" style={{ backgroundColor: form.color }} />
+                    <button className="text-[10px] text-muted-foreground underline" onClick={() => setForm(f => ({ ...f, color: '' }))}>auto</button>
+                  </div>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] h-4">
+                    Auto : {pickAutoColor(usedColors)}
+                    <div className="h-2.5 w-2.5 rounded-full ml-1" style={{ backgroundColor: pickAutoColor(usedColors) }} />
+                  </Badge>
+                )}
+              </div>
+              <ColorPicker value={form.color || pickAutoColor(usedColors)} onChange={c => setForm(f => ({ ...f, color: c }))} usedColors={usedColors} />
             </div>
             <div className="flex items-center gap-2">
               {isAdmin && (
@@ -168,9 +250,8 @@ export function AdminZoneManager() {
                 <Plus className="h-4 w-4 mr-1" />Ajouter
               </Button>
             </div>
-            {/* Preview next system name */}
             <p className="text-[10px] text-muted-foreground">
-              Prochain numéro automatique : <span className="font-semibold">{getNextSystemName(zones)}</span>
+              Prochain numéro : <span className="font-semibold">{getNextSystemName(zones)}</span>
             </p>
           </div>
 
@@ -184,7 +265,7 @@ export function AdminZoneManager() {
               {zones.map(z => (
                 <div key={z.id} className="rounded-lg border p-3 space-y-1.5">
                   <div className="flex items-center gap-3">
-                    <div className="h-4 w-4 rounded-full shrink-0" style={{ backgroundColor: z.color }} />
+                    <div className="h-4 w-4 rounded-full shrink-0 border" style={{ backgroundColor: z.color || FALLBACK_COLOR }} />
                     <div className="flex-1 min-w-0">
                       <span className="text-sm font-medium">{formatZoneName(z)}</span>
                       {isAdmin && (
@@ -232,13 +313,11 @@ export function AdminZoneManager() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Couleur</Label>
-              <div className="flex gap-1.5">
-                {ZONE_COLORS.map(c => (
-                  <button key={c} onClick={() => setEditForm(f => ({ ...f, color: c }))}
-                    className={`h-7 w-7 rounded-full border-2 transition-all ${editForm.color === c ? 'border-foreground scale-110' : 'border-transparent'}`}
-                    style={{ backgroundColor: c }} />
-                ))}
-              </div>
+              <ColorPicker
+                value={editForm.color}
+                onChange={c => setEditForm(f => ({ ...f, color: c }))}
+                usedColors={usedColors.filter(uc => uc.toLowerCase() !== (editingZone?.color || '').toLowerCase())}
+              />
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Villes (séparées par des virgules)</Label>
