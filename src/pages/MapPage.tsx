@@ -10,12 +10,13 @@ import {
 } from '@/components/ui/select';
 import {
   Locate, X, Eye, Play, Loader2, MapPin, Filter, Phone,
-  ListChecks, Navigation, ChevronRight, AlertTriangle, Map,
+  ListChecks, Navigation, ChevronRight, AlertTriangle, Map, Sparkles,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatMonthly } from '@/lib/revenueUtils';
 import { MarkerClusterer } from '@googlemaps/markerclusterer';
 import { useIsMobile } from '@/hooks/use-mobile';
+import RouteOptimizerSheet, { type OptimizedRoute } from '@/components/RouteOptimizerSheet';
 
 // ── Types ──
 
@@ -156,6 +157,8 @@ export default function MapPage() {
   const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
   const [showFilters, setShowFilters] = useState(!isMobile);
   const [showList, setShowList] = useState(!isMobile);
+  const [optimizerOpen, setOptimizerOpen] = useState(false);
+  const routePolylineRef = useRef<google.maps.Polyline | null>(null);
 
   // Fetch customers with coordinates
   const { data: customers = [], isLoading } = useQuery({
@@ -462,10 +465,10 @@ export default function MapPage() {
                 )}
               </div>
             </ScrollArea>
-            {/* Optimize route placeholder */}
+            {/* Optimize route button */}
             <div className="p-3 border-t">
-              <Button variant="outline" size="sm" className="w-full" disabled>
-                <Navigation className="h-4 w-4 mr-1.5" /> Optimiser ma tournée
+              <Button size="sm" className="w-full font-semibold" onClick={() => setOptimizerOpen(true)}>
+                <Sparkles className="h-4 w-4 mr-1.5" /> Optimiser ma tournée
               </Button>
             </div>
           </div>
