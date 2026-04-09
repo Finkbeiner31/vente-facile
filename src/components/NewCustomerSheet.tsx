@@ -137,8 +137,22 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
 
           <div>
             <label className="text-xs font-medium text-muted-foreground">Adresse</label>
-            <Input value={form.address} onChange={e => set('address', e.target.value)}
-              placeholder="Adresse complète" className="h-12 mt-1" />
+            <AddressAutocomplete
+              value={form.address}
+              onChange={v => set('address', v)}
+              onSelect={(sel: AddressSelection) => {
+                setForm(prev => ({
+                  ...prev,
+                  address: sel.fullAddress,
+                  city: sel.city,
+                  postal_code: sel.postalCode,
+                  latitude: sel.latitude,
+                  longitude: sel.longitude,
+                }));
+              }}
+              placeholder="Tapez une adresse..."
+              className="mt-1"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-2">
