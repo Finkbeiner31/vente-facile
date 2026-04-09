@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatMonthly, getRevenueTier, getRevenueTierColor } from '@/lib/revenueUtils';
-import { NewCustomerSheet } from '@/components/NewCustomerSheet';
+import { NewCustomerSheet, type NewCustomerFormData } from '@/components/NewCustomerSheet';
 import { toast } from 'sonner';
 
 type CustomerStatus = 'prospect' | 'client_actif' | 'client_inactif';
@@ -111,21 +111,11 @@ export default function CustomersPage() {
   });
 
   const createCustomerMutation = useMutation({
-    mutationFn: async (data: {
-      company_name: string;
-      city: string;
-      address: string;
-      postal_code: string;
-      latitude: number | null;
-      longitude: number | null;
-      contact_name: string;
-      phone: string;
-      email: string;
-      number_of_vehicles: number;
-      notes: string;
-      customer_type: CustomerStatus;
-    }) => {
+    mutationFn: async (data: NewCustomerFormData) => {
       if (!user) throw new Error('Vous devez être connecté pour créer un compte.');
+
+      // Use primary contact's phone/email as the customer-level phone/email
+      const primaryContact = data.contacts.find(c => c.isPrimary) || data.contacts[0];
 
       const { data: createdCustomer, error: createError } = await supabase
         .from('customers')
@@ -136,8 +126,8 @@ export default function CustomersPage() {
           postal_code: data.postal_code?.trim() || null,
           latitude: data.latitude,
           longitude: data.longitude,
-          phone: data.phone.trim() || null,
-          email: data.email.trim() || null,
+          phone: primaryContact?.phone?.trim() || null,
+          email: primaryContact?.email?.trim() || null,
           notes: data.notes.trim() || null,
           customer_type: data.customer_type,
           number_of_vehicles: data.number_of_vehicles,
@@ -148,20 +138,26 @@ export default function CustomersPage() {
         .single();
 
       if (createError) throw createError;
-      if (!createdCustomer?.id) throw new Error('Le compte n’a pas pu être créé correctement.');
+      if (!createdCustomer?.id) throw new Error('Le compte n\'a pas pu être créé correctement.');
 
-      if (data.contact_name.trim()) {
-        const { first_name, last_name } = splitContactName(data.contact_name);
-        const { error: contactError } = await supabase
-          .from('contacts')
-          .insert({
+      // Insert all contacts
+      if (data.contacts.length > 0) {
+        const contactRows = data.contacts.map(c => {
+          const { first_name, last_name } = splitContactName(c.name);
+          return {
             customer_id: createdCustomer.id,
             first_name,
             last_name,
-            phone: data.phone.trim() || null,
-            email: data.email.trim() || null,
-            is_primary: true,
-          });
+            phone: c.phone.trim() || null,
+            email: c.email.trim() || null,
+            role: c.role.trim() || null,
+            is_primary: c.isPrimary,
+          };
+        });
+
+        const { error: contactError } = await supabase
+          .from('contacts')
+          .insert(contactRows);
 
         if (contactError) throw contactError;
       }
@@ -204,20 +200,7 @@ export default function CustomersPage() {
     prospects: customers.filter(c => c.status === 'prospect').length,
   };
 
-  const handleCreate = async (data: {
-    company_name: string;
-    city: string;
-    address: string;
-    postal_code: string;
-    latitude: number | null;
-    longitude: number | null;
-    contact_name: string;
-    phone: string;
-    email: string;
-    number_of_vehicles: number;
-    notes: string;
-    customer_type: CustomerStatus;
-  }) => {
+  const handleCreate = async (data: NewCustomerFormData) => {
     await createCustomerMutation.mutateAsync(data);
   };
 
