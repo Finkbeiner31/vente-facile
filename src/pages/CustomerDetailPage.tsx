@@ -163,12 +163,12 @@ export default function CustomerDetailPage() {
   });
 
   const rollbackMutation = useMutation({
-    mutationFn: async (reason: string) => {
-      const { error } = await supabase.from('customers').update({ customer_type: 'prospect' } as any).eq('id', id!);
+    mutationFn: async ({ reason, target }: { reason: string; target: string }) => {
+      const { error } = await supabase.from('customers').update({ customer_type: target } as any).eq('id', id!);
       if (error) throw error;
       await (supabase as any).from('activity_logs').insert({
         user_id: user!.id, entity_type: 'customer', entity_id: id,
-        action: 'rollback_to_prospect', details: { from: customer.customer_type, to: 'prospect', reason },
+        action: 'rollback_status', details: { from: customer.customer_type, to: target, reason },
       });
     },
     onSuccess: () => {
@@ -176,7 +176,7 @@ export default function CustomerDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       setRollbackDialogOpen(false);
       setRollbackReason('');
-      toast.success('Statut remis en Prospect');
+      toast.success('Statut mis à jour');
     },
   });
 
