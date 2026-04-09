@@ -502,6 +502,36 @@ export default function MapPage() {
           )}
         </div>
       </div>
+
+      {/* Route Optimizer Sheet */}
+      <RouteOptimizerSheet
+        open={optimizerOpen}
+        onOpenChange={setOptimizerOpen}
+        initialUserPos={userPos}
+        onRouteGenerated={(route) => {
+          // Draw polyline on map
+          if (routePolylineRef.current) {
+            routePolylineRef.current.setMap(null);
+          }
+          const map = mapInstanceRef.current;
+          if (map && route.customers.length > 1) {
+            const path = userPos
+              ? [userPos, ...route.customers.map(c => ({ lat: c.latitude, lng: c.longitude }))]
+              : route.customers.map(c => ({ lat: c.latitude, lng: c.longitude }));
+            routePolylineRef.current = new google.maps.Polyline({
+              path,
+              geodesic: true,
+              strokeColor: '#4F46E5',
+              strokeOpacity: 0.8,
+              strokeWeight: 4,
+              map,
+            });
+            const bounds = new google.maps.LatLngBounds();
+            path.forEach(p => bounds.extend(p));
+            map.fitBounds(bounds, 60);
+          }
+        }}
+      />
     </div>
   );
 }
