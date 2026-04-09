@@ -8,7 +8,7 @@ import { QuickReportDialog } from '@/components/QuickReportDialog';
 import { TourMode } from '@/components/TourMode';
 import {
   Play, Square, Phone, Navigation, AlertTriangle, ArrowRight,
-  Sun, Flag, Target, TrendingUp, Eye, Calendar, RotateCcw,
+  Sun, Flag, Target, TrendingUp, Eye, Calendar, RotateCcw, DollarSign,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
@@ -16,6 +16,10 @@ import {
   type CustomerForRouting,
 } from '@/lib/routeCycleEngine';
 import { useTourSession } from '@/contexts/TourSessionContext';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAllCustomerRevenues } from '@/hooks/useCustomerPerformance';
+import { analyzeCustomerPerformance, getStatusConfig, type PerformanceStatus } from '@/lib/performanceUtils';
 
 const demoCustomers: CustomerForRouting[] = [
   { id: '1', company_name: 'Boulangerie Martin', address: '12 Rue de la Paix, Paris', city: 'Paris', phone: '01 42 33 44 55', visit_frequency: 'weekly', number_of_vehicles: 8, annual_revenue_potential: 28000, latitude: null, longitude: null, sales_potential: 'A' },
@@ -32,13 +36,8 @@ const urgentTasks = [
   { id: '3', title: 'Envoyer documentation Pharmacie', due: 'En retard', priority: 'high', client: 'Pharmacie du Centre' },
 ];
 
-const neglectedHighPotential = [
-  { id: '5', name: 'Garage Auto Plus', potential: '87.5k€', lastVisit: 'Il y a 12 jours', vehicles: 25 },
-  { id: '3', name: 'Restaurant Le Gourmet', potential: '42k€', lastVisit: 'Il y a 18 jours', vehicles: 12 },
-];
-
 export default function DashboardPage() {
-  const { profile } = useAuth();
+  const { profile, user, loading: authLoading } = useAuth();
   const cycle = useMemo(() => generateRouteCycle(demoCustomers), []);
   const todayStops = cycle[0] || [];
 
@@ -48,6 +47,45 @@ export default function DashboardPage() {
   const [tourMode, setTourMode] = useState(false);
 
   const { session, startSession } = useTourSession();
+
+  // Fetch real customers for CA KPIs
+  const { data: allCustomers = [] } = useQuery({
+    queryKey: ['dashboard-customers', user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('customers')
+        .select('id, company_name, annual_revenue_potential, customer_type');
+      return data || [];
+    },
+    enabled: !authLoading && !!user,
+  });
+
+  const { data: revenueMap } = useAllCustomerRevenues();
+
+  // Compute CA KPIs
+  const caKpis = useMemo(() => {
+    const clients = allCustomers.filter(c => c.customer_type !== 'prospect');
+    let totalPotential = 0;
+    let totalRealM1 = 0;
+    let clientsWithData = 0;
+    const statusCounts: Record<PerformanceStatus, number> = { optimise: 0, a_developper: 0, sous_exploite: 0, no_data: 0 };
+
+    clients.forEach(c => {
+      const revenue = Number(c.annual_revenue_potential || 0);
+      const history = revenueMap?.get(c.id) || [];
+      const perf = analyzeCustomerPerformance(revenue, history);
+      totalPotential += perf.monthlyPotential;
+      if (perf.caM1 !== null) {
+        totalRealM1 += perf.caM1;
+        clientsWithData++;
+      }
+      statusCounts[perf.status]++;
+    });
+
+    const avgCoverage = totalPotential > 0 ? (totalRealM1 / totalPotential) * 100 : 0;
+
+    return { totalPotential, totalRealM1, avgCoverage, statusCounts, clientsWithData };
+  }, [allCustomers, revenueMap]);
 
   const firstName = profile?.full_name?.split(' ')[0] || 'Commercial';
   const completedCount = todayStops.filter(s => statuses[s.customer.id] === 'completed').length;
@@ -84,6 +122,8 @@ export default function DashboardPage() {
 
   const sessionCompletedCount = session ? Object.values(session.statuses).filter(s => s === 'completed').length : 0;
 
+  const fmtK = (v: number) => v >= 1000 ? `${(v / 1000).toFixed(1).replace('.0', '')}k€` : `${Math.round(v)}€`;
+
   return (
     <div className="space-y-4 animate-fade-in pb-20 md:pb-0">
       {/* Greeting */}
@@ -115,6 +155,52 @@ export default function DashboardPage() {
         </Card>
       )}
 
+      {/* CA Performance KPIs */}
+      {caKpis.clientsWithData > 0 && (
+        <Card className="border-primary/20">
+          <CardHeader className="pb-2 px-4 pt-3">
+            <CardTitle className="font-heading text-sm flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-primary" />
+              Performance CA
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-3">
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              <div className="rounded-lg bg-muted/50 p-2 text-center">
+                <p className="text-[10px] text-muted-foreground uppercase">CA potentiel</p>
+                <p className="font-heading text-lg font-bold">{fmtK(caKpis.totalPotential)}</p>
+                <p className="text-[10px] text-muted-foreground">/mois</p>
+              </div>
+              <div className="rounded-lg bg-muted/50 p-2 text-center">
+                <p className="text-[10px] text-muted-foreground uppercase">CA réel M-1</p>
+                <p className="font-heading text-lg font-bold">{fmtK(caKpis.totalRealM1)}</p>
+                <p className="text-[10px] text-muted-foreground">/mois</p>
+              </div>
+              <div className="rounded-lg bg-muted/50 p-2 text-center">
+                <p className="text-[10px] text-muted-foreground uppercase">Couverture</p>
+                <p className={`font-heading text-lg font-bold ${
+                  caKpis.avgCoverage >= 80 ? 'text-accent' : caKpis.avgCoverage >= 40 ? 'text-warning' : 'text-destructive'
+                }`}>{Math.round(caKpis.avgCoverage)}%</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 text-xs">
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-accent inline-block" />
+                {caKpis.statusCounts.optimise} optimisés
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-warning inline-block" />
+                {caKpis.statusCounts.a_developper} à développer
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-destructive inline-block" />
+                {caKpis.statusCounts.sous_exploite} sous-exploités
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* KPIs */}
       <div className="grid grid-cols-3 gap-2">
         <Card>
@@ -135,8 +221,8 @@ export default function DashboardPage() {
         </Card>
         <Card>
           <CardContent className="p-3 text-center">
-            <p className="font-heading text-2xl font-bold text-accent">{neglectedHighPotential.length}</p>
-            <p className="text-[10px] text-muted-foreground">À revoir</p>
+            <p className="font-heading text-2xl font-bold text-destructive">{caKpis.statusCounts.sous_exploite}</p>
+            <p className="text-[10px] text-muted-foreground">Sous-exploités</p>
           </CardContent>
         </Card>
       </div>
@@ -234,29 +320,6 @@ export default function DashboardPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* Neglected high-potential */}
-      {neglectedHighPotential.length > 0 && (
-        <Card className="border-accent/20">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
-            <CardTitle className="font-heading text-sm flex items-center gap-2">
-              <Eye className="h-4 w-4 text-accent" />
-              Clients à haut potentiel négligés
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-4 space-y-2">
-            {neglectedHighPotential.map(c => (
-              <div key={c.id} className="flex items-center gap-3 rounded-xl border border-accent/15 p-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold truncate">{c.name}</p>
-                  <p className="text-[11px] text-muted-foreground">{c.vehicles} véh. · {c.potential}/an · {c.lastVisit}</p>
-                </div>
-                <Badge className="bg-accent/15 text-accent text-[10px] shrink-0">Prioritaire</Badge>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
 
       {/* Urgent Tasks */}
       <Card>
