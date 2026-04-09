@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/select';
 import { Building2, Save } from 'lucide-react';
 import { formatMonthly, formatAnnual } from '@/lib/revenueUtils';
+import { AddressAutocomplete, type AddressSelection } from '@/components/AddressAutocomplete';
 
 interface NewCustomerSheetProps {
   open: boolean;
