@@ -110,6 +110,11 @@ export default function AdminPage() {
           </Card>
         </TabsContent>
 
+        {/* Conversions tab */}
+        <TabsContent value="conversions" className="mt-4">
+          <AdminConversionRequests />
+        </TabsContent>
+
         {/* Roles tab */}
         <TabsContent value="roles" className="mt-4">
           <div className="grid gap-4 sm:grid-cols-2">
