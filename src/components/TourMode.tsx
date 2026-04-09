@@ -269,7 +269,7 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
                   {formatMonthly(current.customer.annual_revenue_potential)}
                 </span>
                 <span className="text-[10px] text-muted-foreground ml-1">
-                  ({formatAnnual(current.customer.annual_revenue_potential)})
+                  CA pot.
                 </span>
               </div>
             );

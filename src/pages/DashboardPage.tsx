@@ -213,7 +213,7 @@ export default function DashboardPage() {
                   {stop.customer.annual_revenue_potential > 0 && (
                     <p className={`text-[10px] font-medium ${getRevenueTierColor(getRevenueTier(stop.customer.annual_revenue_potential))}`}>
                       {formatMonthly(stop.customer.annual_revenue_potential)}
-                      <span className="text-muted-foreground ml-1">({formatAnnual(stop.customer.annual_revenue_potential)})</span>
+                      <span className="font-normal text-muted-foreground ml-1">CA pot.</span>
                     </p>
                   )}
                 </div>
