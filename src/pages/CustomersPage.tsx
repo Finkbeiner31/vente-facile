@@ -166,7 +166,7 @@ export default function CustomersPage() {
       toast.success(`${createdCustomer.company_name} enregistré avec succès.`);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Échec de l'enregistrement du compte.');
+      toast.error(error.message || "Échec de l'enregistrement du compte.");
     },
   });
 
