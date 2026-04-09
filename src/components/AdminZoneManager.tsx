@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState, useCallback, lazy, Suspense } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,12 +7,13 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { MapPin, Plus, Pencil, Trash2, Save, Loader2, Users, Building2, Palette, Map } from 'lucide-react';
+import { MapPin, Plus, Pencil, Trash2, Save, Loader2, Users, Building2, Palette, Map, RefreshCw } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatZoneName, getNextSystemName, type CommercialZone } from '@/hooks/useCommercialZones';
+import { useZoneAssignment } from '@/hooks/useZoneAssignment';
 import type { LatLng } from '@/components/MapZoneDrawer';
 
 const MapZoneDrawer = lazy(() => import('@/components/MapZoneDrawer'));
