@@ -322,8 +322,13 @@ export function AdminZoneManager() {
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
-                  {(z.cities.length > 0 || z.postal_codes.length > 0) && (
+                  {(z.cities.length > 0 || z.postal_codes.length > 0 || z.polygon_coordinates) && (
                     <div className="flex flex-wrap gap-1.5 pl-7">
+                      {z.polygon_coordinates && (
+                        <Badge variant="outline" className="text-[9px] h-4 gap-1">
+                          <Map className="h-2.5 w-2.5" />Carte
+                        </Badge>
+                      )}
                       {z.cities.map(c => (
                         <Badge key={c} variant="outline" className="text-[9px] h-4 gap-1">
                           <Building2 className="h-2.5 w-2.5" />{c}
@@ -368,6 +373,22 @@ export function AdminZoneManager() {
               <Label className="text-xs">Codes postaux (séparés par des virgules)</Label>
               <Input value={editForm.postalCodes} onChange={e => setEditForm(f => ({ ...f, postalCodes: e.target.value }))} placeholder="31100, 31600, 31770" />
             </div>
+            {isAdmin && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Zone sur la carte</Label>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => setMapMode('edit')}>
+                    <Map className="h-3 w-3" />{editForm.polygonCoordinates ? 'Modifier le polygone' : 'Définir sur la carte'}
+                  </Button>
+                  {editForm.polygonCoordinates && (
+                    <Badge variant="outline" className="text-[10px] h-4 gap-1">
+                      {editForm.polygonCoordinates.length} points
+                      <button className="ml-1 underline" onClick={() => setEditForm(f => ({ ...f, polygonCoordinates: null }))}>×</button>
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setEditingZone(null)}>Annuler</Button>
@@ -376,6 +397,22 @@ export function AdminZoneManager() {
               Enregistrer
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Map drawer dialog */}
+      <Dialog open={!!mapMode} onOpenChange={open => !open && setMapMode(null)}>
+        <DialogContent className="sm:max-w-3xl h-[80vh] p-0 gap-0 flex flex-col">
+          <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}>
+            {mapMode && (
+              <MapZoneDrawer
+                initialPolygon={mapMode === 'edit' ? editForm.polygonCoordinates : form.polygonCoordinates}
+                zoneColor={mapMode === 'edit' ? (editForm.color || FALLBACK_COLOR) : (form.color || pickAutoColor(usedColors))}
+                onConfirm={handleMapConfirm}
+                onCancel={() => setMapMode(null)}
+              />
+            )}
+          </Suspense>
         </DialogContent>
       </Dialog>
     </>
