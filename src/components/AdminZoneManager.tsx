@@ -95,7 +95,7 @@ function ColorPicker({ value, onChange, usedColors }: { value: string; onChange:
   );
 }
 
-const defaultForm = { customLabel: '', color: '', userId: '', cities: '', postalCodes: '' };
+const defaultForm = { customLabel: '', color: '', userId: '', cities: '', postalCodes: '', polygonCoordinates: null as LatLng[] | null };
 
 export function AdminZoneManager() {
   const { user, role } = useAuth();
@@ -104,6 +104,7 @@ export function AdminZoneManager() {
   const [form, setForm] = useState(defaultForm);
   const [editingZone, setEditingZone] = useState<CommercialZone | null>(null);
   const [editForm, setEditForm] = useState(defaultForm);
+  const [mapMode, setMapMode] = useState<'create' | 'edit' | null>(null);
 
   const { data: profiles = [] } = useQuery({
     queryKey: ['profiles-list'],
