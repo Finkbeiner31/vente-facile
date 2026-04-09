@@ -183,6 +183,17 @@ export default function MapPage() {
     enabled: !loading && !!user,
   });
 
+  // Compute performance status per customer for marker colors
+  const perfMap = useMemo(() => {
+    const m = new window.Map<string, PerformanceStatus>();
+    customers.forEach(c => {
+      const history = revenueMap?.get(c.id) || [];
+      const perf = analyzeCustomerPerformance(c.annual_revenue_potential, history);
+      m.set(c.id, perf.status);
+    });
+    return m;
+  }, [customers, revenueMap]);
+
   // Apply filters + sort by priority
   const filtered = useMemo(() => {
     return customers
