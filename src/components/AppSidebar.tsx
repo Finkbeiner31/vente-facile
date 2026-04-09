@@ -10,6 +10,7 @@ import {
   LogOut,
   Flame,
   ChevronDown,
+  Upload,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/contexts/AuthContext';
@@ -40,6 +41,7 @@ const mainNav = [
 
 const adminNav = [
   { title: 'Administration', url: '/admin', icon: Settings },
+  { title: 'Import clients', url: '/admin/import', icon: Upload, adminOnly: true },
 ];
 
 export function AppSidebar() {
@@ -96,7 +98,9 @@ export function AppSidebar() {
             <SidebarGroupLabel>Gestion</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {adminNav.map((item) => (
+                {adminNav
+                  .filter(item => !('adminOnly' in item && item.adminOnly) || role === 'admin')
+                  .map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild>
                       <NavLink
