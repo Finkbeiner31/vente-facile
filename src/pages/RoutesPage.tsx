@@ -323,6 +323,10 @@ export default function RoutesPage() {
       )}
 
       <QuickReportDialog open={reportOpen} onOpenChange={setReportOpen} clientName={activeClient} />
+      <RouteOptimizerSheet
+        open={optimizerOpen}
+        onOpenChange={setOptimizerOpen}
+      />
     </div>
   );
 }
