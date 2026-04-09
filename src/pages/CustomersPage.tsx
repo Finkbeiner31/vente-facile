@@ -124,7 +124,6 @@ export default function CustomersPage() {
     }) => {
       if (!user) throw new Error('Vous devez être connecté pour créer un compte.');
 
-      const annualRevenue = data.number_of_vehicles * 3500;
       const { data: createdCustomer, error: createError } = await supabase
         .from('customers')
         .insert({
@@ -136,9 +135,8 @@ export default function CustomersPage() {
           notes: data.notes.trim() || null,
           customer_type: data.customer_type,
           number_of_vehicles: data.number_of_vehicles,
-          annual_revenue_potential: annualRevenue,
           assigned_rep_id: user.id,
-          sales_potential: getPotential(annualRevenue, null),
+          sales_potential: getPotential(data.number_of_vehicles * 3500, null),
         })
         .select('*')
         .single();
