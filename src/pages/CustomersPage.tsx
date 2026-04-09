@@ -21,7 +21,7 @@ import { useAllCustomerRevenues } from '@/hooks/useCustomerPerformance';
 import { analyzeCustomerPerformance, getStatusConfig, formatCompactRevenue, type PerformanceStatus } from '@/lib/performanceUtils';
 import { computeVisitPriority, PRIORITY_CONFIGS, type PriorityLevel } from '@/lib/priorityEngine';
 
-type CustomerStatus = 'prospect' | 'client_actif' | 'client_inactif' | 'pending_conversion';
+type CustomerStatus = 'prospect' | 'prospect_qualifie' | 'client_actif' | 'client_inactif' | 'pending_conversion';
 
 interface CustomerListItem {
   id: string;
@@ -43,7 +43,8 @@ interface CustomerListItem {
 
 const statusConfig: Record<CustomerStatus, { label: string; class: string }> = {
   prospect: { label: 'Prospect', class: 'bg-warning/15 text-warning' },
-  pending_conversion: { label: 'Conversion en attente', class: 'bg-primary/15 text-primary' },
+  prospect_qualifie: { label: 'Prospect qualifié', class: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+  pending_conversion: { label: 'Validation en attente', class: 'bg-primary/15 text-primary' },
   client_actif: { label: 'Client actif', class: 'bg-accent/15 text-accent' },
   client_inactif: { label: 'Inactif', class: 'bg-muted text-muted-foreground' },
 };
@@ -54,7 +55,7 @@ const potentialColors: Record<string, string> = {
   C: 'bg-muted text-muted-foreground',
 };
 
-type FilterTab = 'tous' | 'clients' | 'prospects';
+type FilterTab = 'tous' | 'clients' | 'prospects' | 'qualifies' | 'en_attente';
 type PerfFilter = 'tous' | 'optimise' | 'a_developper' | 'sous_exploite';
 type TrendFilter = 'tous' | 'up' | 'down' | 'stable';
 type PriorityFilter = 'tous' | 'high' | 'medium' | 'low';
@@ -198,6 +199,8 @@ export default function CustomersPage() {
     .filter(c => {
       if (tab === 'clients') return c.status === 'client_actif' || c.status === 'client_inactif';
       if (tab === 'prospects') return c.status === 'prospect';
+      if (tab === 'qualifies') return c.status === 'prospect_qualifie';
+      if (tab === 'en_attente') return c.status === 'pending_conversion';
       return true;
     })
     .filter(c => {
@@ -220,6 +223,8 @@ export default function CustomersPage() {
     tous: customers.length,
     clients: customers.filter(c => c.status === 'client_actif' || c.status === 'client_inactif').length,
     prospects: customers.filter(c => c.status === 'prospect').length,
+    qualifies: customers.filter(c => c.status === 'prospect_qualifie').length,
+    en_attente: customers.filter(c => c.status === 'pending_conversion').length,
   };
 
   const handleCreate = async (data: NewCustomerFormData) => {
@@ -250,7 +255,9 @@ export default function CustomersPage() {
         <TabsList className="w-full">
           <TabsTrigger value="tous" className="flex-1 text-xs">Tous ({counts.tous})</TabsTrigger>
           <TabsTrigger value="clients" className="flex-1 text-xs">Clients ({counts.clients})</TabsTrigger>
+          <TabsTrigger value="qualifies" className="flex-1 text-xs">Qualifiés ({counts.qualifies})</TabsTrigger>
           <TabsTrigger value="prospects" className="flex-1 text-xs">Prospects ({counts.prospects})</TabsTrigger>
+          {counts.en_attente > 0 && <TabsTrigger value="en_attente" className="flex-1 text-xs">En attente ({counts.en_attente})</TabsTrigger>}
         </TabsList>
       </Tabs>
 
