@@ -11,7 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Search, Plus, Phone, Navigation, Building2, Car, Loader2, TrendingUp, TrendingDown, Minus,
+  Search, Plus, Phone, Navigation, Building2, Car, Loader2, TrendingUp, TrendingDown, Minus, MapPin,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatMonthly, getRevenueTier, getRevenueTierColor } from '@/lib/revenueUtils';
@@ -39,6 +39,7 @@ interface CustomerListItem {
   revenue: number;
   latitude: number | null;
   longitude: number | null;
+  zone: string | null;
 }
 
 const statusConfig: Record<CustomerStatus, { label: string; class: string }> = {
@@ -122,6 +123,7 @@ export default function CustomersPage() {
           revenue,
           latitude: customer.latitude,
           longitude: customer.longitude,
+          zone: (customer as any).zone || null,
         };
       });
     },
@@ -350,6 +352,12 @@ export default function CustomersPage() {
                       </div>
                       <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                         <span>{customer.city}</span>
+                        {customer.zone && (
+                          <>
+                            <span>·</span>
+                            <span className="flex items-center gap-0.5"><MapPin className="h-2.5 w-2.5" />{customer.zone}</span>
+                          </>
+                        )}
                         <span>·</span>
                         <span className="flex items-center gap-0.5">
                           <Car className="h-2.5 w-2.5" /> {customer.vehicles}

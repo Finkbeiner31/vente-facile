@@ -85,6 +85,30 @@ export type Database = {
           },
         ]
       }
+      commercial_zones: {
+        Row: {
+          color: string | null
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       contacts: {
         Row: {
           created_at: string
@@ -208,6 +232,7 @@ export type Database = {
           updated_at: string
           visit_frequency: string | null
           website: string | null
+          zone: string | null
         }
         Insert: {
           account_status?: string
@@ -240,6 +265,7 @@ export type Database = {
           updated_at?: string
           visit_frequency?: string | null
           website?: string | null
+          zone?: string | null
         }
         Update: {
           account_status?: string
@@ -272,6 +298,7 @@ export type Database = {
           updated_at?: string
           visit_frequency?: string | null
           website?: string | null
+          zone?: string | null
         }
         Relationships: []
       }
@@ -794,6 +821,41 @@ export type Database = {
             columns: ["route_stop_id"]
             isOneToOne: false
             referencedRelation: "route_stops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      weekly_zone_planning: {
+        Row: {
+          created_at: string
+          day_of_week: number
+          id: string
+          updated_at: string
+          user_id: string
+          zone_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          day_of_week: number
+          id?: string
+          updated_at?: string
+          user_id: string
+          zone_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          day_of_week?: number
+          id?: string
+          updated_at?: string
+          user_id?: string
+          zone_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekly_zone_planning_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "commercial_zones"
             referencedColumns: ["id"]
           },
         ]

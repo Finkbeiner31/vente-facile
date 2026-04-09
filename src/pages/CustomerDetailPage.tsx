@@ -18,6 +18,7 @@ import {
   Star, Mail, MessageCircle, Truck, Wrench, Building2,
 } from 'lucide-react';
 import { RevenueHistoryCard } from '@/components/RevenueHistoryCard';
+import { useCommercialZones } from '@/hooks/useCommercialZones';
 import { useCustomerPerformance } from '@/hooks/useCustomerPerformance';
 import { computeVisitPriority, PRIORITY_CONFIGS } from '@/lib/priorityEngine';
 import {
@@ -80,6 +81,7 @@ export default function CustomerDetailPage() {
   const revenue = customer?.annual_revenue_potential || 0;
   const perf = useCustomerPerformance(customer?.id, revenue);
   const { data: potentials = [] } = useVehiclePotentials();
+  const { data: zones = [] } = useCommercialZones();
 
   const { data: contacts = [] } = useQuery({
     queryKey: ['contacts', id, user?.id],
@@ -345,6 +347,29 @@ export default function CustomerDetailPage() {
             <span className="text-xs">{new Date(customer.last_visit_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}</span>
           </div>
         )}
+        {/* Zone */}
+        <div className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5">
+          <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+          <Select
+            value={(customer as any).zone || 'none'}
+            onValueChange={v => updateCustomerMutation.mutate({ zone: v === 'none' ? null : v } as any)}
+          >
+            <SelectTrigger className="h-7 border-0 bg-transparent p-0 text-xs font-medium w-auto min-w-[100px]">
+              <SelectValue placeholder="Zone..." />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Aucune zone</SelectItem>
+              {zones.map(z => (
+                <SelectItem key={z.id} value={z.name}>
+                  <div className="flex items-center gap-2">
+                    <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: z.color }} />
+                    {z.name}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Convert / status banners */}
