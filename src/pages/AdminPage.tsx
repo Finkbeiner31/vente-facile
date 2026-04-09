@@ -398,6 +398,33 @@ export default function AdminPage() {
                             </Badge>
                           )}
                         </div>
+                        {/* Status + actions row */}
+                        <div className="mt-3 flex items-center gap-2 pt-2 border-t">
+                          <Badge variant={selectedUser.is_active ? 'default' : 'secondary'} className="text-[10px]">
+                            {selectedUser.is_active ? 'Actif' : 'Inactif'}
+                          </Badge>
+                          {isAdmin && selectedUser.role !== 'admin' && (
+                            <>
+                              {selectedUser.is_active ? (
+                                <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground"
+                                  onClick={() => manageUserMutation.mutate({ userId: selectedUser.id, action: 'deactivate' })}
+                                  disabled={manageUserMutation.isPending}>
+                                  <Power className="h-3.5 w-3.5 mr-1" />Désactiver
+                                </Button>
+                              ) : (
+                                <Button variant="ghost" size="sm" className="h-7 text-xs text-primary"
+                                  onClick={() => manageUserMutation.mutate({ userId: selectedUser.id, action: 'reactivate' })}
+                                  disabled={manageUserMutation.isPending}>
+                                  <Power className="h-3.5 w-3.5 mr-1" />Réactiver
+                                </Button>
+                              )}
+                              <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive ml-auto"
+                                onClick={() => setShowDeleteModal(selectedUser.id)}>
+                                <Trash2 className="h-3.5 w-3.5 mr-1" />Supprimer
+                              </Button>
+                            </>
+                          )}
+                        </div>
                       </CardContent>
                     </Card>
 
