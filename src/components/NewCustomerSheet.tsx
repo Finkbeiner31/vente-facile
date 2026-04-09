@@ -11,6 +11,7 @@ import {
 import { Building2, Save } from 'lucide-react';
 import { formatMonthly, formatAnnual } from '@/lib/revenueUtils';
 import { AddressAutocomplete, type AddressSelection } from '@/components/AddressAutocomplete';
+import { BusinessSearchAutocomplete, type BusinessSelection } from '@/components/BusinessSearchAutocomplete';
 
 interface NewCustomerSheetProps {
   open: boolean;
@@ -108,8 +109,22 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
 
           <div>
             <label className="text-xs font-medium text-muted-foreground">Entreprise *</label>
-            <Input value={form.company_name} onChange={e => set('company_name', e.target.value)}
-              placeholder="Nom de l'entreprise" className="h-12 text-base mt-1" />
+            <BusinessSearchAutocomplete
+              value={form.company_name}
+              onChange={v => set('company_name', v)}
+              onSelect={(sel: BusinessSelection) => {
+                setForm(prev => ({
+                  ...prev,
+                  company_name: sel.companyName,
+                  address: sel.fullAddress,
+                  city: sel.city,
+                  postal_code: sel.postalCode,
+                  latitude: sel.latitude,
+                  longitude: sel.longitude,
+                }));
+              }}
+              className="mt-1"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-2">
