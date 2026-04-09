@@ -202,12 +202,18 @@ export default function CustomersPage() {
     .filter(c => {
       if (perfFilter !== 'tous' && c.perf.status !== perfFilter) return false;
       if (trendFilter !== 'tous' && c.perf.trend !== trendFilter) return false;
+      if (priorityFilter !== 'tous' && c.priority.level !== priorityFilter) return false;
       return true;
     })
     .filter(c =>
       c.company_name.toLowerCase().includes(search.toLowerCase()) ||
       c.city.toLowerCase().includes(search.toLowerCase())
-    ), [enriched, search, tab, perfFilter, trendFilter]);
+    )
+    .sort((a, b) => {
+      if (sortMode === 'priority') return b.priority.score - a.priority.score;
+      if (sortMode === 'caM1') return (b.perf.caM1 ?? b.perf.latestKnownCA ?? -1) - (a.perf.caM1 ?? a.perf.latestKnownCA ?? -1);
+      return b.revenue - a.revenue; // potential
+    }), [enriched, search, tab, perfFilter, trendFilter, priorityFilter, sortMode]);
 
   const counts = {
     tous: customers.length,
