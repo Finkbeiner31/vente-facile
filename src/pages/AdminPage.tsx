@@ -39,6 +39,7 @@ interface UserWithRole {
   email: string | null;
   phone: string | null;
   role: string;
+  is_active: boolean;
 }
 
 export default function AdminPage() {
