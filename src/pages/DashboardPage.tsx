@@ -8,7 +8,7 @@ import { QuickReportDialog } from '@/components/QuickReportDialog';
 import { TourMode } from '@/components/TourMode';
 import {
   Play, Square, Phone, Navigation, AlertTriangle, ArrowRight,
-  Sun, Flag, Target, TrendingUp, Eye, Calendar, RotateCcw, DollarSign,
+  Sun, Flag, Target, TrendingUp, Eye, Calendar, RotateCcw, DollarSign, Sparkles,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
@@ -19,7 +19,9 @@ import { useTourSession } from '@/contexts/TourSessionContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAllCustomerRevenues } from '@/hooks/useCustomerPerformance';
-import { analyzeCustomerPerformance, getStatusConfig, type PerformanceStatus } from '@/lib/performanceUtils';
+import { analyzeCustomerPerformance, getStatusConfig, formatCompactRevenue, type PerformanceStatus } from '@/lib/performanceUtils';
+import { computeVisitPriority, PRIORITY_CONFIGS } from '@/lib/priorityEngine';
+import RouteOptimizerSheet from '@/components/RouteOptimizerSheet';
 
 const demoCustomers: CustomerForRouting[] = [
   { id: '1', company_name: 'Boulangerie Martin', address: '12 Rue de la Paix, Paris', city: 'Paris', phone: '01 42 33 44 55', visit_frequency: 'weekly', number_of_vehicles: 8, annual_revenue_potential: 28000, latitude: null, longitude: null, sales_potential: 'A' },
@@ -45,6 +47,7 @@ export default function DashboardPage() {
   const [reportOpen, setReportOpen] = useState(false);
   const [activeClient, setActiveClient] = useState('');
   const [tourMode, setTourMode] = useState(false);
+  const [optimizerOpen, setOptimizerOpen] = useState(false);
 
   const { session, startSession } = useTourSession();
 
@@ -54,7 +57,7 @@ export default function DashboardPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('customers')
-        .select('id, company_name, annual_revenue_potential, customer_type');
+        .select('id, company_name, annual_revenue_potential, customer_type, last_visit_date, visit_frequency, latitude, longitude, city');
       return data || [];
     },
     enabled: !authLoading && !!user,
@@ -85,6 +88,20 @@ export default function DashboardPage() {
     const avgCoverage = totalPotential > 0 ? (totalRealM1 / totalPotential) * 100 : 0;
 
     return { totalPotential, totalRealM1, avgCoverage, statusCounts, clientsWithData };
+  }, [allCustomers, revenueMap]);
+
+  // Top 5 priority clients
+  const topPriority = useMemo(() => {
+    return allCustomers
+      .map(c => {
+        const revenue = Number(c.annual_revenue_potential || 0);
+        const history = revenueMap?.get(c.id) || [];
+        const perf = analyzeCustomerPerformance(revenue, history);
+        const priority = computeVisitPriority(perf, c.last_visit_date, c.visit_frequency, null, null, c.latitude, c.longitude);
+        return { ...c, perf, priority, revenue };
+      })
+      .sort((a, b) => b.priority.score - a.priority.score)
+      .slice(0, 5);
   }, [allCustomers, revenueMap]);
 
   const firstName = profile?.full_name?.split(' ')[0] || 'Commercial';
@@ -321,6 +338,44 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
+      {/* Top Priority Clients */}
+      {topPriority.length > 0 && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
+            <CardTitle className="font-heading text-sm flex items-center gap-2">
+              <Target className="h-4 w-4 text-destructive" />
+              Clients prioritaires
+            </CardTitle>
+            <Button variant="default" size="sm" className="text-xs h-8 gap-1" onClick={() => setOptimizerOpen(true)}>
+              <Sparkles className="h-3 w-3" /> Tournée intelligente
+            </Button>
+          </CardHeader>
+          <CardContent className="px-4 pb-4 space-y-1.5">
+            {topPriority.map(c => {
+              const pc = PRIORITY_CONFIGS[c.priority.level];
+              const effectiveCA = c.perf.caM1 ?? c.perf.latestKnownCA;
+              return (
+                <Link key={c.id} to={`/clients/${c.id}`} className="block">
+                  <div className="flex items-center gap-3 rounded-lg border p-2.5 hover:bg-accent/5 transition-colors cursor-pointer">
+                    <Badge className={`text-[9px] h-5 shrink-0 ${pc.bgColor} ${pc.color}`}>
+                      {pc.emoji} {c.priority.score}
+                    </Badge>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{c.company_name}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {c.city || ''} · CA pot. {fmtK(c.revenue / 12)}/mois
+                        {effectiveCA !== null && effectiveCA > 0 && ` · Réel ${fmtK(effectiveCA)}`}
+                      </p>
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                  </div>
+                </Link>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Urgent Tasks */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
@@ -353,6 +408,7 @@ export default function DashboardPage() {
       </Card>
 
       <QuickReportDialog open={reportOpen} onOpenChange={setReportOpen} clientName={activeClient} />
+      <RouteOptimizerSheet open={optimizerOpen} onOpenChange={setOptimizerOpen} />
     </div>
   );
 }

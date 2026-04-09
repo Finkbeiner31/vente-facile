@@ -19,6 +19,7 @@ import { NewCustomerSheet, type NewCustomerFormData } from '@/components/NewCust
 import { toast } from 'sonner';
 import { useAllCustomerRevenues } from '@/hooks/useCustomerPerformance';
 import { analyzeCustomerPerformance, getStatusConfig, formatCompactRevenue, type PerformanceStatus } from '@/lib/performanceUtils';
+import { computeVisitPriority, PRIORITY_CONFIGS, type PriorityLevel } from '@/lib/priorityEngine';
 
 type CustomerStatus = 'prospect' | 'client_actif' | 'client_inactif';
 
@@ -30,10 +31,14 @@ interface CustomerListItem {
   phone: string;
   potential: string;
   lastVisit: string;
+  lastVisitDate: string | null;
+  visitFrequency: string | null;
   nextAction: string | null;
   address: string;
   vehicles: number;
   revenue: number;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 const statusConfig: Record<CustomerStatus, { label: string; class: string }> = {
@@ -51,6 +56,8 @@ const potentialColors: Record<string, string> = {
 type FilterTab = 'tous' | 'clients' | 'prospects';
 type PerfFilter = 'tous' | 'optimise' | 'a_developper' | 'sous_exploite';
 type TrendFilter = 'tous' | 'up' | 'down' | 'stable';
+type PriorityFilter = 'tous' | 'high' | 'medium' | 'low';
+type SortMode = 'potential' | 'priority' | 'caM1';
 
 const formatLastVisit = (value: string | null) => {
   if (!value) return '—';
@@ -79,6 +86,8 @@ export default function CustomersPage() {
   const [tab, setTab] = useState<FilterTab>('tous');
   const [perfFilter, setPerfFilter] = useState<PerfFilter>('tous');
   const [trendFilter, setTrendFilter] = useState<TrendFilter>('tous');
+  const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('tous');
+  const [sortMode, setSortMode] = useState<SortMode>('priority');
   const [sheetOpen, setSheetOpen] = useState(false);
   const queryClient = useQueryClient();
 
@@ -103,10 +112,14 @@ export default function CustomersPage() {
           phone: customer.phone || '',
           potential: getPotential(revenue, customer.sales_potential),
           lastVisit: formatLastVisit(customer.last_visit_date),
+          lastVisitDate: customer.last_visit_date,
+          visitFrequency: customer.visit_frequency,
           nextAction: customer.next_action_description,
           address: [customer.address, customer.city].filter(Boolean).join(', '),
           vehicles: customer.number_of_vehicles || 0,
           revenue,
+          latitude: customer.latitude,
+          longitude: customer.longitude,
         };
       });
     },
@@ -175,7 +188,8 @@ export default function CustomersPage() {
     return customers.map(c => {
       const history = revenueMap?.get(c.id) || [];
       const perf = analyzeCustomerPerformance(c.revenue, history);
-      return { ...c, perf };
+      const priority = computeVisitPriority(perf, c.lastVisitDate, c.visitFrequency, null, null, c.latitude, c.longitude);
+      return { ...c, perf, priority };
     });
   }, [customers, revenueMap]);
 
@@ -188,12 +202,18 @@ export default function CustomersPage() {
     .filter(c => {
       if (perfFilter !== 'tous' && c.perf.status !== perfFilter) return false;
       if (trendFilter !== 'tous' && c.perf.trend !== trendFilter) return false;
+      if (priorityFilter !== 'tous' && c.priority.level !== priorityFilter) return false;
       return true;
     })
     .filter(c =>
       c.company_name.toLowerCase().includes(search.toLowerCase()) ||
       c.city.toLowerCase().includes(search.toLowerCase())
-    ), [enriched, search, tab, perfFilter, trendFilter]);
+    )
+    .sort((a, b) => {
+      if (sortMode === 'priority') return b.priority.score - a.priority.score;
+      if (sortMode === 'caM1') return (b.perf.caM1 ?? b.perf.latestKnownCA ?? -1) - (a.perf.caM1 ?? a.perf.latestKnownCA ?? -1);
+      return b.revenue - a.revenue; // potential
+    }), [enriched, search, tab, perfFilter, trendFilter, priorityFilter, sortMode]);
 
   const counts = {
     tous: customers.length,
@@ -218,7 +238,7 @@ export default function CustomersPage() {
           <h1 className="font-heading text-xl md:text-2xl font-bold">
             {tab === 'prospects' ? 'Prospects' : tab === 'clients' ? 'Clients' : 'Clients et prospects'}
           </h1>
-          <p className="text-xs text-muted-foreground">{filtered.length} comptes · trié par potentiel</p>
+          <p className="text-xs text-muted-foreground">{filtered.length} comptes · trié par {sortMode === 'priority' ? 'priorité' : sortMode === 'caM1' ? 'CA M-1' : 'potentiel'}</p>
         </div>
         <Button size="sm" className="h-10 px-4 font-semibold" onClick={() => setSheetOpen(true)}>
           <Plus className="h-4 w-4 mr-1.5" /> Nouveau
@@ -256,6 +276,23 @@ export default function CustomersPage() {
             <SelectItem value="stable">➡️ Stable</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={priorityFilter} onValueChange={v => setPriorityFilter(v as PriorityFilter)}>
+          <SelectTrigger className="w-[140px] h-11 text-xs"><SelectValue placeholder="Priorité" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="tous">Toute priorité</SelectItem>
+            <SelectItem value="high">🔴 Priorité haute</SelectItem>
+            <SelectItem value="medium">🟠 Priorité moyenne</SelectItem>
+            <SelectItem value="low">⚪ Priorité faible</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={sortMode} onValueChange={v => setSortMode(v as SortMode)}>
+          <SelectTrigger className="w-[120px] h-11 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="priority">Tri: Priorité</SelectItem>
+            <SelectItem value="potential">Tri: Potentiel</SelectItem>
+            <SelectItem value="caM1">Tri: CA M-1</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {isLoading && (
@@ -277,13 +314,13 @@ export default function CustomersPage() {
         {filtered.map(customer => {
           const sc = statusConfig[customer.status];
           const perfSc = getStatusConfig(customer.perf.status);
+          const prioConfig = PRIORITY_CONFIGS[customer.priority.level];
           return (
             <Link key={customer.id} to={`/clients/${customer.id}`} className="block">
               <Card className={`transition-all hover:border-primary/30 cursor-pointer ${
-                customer.perf.status === 'sous_exploite' ? 'border-l-2 border-l-destructive' :
-                customer.perf.status === 'a_developper' ? 'border-l-2 border-l-warning' :
-                customer.perf.status === 'optimise' ? 'border-l-2 border-l-accent' :
-                customer.potential === 'A' ? 'border-l-2 border-l-accent' : ''
+                customer.priority.level === 'high' ? 'border-l-2 border-l-destructive' :
+                customer.priority.level === 'medium' ? 'border-l-2 border-l-warning' :
+                customer.perf.status === 'optimise' ? 'border-l-2 border-l-accent' : ''
               }`}>
                 <CardContent className="p-3">
                   <div className="flex items-center gap-3">
@@ -291,17 +328,16 @@ export default function CustomersPage() {
                       <Building2 className="h-5 w-5 text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <p className="text-sm font-semibold truncate">{customer.company_name}</p>
-                        {customer.perf.status !== 'no_data' ? (
+                        <Badge className={`text-[9px] h-4 ${prioConfig.bgColor} ${prioConfig.color}`}>
+                          {prioConfig.emoji} {customer.priority.score}
+                        </Badge>
+                        {customer.perf.status !== 'no_data' && (
                           <Badge className={`text-[9px] h-4 ${perfSc.bgColor} ${perfSc.color}`}>
                             {perfSc.emoji} {Math.round(customer.perf.coverageRate)}%
                           </Badge>
-                        ) : customer.revenue > 0 && customer.perf.latestKnownCA === null ? (
-                          <Badge className="text-[9px] h-4 bg-destructive/15 text-destructive">🔴 À travailler</Badge>
-                        ) : customer.revenue <= 0 ? (
-                          <Badge className="text-[9px] h-4 bg-muted text-muted-foreground">⚪ À qualifier</Badge>
-                        ) : null}
+                        )}
                         <Badge className={`text-[9px] h-4 ${sc.class}`}>{sc.label}</Badge>
                       </div>
                       <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">

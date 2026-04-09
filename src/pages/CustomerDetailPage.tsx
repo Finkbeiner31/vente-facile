@@ -11,9 +11,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Phone, Navigation, FileText, CheckSquare,
-  Edit, User, Clock, MapPin, ExternalLink, Car, TrendingUp, Calendar, ArrowRightCircle, Loader2, AlertTriangle,
+  Edit, User, Clock, MapPin, ExternalLink, Car, TrendingUp, Calendar, ArrowRightCircle, Loader2, AlertTriangle, Target,
 } from 'lucide-react';
 import { RevenueHistoryCard } from '@/components/RevenueHistoryCard';
+import { useCustomerPerformance } from '@/hooks/useCustomerPerformance';
+import { computeVisitPriority, PRIORITY_CONFIGS } from '@/lib/priorityEngine';
 
 type CustomerStatus = 'prospect' | 'client_actif' | 'client_inactif';
 
@@ -141,6 +143,14 @@ export default function CustomerDetailPage() {
   const sc = statusConfig[status] || statusConfig.prospect;
   const revenue = customer.annual_revenue_potential || 0;
   const tier = getRevenueTier(revenue);
+
+  // Compute priority
+  const perf = useCustomerPerformance(customer.id, revenue);
+  const priority = computeVisitPriority(
+    perf, customer.last_visit_date, customer.visit_frequency,
+    null, null, customer.latitude, customer.longitude,
+  );
+  const prioConfig = PRIORITY_CONFIGS[priority.level];
 
   // Build timeline from reports + tasks
   const timeline = [
@@ -299,6 +309,30 @@ export default function CustomerDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Priority Card */}
+      <Card className={`border-l-4 ${priority.level === 'high' ? 'border-l-destructive' : priority.level === 'medium' ? 'border-l-warning' : 'border-l-muted'}`}>
+        <CardHeader className="pb-2 px-4 pt-4">
+          <CardTitle className="font-heading text-sm flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-primary" />
+              Priorité commerciale
+            </span>
+            <Badge className={`text-[10px] ${prioConfig.bgColor} ${prioConfig.color}`}>
+              {prioConfig.emoji} {prioConfig.label} ({priority.score})
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        {priority.reasons.length > 0 && (
+          <CardContent className="px-4 pb-3">
+            <div className="flex flex-wrap gap-1.5">
+              {priority.reasons.map((r, i) => (
+                <Badge key={i} variant="outline" className="text-[10px]">{r}</Badge>
+              ))}
+            </div>
+          </CardContent>
+        )}
+      </Card>
 
       {/* Revenue History */}
       <RevenueHistoryCard customerId={customer.id} annualRevenuePotential={revenue} />
