@@ -119,6 +119,14 @@
   }
 }
 
+/* Google Places autocomplete above modals */
+.pac-container {
+  z-index: 9999 !important;
+}
+.pac-item {
+  cursor: pointer;
+}
+
 /* Mobile-first: larger touch targets */
 @media (max-width: 768px) {
   .btn, button {
