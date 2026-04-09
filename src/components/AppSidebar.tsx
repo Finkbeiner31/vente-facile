@@ -98,7 +98,9 @@ export function AppSidebar() {
             <SidebarGroupLabel>Gestion</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {adminNav.map((item) => (
+                {adminNav
+                  .filter(item => !('adminOnly' in item && item.adminOnly) || role === 'admin')
+                  .map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild>
                       <NavLink
