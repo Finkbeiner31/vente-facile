@@ -803,9 +803,19 @@ export default function CustomerDetailPage() {
       <Dialog open={rollbackDialogOpen} onOpenChange={setRollbackDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rebasculer en prospect</DialogTitle>
-            <DialogDescription>Le client sera remis en statut "Prospect". Toutes les données (rapports, tâches, contacts, CA) seront conservées.</DialogDescription>
+            <DialogTitle>Rebasculer le statut</DialogTitle>
+            <DialogDescription>Toutes les données (rapports, tâches, contacts, CA) seront conservées.</DialogDescription>
           </DialogHeader>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Nouveau statut</label>
+            <Select value={rollbackTarget} onValueChange={(v: any) => setRollbackTarget(v)}>
+              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="prospect_qualifie">Prospect qualifié</SelectItem>
+                <SelectItem value="prospect">Prospect</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <Textarea
             value={rollbackReason}
             onChange={e => setRollbackReason(e.target.value)}
@@ -814,7 +824,7 @@ export default function CustomerDetailPage() {
           />
           <DialogFooter>
             <Button variant="ghost" onClick={() => setRollbackDialogOpen(false)}>Annuler</Button>
-            <Button variant="destructive" onClick={() => rollbackMutation.mutate(rollbackReason)} disabled={rollbackMutation.isPending}>
+            <Button variant="destructive" onClick={() => rollbackMutation.mutate({ reason: rollbackReason, target: rollbackTarget })} disabled={rollbackMutation.isPending}>
               {rollbackMutation.isPending ? 'En cours...' : 'Confirmer'}
             </Button>
           </DialogFooter>
