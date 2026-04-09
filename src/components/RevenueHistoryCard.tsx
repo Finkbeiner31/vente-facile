@@ -157,6 +157,62 @@ export function RevenueHistoryCard({ customerId, annualRevenuePotential }: Props
         </CardContent>
       </Card>
 
+      {/* Revenue History Table */}
+      {allRevenues.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2 px-4 pt-4">
+            <CardTitle className="font-heading text-sm flex items-center gap-2">
+              <FileSpreadsheet className="h-4 w-4 text-primary" />
+              Historique CA ({allRevenues.length} mois)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="text-xs h-8 px-2">Mois</TableHead>
+                  <TableHead className="text-xs h-8 px-2 text-right">CA réel</TableHead>
+                  <TableHead className="text-xs h-8 px-2 text-right">vs Potentiel</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {allRevenues.map((r, i) => {
+                  const coverage = perf.monthlyPotential > 0 
+                    ? Math.round((Number(r.monthly_revenue) / perf.monthlyPotential) * 100) 
+                    : 0;
+                  const gap = perf.monthlyPotential - Number(r.monthly_revenue);
+                  return (
+                    <TableRow key={i}>
+                      <TableCell className="text-xs py-2 px-2 font-medium">
+                        {MONTH_FULL[r.month - 1]} {r.year}
+                      </TableCell>
+                      <TableCell className="text-xs py-2 px-2 text-right font-semibold">
+                        {Number(r.monthly_revenue).toLocaleString('fr-FR')}€
+                      </TableCell>
+                      <TableCell className={`text-xs py-2 px-2 text-right ${coverage >= 80 ? 'text-accent' : coverage >= 40 ? 'text-warning' : 'text-destructive'}`}>
+                        {coverage}%
+                        {gap > 0 && <span className="text-muted-foreground ml-1">(-{Math.round(gap).toLocaleString('fr-FR')}€)</span>}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* No data empty state */}
+      {allRevenues.length === 0 && perf.status === 'no_data' && (
+        <Card>
+          <CardContent className="p-6 text-center space-y-2">
+            <FileSpreadsheet className="mx-auto h-8 w-8 text-muted-foreground/30" />
+            <p className="text-sm font-medium text-muted-foreground">Aucun CA renseigné</p>
+            <p className="text-xs text-muted-foreground/70">Importez le CA mensuel depuis l'administration</p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Alerts */}
       {perf.alerts.length > 0 && (
         <div className="space-y-1.5">
