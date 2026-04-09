@@ -11,6 +11,7 @@ import {
 import { Building2, Save } from 'lucide-react';
 import { formatMonthly, formatAnnual } from '@/lib/revenueUtils';
 import { AddressAutocomplete, type AddressSelection } from '@/components/AddressAutocomplete';
+import { BusinessSearchAutocomplete, type BusinessSelection } from '@/components/BusinessSearchAutocomplete';
 
 interface NewCustomerSheetProps {
   open: boolean;
