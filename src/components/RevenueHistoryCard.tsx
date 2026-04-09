@@ -81,45 +81,64 @@ export function RevenueHistoryCard({ customerId, annualRevenuePotential }: Props
               <p className="text-[10px] text-muted-foreground">/mois</p>
             </div>
             <div className="rounded-lg bg-muted/50 p-2.5">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">CA M-1</p>
-              <div className="flex items-center gap-1.5">
-                <p className="font-heading text-lg font-bold">
-                  {perf.caM1 !== null ? `${perf.caM1.toLocaleString('fr-FR')}€` : '—'}
-                </p>
-                {perf.caM1 !== null && <TrendIcon className={`h-4 w-4 ${trendColor}`} />}
-              </div>
+              {perf.caM1 !== null && perf.caM1 > 0 ? (
+                <>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">CA M-1</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-heading text-lg font-bold">{perf.caM1.toLocaleString('fr-FR')}€</p>
+                    <TrendIcon className={`h-4 w-4 ${trendColor}`} />
+                  </div>
+                </>
+              ) : perf.latestKnownCA !== null ? (
+                <>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Dernier CA</p>
+                  <p className="font-heading text-lg font-bold">{perf.latestKnownCA.toLocaleString('fr-FR')}€</p>
+                  <p className="text-[9px] text-muted-foreground">{perf.latestKnownLabel}</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">CA M-1</p>
+                  <p className="font-heading text-lg font-bold text-muted-foreground">—</p>
+                </>
+              )}
             </div>
           </div>
 
-          {/* N-1 + Projection row */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="rounded-lg bg-muted/30 p-2.5">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">CA N-1</p>
-              <div className="flex items-center gap-1.5">
-                <p className="font-heading text-base font-bold">
-                  {perf.caN1 !== null ? `${perf.caN1.toLocaleString('fr-FR')}€` : '—'}
-                </p>
-                {perf.yoyDelta !== null && (
-                  <span className={`text-[10px] font-semibold ${perf.yoyTrend === 'up' ? 'text-accent' : perf.yoyTrend === 'down' ? 'text-destructive' : 'text-muted-foreground'}`}>
-                    {perf.yoyDelta >= 0 ? '+' : ''}{perf.yoyDelta.toLocaleString('fr-FR')}€
-                  </span>
-                )}
-              </div>
-              {perf.caN1 === null && <p className="text-[10px] text-muted-foreground/60 italic">Non renseigné</p>}
-            </div>
-            <div className="rounded-lg bg-muted/30 p-2.5">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Projection</p>
-              <p className="font-heading text-base font-bold">
-                {perf.projectionAnnual !== null ? `${formatCompactRevenue(perf.projectionAnnual)}/an` : '—'}
-              </p>
-              {perf.projectionAnnual !== null && perf.projectionTrend !== 'unknown' && (
-                <p className={`text-[10px] font-medium ${perf.projectionTrend === 'up' ? 'text-accent' : perf.projectionTrend === 'down' ? 'text-destructive' : 'text-muted-foreground'}`}>
-                  {perf.projectionTrend === 'up' ? '↑ En hausse' : perf.projectionTrend === 'down' ? '↓ En baisse' : '→ Stable'}
-                </p>
+          {/* N-1 + Projection row — only show if at least one has data */}
+          {(perf.caN1 !== null || perf.projectionAnnual !== null) && (
+            <div className="grid grid-cols-2 gap-2">
+              {perf.caN1 !== null && perf.caN1 > 0 ? (
+                <div className="rounded-lg bg-muted/30 p-2.5">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">CA N-1</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="font-heading text-base font-bold">
+                      {perf.caN1.toLocaleString('fr-FR')}€
+                    </p>
+                    {perf.yoyDelta !== null && (
+                      <span className={`text-[10px] font-semibold ${perf.yoyTrend === 'up' ? 'text-accent' : perf.yoyTrend === 'down' ? 'text-destructive' : 'text-muted-foreground'}`}>
+                        {perf.yoyDelta >= 0 ? '+' : ''}{perf.yoyDelta.toLocaleString('fr-FR')}€
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : perf.projectionAnnual !== null ? (
+                <div />
+              ) : null}
+              {perf.projectionAnnual !== null && perf.projectionAnnual > 0 && (
+                <div className="rounded-lg bg-muted/30 p-2.5">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Projection</p>
+                  <p className="font-heading text-base font-bold">
+                    {formatCompactRevenue(perf.projectionAnnual)}/an
+                  </p>
+                  {perf.projectionTrend !== 'unknown' && (
+                    <p className={`text-[10px] font-medium ${perf.projectionTrend === 'up' ? 'text-accent' : perf.projectionTrend === 'down' ? 'text-destructive' : 'text-muted-foreground'}`}>
+                      {perf.projectionTrend === 'up' ? '↑ En hausse' : perf.projectionTrend === 'down' ? '↓ En baisse' : '→ Stable'}
+                    </p>
+                  )}
+                </div>
               )}
-              {perf.projectionAnnual === null && <p className="text-[10px] text-muted-foreground/60 italic">Indisponible</p>}
             </div>
-          </div>
+          )}
 
           {/* Coverage + Gap */}
           {perf.caM1 !== null && (

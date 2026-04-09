@@ -297,9 +297,11 @@ export default function CustomersPage() {
                           <Badge className={`text-[9px] h-4 ${perfSc.bgColor} ${perfSc.color}`}>
                             {perfSc.emoji} {Math.round(customer.perf.coverageRate)}%
                           </Badge>
-                        ) : customer.perf.caM1 === null && (
-                          <Badge className="text-[9px] h-4 bg-muted text-muted-foreground">⚪ Incomplet</Badge>
-                        )}
+                        ) : customer.revenue > 0 && customer.perf.latestKnownCA === null ? (
+                          <Badge className="text-[9px] h-4 bg-destructive/15 text-destructive">🔴 À travailler</Badge>
+                        ) : customer.revenue <= 0 ? (
+                          <Badge className="text-[9px] h-4 bg-muted text-muted-foreground">⚪ À qualifier</Badge>
+                        ) : null}
                         <Badge className={`text-[9px] h-4 ${sc.class}`}>{sc.label}</Badge>
                       </div>
                       <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -310,32 +312,51 @@ export default function CustomersPage() {
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5 text-[11px] mt-0.5 flex-wrap">
-                        <span className="text-muted-foreground">
-                          CA pot. <span className={`font-semibold ${getRevenueTierColor(getRevenueTier(customer.revenue))}`}>{formatMonthly(customer.revenue)}</span>
-                        </span>
-                        <span className="text-muted-foreground/50">·</span>
-                        {customer.perf.caM1 !== null ? (
-                          <span className="font-semibold text-foreground flex items-center gap-0.5">
-                            M-1 {formatCompactRevenue(customer.perf.caM1)}
-                            <TrendIcon trend={customer.perf.trend} />
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground/70 italic text-[10px]">M-1 n/a</span>
-                        )}
-                        <span className="text-muted-foreground/50">·</span>
-                        {customer.perf.caN1 !== null ? (
+                        {/* CA potentiel */}
+                        {customer.revenue > 0 ? (
                           <span className="text-muted-foreground">
-                            N-1 <span className="font-medium">{formatCompactRevenue(customer.perf.caN1)}</span>
-                            {customer.perf.yoyDelta !== null && (
-                              <span className={`ml-0.5 ${customer.perf.yoyTrend === 'up' ? 'text-accent' : customer.perf.yoyTrend === 'down' ? 'text-destructive' : 'text-muted-foreground'}`}>
-                                {customer.perf.yoyDelta >= 0 ? '↑' : '↓'}
-                              </span>
-                            )}
+                            CA pot. <span className={`font-semibold ${getRevenueTierColor(getRevenueTier(customer.revenue))}`}>{formatMonthly(customer.revenue)}</span>
                           </span>
                         ) : (
-                          <span className="text-muted-foreground/70 italic text-[10px]">N-1 n/a</span>
+                          <span className="text-muted-foreground/70 italic text-[10px]">CA pot. non renseigné</span>
                         )}
-                        {customer.perf.projectionAnnual !== null && (
+
+                        {/* M-1 or fallback */}
+                        {customer.perf.caM1 !== null && customer.perf.caM1 > 0 ? (
+                          <>
+                            <span className="text-muted-foreground/50">·</span>
+                            <span className="font-semibold text-foreground flex items-center gap-0.5">
+                              M-1 {formatCompactRevenue(customer.perf.caM1)}
+                              <TrendIcon trend={customer.perf.trend} />
+                            </span>
+                          </>
+                        ) : customer.perf.latestKnownCA !== null ? (
+                          <>
+                            <span className="text-muted-foreground/50">·</span>
+                            <span className="font-medium text-foreground/80 flex items-center gap-0.5">
+                              Dernier CA {formatCompactRevenue(customer.perf.latestKnownCA)}
+                              <span className="text-[9px] text-muted-foreground font-normal">({customer.perf.latestKnownLabel})</span>
+                            </span>
+                          </>
+                        ) : null}
+
+                        {/* N-1 only if available */}
+                        {customer.perf.caN1 !== null && customer.perf.caN1 > 0 && (
+                          <>
+                            <span className="text-muted-foreground/50">·</span>
+                            <span className="text-muted-foreground">
+                              N-1 <span className="font-medium">{formatCompactRevenue(customer.perf.caN1)}</span>
+                              {customer.perf.yoyDelta !== null && (
+                                <span className={`ml-0.5 ${customer.perf.yoyTrend === 'up' ? 'text-accent' : customer.perf.yoyTrend === 'down' ? 'text-destructive' : 'text-muted-foreground'}`}>
+                                  {customer.perf.yoyDelta >= 0 ? '↑' : '↓'}
+                                </span>
+                              )}
+                            </span>
+                          </>
+                        )}
+
+                        {/* Projection only if meaningful */}
+                        {customer.perf.projectionAnnual !== null && customer.perf.projectionAnnual > 0 && (
                           <>
                             <span className="text-muted-foreground/50">·</span>
                             <span className="text-muted-foreground text-[10px]">
