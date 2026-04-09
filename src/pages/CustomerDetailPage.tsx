@@ -252,12 +252,17 @@ export default function CustomerDetailPage() {
           <Truck className="h-3.5 w-3.5 text-muted-foreground" />
           <span className="text-sm font-bold">{totalVehicles || customer.number_of_vehicles || 0} véh.</span>
         </div>
-        {cust.equipment_type && (
-          <div className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5">
-            <Wrench className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-xs">{cust.equipment_type}</span>
-          </div>
-        )}
+        {(() => {
+          const eqTypes = (cust as any).equipment_types as string[] | undefined;
+          const isMulti = cust.equipment_type === 'Multi-équipement' && Array.isArray(eqTypes) && eqTypes.length > 0;
+          const displayEq = isMulti ? eqTypes.join(', ') : cust.equipment_type;
+          return displayEq ? (
+            <div className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5">
+              <Wrench className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-xs">{displayEq}</span>
+            </div>
+          ) : null;
+        })()}
         {customer.last_visit_date && (
           <div className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5">
             <Clock className="h-3.5 w-3.5 text-muted-foreground" />
@@ -333,13 +338,39 @@ export default function CustomerDetailPage() {
               </div>
               <div>
                 <label className="text-xs font-medium text-muted-foreground">Équipement principal</label>
-                <Select value={fleetForm.equipment_type} onValueChange={v => setFleetForm(f => ({ ...f, equipment_type: v }))}>
+                <Select value={fleetForm.equipment_type} onValueChange={v => setFleetForm(f => ({ ...f, equipment_type: v, equipment_types: v === 'Multi-équipement' ? f.equipment_types : [] }))}>
                   <SelectTrigger className="h-10 mt-1"><SelectValue placeholder="Sélectionner..." /></SelectTrigger>
                   <SelectContent>
                     {EQUIPMENT_TYPES.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
+              {fleetForm.equipment_type === 'Multi-équipement' && (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground mb-2 block">Types d'équipements présents</label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {EQUIPMENT_SUB_TYPES.map(t => (
+                      <label key={t} className="flex items-center gap-2 rounded-md border p-2 cursor-pointer hover:bg-muted/50 text-sm">
+                        <Checkbox
+                          checked={fleetForm.equipment_types.includes(t)}
+                          onCheckedChange={(checked) => {
+                            setFleetForm(f => ({
+                              ...f,
+                              equipment_types: checked
+                                ? [...f.equipment_types, t]
+                                : f.equipment_types.filter(x => x !== t),
+                            }));
+                          }}
+                        />
+                        {t}
+                      </label>
+                    ))}
+                  </div>
+                  {fleetForm.equipment_types.length === 0 && (
+                    <p className="text-xs text-destructive mt-1">Veuillez sélectionner au moins un type d'équipement</p>
+                  )}
+                </div>
+              )}
               <div>
                 <label className="text-xs font-medium text-muted-foreground mb-2 block">Flotte véhicules</label>
                 <div className="grid grid-cols-2 gap-2">
@@ -372,8 +403,18 @@ export default function CustomerDetailPage() {
                   <p className="text-sm font-medium mt-0.5">{cust.activity_type || <span className="text-muted-foreground italic">Non renseigné</span>}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Équipement principal</p>
-                  <p className="text-sm font-medium mt-0.5">{cust.equipment_type || <span className="text-muted-foreground italic">Non renseigné</span>}</p>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {cust.equipment_type === 'Multi-équipement' ? 'Équipements' : 'Équipement principal'}
+                  </p>
+                  <p className="text-sm font-medium mt-0.5">
+                    {(() => {
+                      const eqTypes = (cust as any).equipment_types as string[] | undefined;
+                      if (cust.equipment_type === 'Multi-équipement' && Array.isArray(eqTypes) && eqTypes.length > 0) {
+                        return eqTypes.join(', ');
+                      }
+                      return cust.equipment_type || <span className="text-muted-foreground italic">Non renseigné</span>;
+                    })()}
+                  </p>
                 </div>
               </div>
 
