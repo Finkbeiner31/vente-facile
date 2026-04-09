@@ -338,6 +338,44 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
+      {/* Top Priority Clients */}
+      {topPriority.length > 0 && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
+            <CardTitle className="font-heading text-sm flex items-center gap-2">
+              <Target className="h-4 w-4 text-destructive" />
+              Clients prioritaires
+            </CardTitle>
+            <Button variant="default" size="sm" className="text-xs h-8 gap-1" onClick={() => setOptimizerOpen(true)}>
+              <Sparkles className="h-3 w-3" /> Tournée intelligente
+            </Button>
+          </CardHeader>
+          <CardContent className="px-4 pb-4 space-y-1.5">
+            {topPriority.map(c => {
+              const pc = PRIORITY_CONFIGS[c.priority.level];
+              const effectiveCA = c.perf.caM1 ?? c.perf.latestKnownCA;
+              return (
+                <Link key={c.id} to={`/clients/${c.id}`} className="block">
+                  <div className="flex items-center gap-3 rounded-lg border p-2.5 hover:bg-accent/5 transition-colors cursor-pointer">
+                    <Badge className={`text-[9px] h-5 shrink-0 ${pc.bgColor} ${pc.color}`}>
+                      {pc.emoji} {c.priority.score}
+                    </Badge>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{c.company_name}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {c.city || ''} · CA pot. {fmtK(c.revenue / 12)}/mois
+                        {effectiveCA !== null && effectiveCA > 0 && ` · Réel ${fmtK(effectiveCA)}`}
+                      </p>
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                  </div>
+                </Link>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Urgent Tasks */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
@@ -370,6 +408,7 @@ export default function DashboardPage() {
       </Card>
 
       <QuickReportDialog open={reportOpen} onOpenChange={setReportOpen} clientName={activeClient} />
+      <RouteOptimizerSheet open={optimizerOpen} onOpenChange={setOptimizerOpen} />
     </div>
   );
 }
