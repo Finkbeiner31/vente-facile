@@ -190,6 +190,23 @@ export default function BulkImportPage() {
   const duplicateCount = rows.filter(r => r.isDuplicate).length;
   const validCount = rows.filter(r => r.errors.length === 0).length;
 
+  // Guard: admin only
+  if (role !== 'admin') {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Card className="max-w-md">
+          <CardContent className="p-8 text-center">
+            <XCircle className="mx-auto h-12 w-12 text-destructive mb-4" />
+            <h2 className="text-lg font-bold mb-2">Accès refusé</h2>
+            <p className="text-sm text-muted-foreground">
+              Cette fonctionnalité est réservée aux administrateurs.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   // ── UPLOAD STEP ──
   if (step === 'upload') {
     return (
