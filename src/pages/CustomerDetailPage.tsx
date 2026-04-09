@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { RevenueHistoryCard } from '@/components/RevenueHistoryCard';
 import { useCommercialZones, findMatchingZone, formatZoneName } from '@/hooks/useCommercialZones';
+import { formatAssignmentSource, formatZoneStatus } from '@/lib/zoneAssignment';
+import { useZoneAssignment } from '@/hooks/useZoneAssignment';
 import { useCustomerPerformance } from '@/hooks/useCustomerPerformance';
 import { computeVisitPriority, PRIORITY_CONFIGS } from '@/lib/priorityEngine';
 import {
@@ -82,6 +84,7 @@ export default function CustomerDetailPage() {
   const perf = useCustomerPerformance(customer?.id, revenue);
   const { data: potentials = [] } = useVehiclePotentials();
   const { data: zones = [] } = useCommercialZones();
+  const { autoAssignCustomer } = useZoneAssignment();
 
   const { data: contacts = [] } = useQuery({
     queryKey: ['contacts', id, user?.id],
