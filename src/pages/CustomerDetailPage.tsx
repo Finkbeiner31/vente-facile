@@ -11,9 +11,11 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Phone, Navigation, FileText, CheckSquare,
-  Edit, User, Clock, MapPin, ExternalLink, Car, TrendingUp, Calendar, ArrowRightCircle, Loader2, AlertTriangle,
+  Edit, User, Clock, MapPin, ExternalLink, Car, TrendingUp, Calendar, ArrowRightCircle, Loader2, AlertTriangle, Target,
 } from 'lucide-react';
 import { RevenueHistoryCard } from '@/components/RevenueHistoryCard';
+import { useCustomerPerformance } from '@/hooks/useCustomerPerformance';
+import { computeVisitPriority, PRIORITY_CONFIGS } from '@/lib/priorityEngine';
 
 type CustomerStatus = 'prospect' | 'client_actif' | 'client_inactif';
 
@@ -141,6 +143,14 @@ export default function CustomerDetailPage() {
   const sc = statusConfig[status] || statusConfig.prospect;
   const revenue = customer.annual_revenue_potential || 0;
   const tier = getRevenueTier(revenue);
+
+  // Compute priority
+  const perf = useCustomerPerformance(customer.id, revenue);
+  const priority = computeVisitPriority(
+    perf, customer.last_visit_date, customer.visit_frequency,
+    null, null, customer.latitude, customer.longitude,
+  );
+  const prioConfig = PRIORITY_CONFIGS[priority.level];
 
   // Build timeline from reports + tasks
   const timeline = [
