@@ -18,18 +18,21 @@ export interface CustomerPerformance {
   caM1: number | null;
   caM2: number | null;
   caM3: number | null;
-  caN1: number | null; // Same month last year as M-1
-  yoyDelta: number | null; // M-1 minus N-1
+  caN1: number | null;
+  yoyDelta: number | null;
   yoyTrend: RevenueTrend;
   projectionAnnual: number | null;
   projectionTrend: RevenueTrend;
-  coverageRate: number; // 0-100
+  coverageRate: number;
   gap: number;
   trend: RevenueTrend;
   status: PerformanceStatus;
   priorityScore: number;
   alerts: PerformanceAlert[];
   recentMonths: RevenueData[];
+  /** Fallback: most recent known revenue when M-1 is missing */
+  latestKnownCA: number | null;
+  latestKnownLabel: string | null; // e.g. "Jan 2026"
 }
 
 export interface PerformanceAlert {
@@ -130,9 +133,10 @@ export function getActionSuggestions(status: PerformanceStatus): { label: string
 function computeProjection(revenueHistory: RevenueData[]): { annual: number | null; trend: RevenueTrend } {
   if (revenueHistory.length === 0) return { annual: null, trend: 'unknown' };
 
-  // Sort descending by date
   const sorted = [...revenueHistory].sort((a, b) => b.year - a.year || b.month - a.month);
-  const values = sorted.map(r => Number(r.monthly_revenue));
+  const values = sorted.map(r => Number(r.monthly_revenue)).filter(v => v > 0);
+
+  if (values.length === 0) return { annual: null, trend: 'unknown' };
 
   if (values.length >= 3) {
     const avg3 = (values[0] + values[1] + values[2]) / 3;
@@ -140,9 +144,9 @@ function computeProjection(revenueHistory: RevenueData[]): { annual: number | nu
     return { annual: Math.round(avg3 * 12), trend };
   }
 
-  // 1-2 months: use average
   const avg = values.reduce((s, v) => s + v, 0) / values.length;
-  return { annual: Math.round(avg * 12), trend: 'unknown' };
+  const result = Math.round(avg * 12);
+  return { annual: result > 0 ? result : null, trend: 'unknown' };
 }
 
 /** Format compact revenue */
