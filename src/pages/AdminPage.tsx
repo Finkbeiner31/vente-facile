@@ -373,6 +373,18 @@ export default function AdminPage() {
                                 <span className="text-[10px] text-muted-foreground shrink-0">
                                   {Number(c.annual_revenue_potential || 0).toLocaleString('fr-FR')}€
                                 </span>
+                                {isAdmin && (
+                                  <Select onValueChange={v => reassignClientMutation.mutate({ clientId: c.id, newRepId: v })}>
+                                    <SelectTrigger className="h-6 w-6 border-0 p-0 [&>svg]:hidden">
+                                      <ArrowRightCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {allUsers.filter(u => u.id !== selectedUserId).map(u => (
+                                        <SelectItem key={u.id} value={u.id} className="text-xs">{u.full_name}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                )}
                               </div>
                             ))}
                           </div>
