@@ -18,7 +18,7 @@ import {
   Star, Mail, MessageCircle, Truck, Wrench, Building2,
 } from 'lucide-react';
 import { RevenueHistoryCard } from '@/components/RevenueHistoryCard';
-import { useCommercialZones } from '@/hooks/useCommercialZones';
+import { useCommercialZones, findMatchingZone } from '@/hooks/useCommercialZones';
 import { useCustomerPerformance } from '@/hooks/useCustomerPerformance';
 import { computeVisitPriority, PRIORITY_CONFIGS } from '@/lib/priorityEngine';
 import {
