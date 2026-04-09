@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Shield, Settings as SettingsIcon, Truck, Plus, Edit, Trash2, Save, Loader2 } from 'lucide-react';
+import { Users, Shield, Settings as SettingsIcon, Truck, Plus, Edit, Trash2, Save, Loader2, ArrowRightCircle } from 'lucide-react';
+import { AdminConversionRequests } from '@/components/AdminConversionRequests';
 import { useVehiclePotentials, type VehiclePotential } from '@/hooks/useVehiclePotentials';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -74,6 +75,7 @@ export default function AdminPage() {
       <Tabs defaultValue="users">
         <TabsList className="flex-wrap">
           <TabsTrigger value="users"><Users className="mr-1 h-4 w-4" />Utilisateurs</TabsTrigger>
+          <TabsTrigger value="conversions"><ArrowRightCircle className="mr-1 h-4 w-4" />Conversions</TabsTrigger>
           <TabsTrigger value="roles"><Shield className="mr-1 h-4 w-4" />Rôles</TabsTrigger>
           <TabsTrigger value="potentials"><Truck className="mr-1 h-4 w-4" />Potentiels</TabsTrigger>
           <TabsTrigger value="settings"><SettingsIcon className="mr-1 h-4 w-4" />Paramètres</TabsTrigger>
@@ -106,6 +108,11 @@ export default function AdminPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Conversions tab */}
+        <TabsContent value="conversions" className="mt-4">
+          <AdminConversionRequests />
         </TabsContent>
 
         {/* Roles tab */}

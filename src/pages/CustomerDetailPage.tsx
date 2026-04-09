@@ -26,10 +26,17 @@ import {
 } from '@/hooks/useVehiclePotentials';
 import { Checkbox } from '@/components/ui/checkbox';
 
-type CustomerStatus = 'prospect' | 'client_actif' | 'client_inactif';
+import { ConversionRequestSheet } from '@/components/ConversionRequestSheet';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+
+type CustomerStatus = 'prospect' | 'client_actif' | 'client_inactif' | 'pending_conversion';
 
 const statusConfig: Record<CustomerStatus, { label: string; class: string }> = {
   prospect: { label: 'Prospect', class: 'bg-warning/15 text-warning' },
+  pending_conversion: { label: 'Conversion en attente', class: 'bg-primary/15 text-primary' },
   client_actif: { label: 'Client actif', class: 'bg-accent/15 text-accent' },
   client_inactif: { label: 'Inactif', class: 'bg-muted text-muted-foreground' },
 };
@@ -38,7 +45,7 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-
 
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { user, loading: authLoading } = useAuth();
+  const { user, role, loading: authLoading } = useAuth();
   const [reportOpen, setReportOpen] = useState(false);
   const [editingVehicles, setEditingVehicles] = useState(false);
   const [editingContact, setEditingContact] = useState<string | null>(null);
@@ -47,6 +54,9 @@ export default function CustomerDetailPage() {
   const [editContactData, setEditContactData] = useState({ first_name: '', last_name: '', role: '', phone: '', email: '' });
   const [editingBusiness, setEditingBusiness] = useState(false);
   const [fleetForm, setFleetForm] = useState({ fleet_pl: 0, fleet_vu: 0, fleet_remorque: 0, fleet_car_bus: 0, activity_type: '', equipment_type: '', equipment_types: [] as string[] });
+  const [conversionSheetOpen, setConversionSheetOpen] = useState(false);
+  const [rollbackDialogOpen, setRollbackDialogOpen] = useState(false);
+  const [rollbackReason, setRollbackReason] = useState('');
   const queryClient = useQueryClient();
   const isValidId = Boolean(id && UUID_REGEX.test(id));
 
@@ -96,12 +106,60 @@ export default function CustomerDetailPage() {
     enabled: !authLoading && !!user && isValidId,
   });
 
-  const convertMutation = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from('customers').update({ customer_type: 'client_actif' }).eq('id', id!);
-      if (error) throw error;
+  const conversionRequestMutation = useMutation({
+    mutationFn: async (comment: string) => {
+      const cust = customer as any;
+      const totalV = (cust.fleet_pl || 0) + (cust.fleet_vu || 0) + (cust.fleet_remorque || 0) + (cust.fleet_car_bus || 0);
+      if (totalV === 0 && !(customer.number_of_vehicles && customer.number_of_vehicles > 0)) {
+        throw new Error('NO_VEHICLES');
+      }
+      // Create conversion request
+      const { error: e1 } = await (supabase as any).from('conversion_requests').insert({
+        customer_id: id!,
+        requested_by: user!.id,
+        comment: comment || null,
+      });
+      if (e1) throw e1;
+      // Update status to pending
+      const { error: e2 } = await supabase.from('customers').update({ customer_type: 'pending_conversion' } as any).eq('id', id!);
+      if (e2) throw e2;
+      // Audit log
+      await (supabase as any).from('activity_logs').insert({
+        user_id: user!.id, entity_type: 'customer', entity_id: id,
+        action: 'conversion_requested', details: { from: 'prospect', to: 'pending_conversion', comment },
+      });
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['customer', id] }); queryClient.invalidateQueries({ queryKey: ['customers'] }); toast.success('Converti en Client actif'); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customer', id] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      setConversionSheetOpen(false);
+      toast.success('Demande de conversion envoyée');
+    },
+    onError: (err: any) => {
+      if (err.message === 'NO_VEHICLES') {
+        toast.error('Impossible de convertir ce prospect en client : veuillez renseigner le nombre de véhicules.');
+      } else {
+        toast.error('Erreur lors de la demande');
+      }
+    },
+  });
+
+  const rollbackMutation = useMutation({
+    mutationFn: async (reason: string) => {
+      const { error } = await supabase.from('customers').update({ customer_type: 'prospect' } as any).eq('id', id!);
+      if (error) throw error;
+      await (supabase as any).from('activity_logs').insert({
+        user_id: user!.id, entity_type: 'customer', entity_id: id,
+        action: 'rollback_to_prospect', details: { from: customer.customer_type, to: 'prospect', reason },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customer', id] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      setRollbackDialogOpen(false);
+      setRollbackReason('');
+      toast.success('Statut remis en Prospect');
+    },
   });
 
   const updateCustomerMutation = useMutation({
@@ -271,18 +329,45 @@ export default function CustomerDetailPage() {
         )}
       </div>
 
-      {/* Convert banner */}
+      {/* Convert / status banners */}
       {status === 'prospect' && (
         <Card className="border-warning/30 bg-warning/5">
           <CardContent className="p-3 flex items-center gap-3">
             <ArrowRightCircle className="h-5 w-5 text-warning shrink-0" />
             <div className="flex-1">
               <p className="text-sm font-medium">Ce compte est un prospect</p>
-              <p className="text-[11px] text-muted-foreground">Convertissez-le après validation commerciale</p>
+              <p className="text-[11px] text-muted-foreground">Soumettez une demande de conversion pour validation admin</p>
             </div>
             <Button size="sm" variant="outline" className="shrink-0 border-warning/30 text-warning hover:bg-warning/10"
-              onClick={() => convertMutation.mutate()} disabled={convertMutation.isPending}>
-              {convertMutation.isPending ? 'Conversion...' : 'Convertir'}
+              onClick={() => setConversionSheetOpen(true)}>
+              Demander la conversion
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {status === 'pending_conversion' && (
+        <Card className="border-primary/30 bg-primary/5">
+          <CardContent className="p-3 flex items-center gap-3">
+            <Loader2 className="h-5 w-5 text-primary shrink-0 animate-spin" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-primary">Validation admin en attente</p>
+              <p className="text-[11px] text-muted-foreground">La demande de conversion a été soumise et attend l'approbation d'un administrateur</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {(status === 'client_actif' || status === 'client_inactif') && role === 'admin' && (
+        <Card className="border-muted">
+          <CardContent className="p-3 flex items-center gap-3">
+            <ArrowRightCircle className="h-5 w-5 text-muted-foreground shrink-0" />
+            <div className="flex-1">
+              <p className="text-[11px] text-muted-foreground">Action admin uniquement</p>
+            </div>
+            <Button size="sm" variant="ghost" className="shrink-0 text-xs text-muted-foreground hover:text-destructive"
+              onClick={() => setRollbackDialogOpen(true)}>
+              Rebasculer en prospect
             </Button>
           </CardContent>
         </Card>
@@ -671,6 +756,36 @@ export default function CustomerDetailPage() {
       )}
 
       <QuickReportDialog open={reportOpen} onOpenChange={setReportOpen} clientName={customer.company_name} />
+
+      <ConversionRequestSheet
+        open={conversionSheetOpen}
+        onOpenChange={setConversionSheetOpen}
+        customer={customer}
+        onSubmit={(comment) => conversionRequestMutation.mutate(comment)}
+        isPending={conversionRequestMutation.isPending}
+      />
+
+      {/* Rollback dialog (admin only) */}
+      <Dialog open={rollbackDialogOpen} onOpenChange={setRollbackDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rebasculer en prospect</DialogTitle>
+            <DialogDescription>Le client sera remis en statut "Prospect". Toutes les données (rapports, tâches, contacts, CA) seront conservées.</DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={rollbackReason}
+            onChange={e => setRollbackReason(e.target.value)}
+            placeholder="Raison du changement (optionnel)..."
+            rows={3}
+          />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRollbackDialogOpen(false)}>Annuler</Button>
+            <Button variant="destructive" onClick={() => rollbackMutation.mutate(rollbackReason)} disabled={rollbackMutation.isPending}>
+              {rollbackMutation.isPending ? 'En cours...' : 'Confirmer'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
