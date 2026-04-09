@@ -19,7 +19,9 @@ import { useTourSession } from '@/contexts/TourSessionContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAllCustomerRevenues } from '@/hooks/useCustomerPerformance';
-import { analyzeCustomerPerformance, getStatusConfig, type PerformanceStatus } from '@/lib/performanceUtils';
+import { analyzeCustomerPerformance, getStatusConfig, formatCompactRevenue, type PerformanceStatus } from '@/lib/performanceUtils';
+import { computeVisitPriority, PRIORITY_CONFIGS } from '@/lib/priorityEngine';
+import RouteOptimizerSheet from '@/components/RouteOptimizerSheet';
 
 const demoCustomers: CustomerForRouting[] = [
   { id: '1', company_name: 'Boulangerie Martin', address: '12 Rue de la Paix, Paris', city: 'Paris', phone: '01 42 33 44 55', visit_frequency: 'weekly', number_of_vehicles: 8, annual_revenue_potential: 28000, latitude: null, longitude: null, sales_potential: 'A' },
