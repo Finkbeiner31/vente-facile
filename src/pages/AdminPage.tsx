@@ -139,6 +139,11 @@ export default function AdminPage() {
           </div>
         </TabsContent>
 
+        {/* Zones tab */}
+        <TabsContent value="zones" className="mt-4">
+          <AdminZoneManager />
+        </TabsContent>
+
         {/* Vehicle Potentials tab */}
         <TabsContent value="potentials" className="mt-4 space-y-4">
           <Card>
