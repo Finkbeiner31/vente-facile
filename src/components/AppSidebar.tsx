@@ -12,6 +12,8 @@ import {
   Flame,
   ChevronDown,
   Upload,
+  DollarSign,
+  BarChart3,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/contexts/AuthContext';
@@ -44,6 +46,8 @@ const mainNav = [
 const adminNav = [
   { title: 'Administration', url: '/admin', icon: Settings },
   { title: 'Import clients', url: '/admin/import', icon: Upload, adminOnly: true },
+  { title: 'Import CA mensuel', url: '/admin/import-ca', icon: DollarSign, adminOnly: true },
+  { title: 'Historique CA', url: '/admin/historique-ca', icon: BarChart3, adminOnly: true },
 ];
 
 export function AppSidebar() {

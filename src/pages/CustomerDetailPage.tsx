@@ -13,6 +13,7 @@ import {
   ArrowLeft, Phone, Navigation, FileText, CheckSquare,
   Edit, User, Clock, MapPin, ExternalLink, Car, TrendingUp, Calendar, ArrowRightCircle, Loader2, AlertTriangle,
 } from 'lucide-react';
+import { RevenueHistoryCard } from '@/components/RevenueHistoryCard';
 
 type CustomerStatus = 'prospect' | 'client_actif' | 'client_inactif';
 
@@ -298,6 +299,9 @@ export default function CustomerDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Revenue History */}
+      <RevenueHistoryCard customerId={customer.id} annualRevenuePotential={revenue} />
 
       {/* Contacts */}
       {contacts.length > 0 && (
