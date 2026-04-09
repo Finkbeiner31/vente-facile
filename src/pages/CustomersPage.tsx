@@ -314,13 +314,13 @@ export default function CustomersPage() {
         {filtered.map(customer => {
           const sc = statusConfig[customer.status];
           const perfSc = getStatusConfig(customer.perf.status);
+          const prioConfig = PRIORITY_CONFIGS[customer.priority.level];
           return (
             <Link key={customer.id} to={`/clients/${customer.id}`} className="block">
               <Card className={`transition-all hover:border-primary/30 cursor-pointer ${
-                customer.perf.status === 'sous_exploite' ? 'border-l-2 border-l-destructive' :
-                customer.perf.status === 'a_developper' ? 'border-l-2 border-l-warning' :
-                customer.perf.status === 'optimise' ? 'border-l-2 border-l-accent' :
-                customer.potential === 'A' ? 'border-l-2 border-l-accent' : ''
+                customer.priority.level === 'high' ? 'border-l-2 border-l-destructive' :
+                customer.priority.level === 'medium' ? 'border-l-2 border-l-warning' :
+                customer.perf.status === 'optimise' ? 'border-l-2 border-l-accent' : ''
               }`}>
                 <CardContent className="p-3">
                   <div className="flex items-center gap-3">
