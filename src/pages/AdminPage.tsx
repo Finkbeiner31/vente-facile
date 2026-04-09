@@ -250,6 +250,12 @@ export default function AdminPage() {
 
   const dayNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
   const isCommercialRole = (role: string) => role === 'sales_rep';
+  const filteredUsers = allUsers.filter(u => {
+    if (statusFilter === 'active') return u.is_active;
+    if (statusFilter === 'inactive') return !u.is_active;
+    return true;
+  });
+  const deleteTargetUser = allUsers.find(u => u.id === showDeleteModal);
 
   return (
     <div className="space-y-6 animate-fade-in">
