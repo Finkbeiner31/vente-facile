@@ -770,6 +770,34 @@ export default function AdminPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ===== DELETE CONFIRMATION MODAL ===== */}
+      <Dialog open={!!showDeleteModal} onOpenChange={open => !open && setShowDeleteModal(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Supprimer ce profil
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Voulez-vous supprimer le profil de <strong>{deleteTargetUser?.full_name}</strong> ?
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Les données associées (clients, visites, CA) seront conservées.
+            Si ce profil a des données, il sera désactivé au lieu d'être supprimé.
+          </p>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowDeleteModal(null)}>Annuler</Button>
+            <Button variant="destructive"
+              onClick={() => showDeleteModal && manageUserMutation.mutate({ userId: showDeleteModal, action: 'delete' })}
+              disabled={manageUserMutation.isPending}>
+              {manageUserMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
+              Confirmer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
