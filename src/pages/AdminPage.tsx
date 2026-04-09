@@ -244,11 +244,27 @@ export default function AdminPage() {
                           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 font-heading text-lg font-bold text-primary">
                             {selectedUser.full_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                           </div>
-                          <div>
+                          <div className="flex-1 min-w-0">
                             <p className="text-base font-semibold">{selectedUser.full_name}</p>
                             <p className="text-xs text-muted-foreground">{selectedUser.email}</p>
                           </div>
-                          <Badge className="ml-auto">{roleLabels[selectedUser.role]}</Badge>
+                          {isAdmin ? (
+                            <Select
+                              value={selectedUser.role}
+                              onValueChange={v => changeRoleMutation.mutate({ userId: selectedUser.id, newRole: v })}
+                            >
+                              <SelectTrigger className="h-8 w-[160px] text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Object.entries(roleLabels).map(([key, label]) => (
+                                  <SelectItem key={key} value={key}>{label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Badge>{roleLabels[selectedUser.role]}</Badge>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
