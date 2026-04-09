@@ -18,7 +18,7 @@ import { formatMonthly, getRevenueTier, getRevenueTierColor } from '@/lib/revenu
 import { NewCustomerSheet, type NewCustomerFormData } from '@/components/NewCustomerSheet';
 import { toast } from 'sonner';
 import { useAllCustomerRevenues } from '@/hooks/useCustomerPerformance';
-import { analyzeCustomerPerformance, getStatusConfig, type PerformanceStatus } from '@/lib/performanceUtils';
+import { analyzeCustomerPerformance, getStatusConfig, formatCompactRevenue, type PerformanceStatus } from '@/lib/performanceUtils';
 
 type CustomerStatus = 'prospect' | 'client_actif' | 'client_inactif';
 
