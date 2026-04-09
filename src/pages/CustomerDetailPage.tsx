@@ -18,6 +18,7 @@ import {
   Star, Mail, MessageCircle, Truck, Wrench, Building2,
 } from 'lucide-react';
 import { RevenueHistoryCard } from '@/components/RevenueHistoryCard';
+import { useCommercialZones } from '@/hooks/useCommercialZones';
 import { useCustomerPerformance } from '@/hooks/useCustomerPerformance';
 import { computeVisitPriority, PRIORITY_CONFIGS } from '@/lib/priorityEngine';
 import {
@@ -80,6 +81,7 @@ export default function CustomerDetailPage() {
   const revenue = customer?.annual_revenue_potential || 0;
   const perf = useCustomerPerformance(customer?.id, revenue);
   const { data: potentials = [] } = useVehiclePotentials();
+  const { data: zones = [] } = useCommercialZones();
 
   const { data: contacts = [] } = useQuery({
     queryKey: ['contacts', id, user?.id],
