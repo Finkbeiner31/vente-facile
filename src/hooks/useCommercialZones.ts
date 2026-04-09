@@ -31,6 +31,7 @@ export function useCommercialZones() {
         ...z,
         cities: z.cities || [],
         postal_codes: z.postal_codes || [],
+        polygon_coordinates: z.polygon_coordinates || null,
       })) as CommercialZone[];
     },
     enabled: !!user,
