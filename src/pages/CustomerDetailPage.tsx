@@ -107,6 +107,22 @@ export default function CustomerDetailPage() {
     enabled: !authLoading && !!user && isValidId,
   });
 
+  const qualifyMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from('customers').update({ customer_type: 'prospect_qualifie' } as any).eq('id', id!);
+      if (error) throw error;
+      await (supabase as any).from('activity_logs').insert({
+        user_id: user!.id, entity_type: 'customer', entity_id: id,
+        action: 'qualified', details: { from: 'prospect', to: 'prospect_qualifie' },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customer', id] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast.success('Prospect qualifié');
+    },
+  });
+
   const conversionRequestMutation = useMutation({
     mutationFn: async (comment: string) => {
       const cust = customer as any;
