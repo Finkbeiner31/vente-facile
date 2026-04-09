@@ -310,6 +310,30 @@ export default function CustomerDetailPage() {
         </Card>
       )}
 
+      {/* Priority Card */}
+      <Card className={`border-l-4 ${priority.level === 'high' ? 'border-l-destructive' : priority.level === 'medium' ? 'border-l-warning' : 'border-l-muted'}`}>
+        <CardHeader className="pb-2 px-4 pt-4">
+          <CardTitle className="font-heading text-sm flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <Target className="h-4 w-4 text-primary" />
+              Priorité commerciale
+            </span>
+            <Badge className={`text-[10px] ${prioConfig.bgColor} ${prioConfig.color}`}>
+              {prioConfig.emoji} {prioConfig.label} ({priority.score})
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        {priority.reasons.length > 0 && (
+          <CardContent className="px-4 pb-3">
+            <div className="flex flex-wrap gap-1.5">
+              {priority.reasons.map((r, i) => (
+                <Badge key={i} variant="outline" className="text-[10px]">{r}</Badge>
+              ))}
+            </div>
+          </CardContent>
+        )}
+      </Card>
+
       {/* Revenue History */}
       <RevenueHistoryCard customerId={customer.id} annualRevenuePotential={revenue} />
 
