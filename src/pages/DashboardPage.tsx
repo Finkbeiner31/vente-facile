@@ -57,7 +57,7 @@ export default function DashboardPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from('customers')
-        .select('id, company_name, annual_revenue_potential, customer_type');
+        .select('id, company_name, annual_revenue_potential, customer_type, last_visit_date, visit_frequency, latitude, longitude, city');
       return data || [];
     },
     enabled: !authLoading && !!user,
