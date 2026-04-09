@@ -145,11 +145,8 @@ export default function CustomerDetailPage() {
 
   const status = (customer.customer_type || 'prospect') as CustomerStatus;
   const sc = statusConfig[status] || statusConfig.prospect;
-  const revenue = customer.annual_revenue_potential || 0;
   const tier = getRevenueTier(revenue);
 
-  // Compute priority
-  const perf = useCustomerPerformance(customer.id, revenue);
   const priority = computeVisitPriority(
     perf, customer.last_visit_date, customer.visit_frequency,
     null, null, customer.latitude, customer.longitude,
