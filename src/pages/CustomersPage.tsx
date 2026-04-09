@@ -19,6 +19,7 @@ import { NewCustomerSheet, type NewCustomerFormData } from '@/components/NewCust
 import { toast } from 'sonner';
 import { useAllCustomerRevenues } from '@/hooks/useCustomerPerformance';
 import { analyzeCustomerPerformance, getStatusConfig, formatCompactRevenue, type PerformanceStatus } from '@/lib/performanceUtils';
+import { computeVisitPriority, PRIORITY_CONFIGS, type PriorityLevel } from '@/lib/priorityEngine';
 
 type CustomerStatus = 'prospect' | 'client_actif' | 'client_inactif';
 
