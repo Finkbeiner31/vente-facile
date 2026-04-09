@@ -47,6 +47,7 @@ export default function DashboardPage() {
   const [reportOpen, setReportOpen] = useState(false);
   const [activeClient, setActiveClient] = useState('');
   const [tourMode, setTourMode] = useState(false);
+  const [optimizerOpen, setOptimizerOpen] = useState(false);
 
   const { session, startSession } = useTourSession();
 
