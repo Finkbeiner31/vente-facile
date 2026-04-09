@@ -16,6 +16,7 @@ import { formatZoneName, getNextSystemName, type CommercialZone } from '@/hooks/
 import type { LatLng } from '@/components/MapZoneDrawer';
 
 const MapZoneDrawer = lazy(() => import('@/components/MapZoneDrawer'));
+const ZoneMapOverview = lazy(() => import('@/components/ZoneMapOverview'));
 
 // 30 visually distinct colors — good contrast on white & map backgrounds
 const ZONE_PALETTE = [
