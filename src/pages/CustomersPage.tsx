@@ -115,6 +115,9 @@ export default function CustomersPage() {
       company_name: string;
       city: string;
       address: string;
+      postal_code: string;
+      latitude: number | null;
+      longitude: number | null;
       contact_name: string;
       phone: string;
       email: string;
