@@ -8,7 +8,7 @@ import { QuickReportDialog } from '@/components/QuickReportDialog';
 import { TourMode } from '@/components/TourMode';
 import {
   Play, Square, Phone, Navigation, AlertTriangle, ArrowRight,
-  Sun, Flag, Target, TrendingUp, Eye, Calendar, RotateCcw, DollarSign,
+  Sun, Flag, Target, TrendingUp, Eye, Calendar, RotateCcw, DollarSign, Sparkles,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import {
