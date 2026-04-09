@@ -210,6 +210,50 @@ export type Database = {
         }
         Relationships: []
       }
+      monthly_revenues: {
+        Row: {
+          created_at: string
+          customer_id: string
+          id: string
+          import_batch_id: string | null
+          imported_by: string
+          month: number
+          monthly_revenue: number
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          id?: string
+          import_batch_id?: string | null
+          imported_by: string
+          month: number
+          monthly_revenue?: number
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          id?: string
+          import_batch_id?: string | null
+          imported_by?: string
+          month?: number
+          monthly_revenue?: number
+          updated_at?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "monthly_revenues_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       opportunities: {
         Row: {
           created_at: string
@@ -354,6 +398,45 @@ export type Database = {
           target_region?: string | null
           title?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      revenue_import_logs: {
+        Row: {
+          created_at: string
+          details: Json | null
+          file_name: string
+          id: string
+          rows_created: number
+          rows_errors: number
+          rows_matched: number
+          rows_skipped: number
+          rows_updated: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          details?: Json | null
+          file_name: string
+          id?: string
+          rows_created?: number
+          rows_errors?: number
+          rows_matched?: number
+          rows_skipped?: number
+          rows_updated?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          details?: Json | null
+          file_name?: string
+          id?: string
+          rows_created?: number
+          rows_errors?: number
+          rows_matched?: number
+          rows_skipped?: number
+          rows_updated?: number
+          user_id?: string
         }
         Relationships: []
       }

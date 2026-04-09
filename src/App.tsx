@@ -16,6 +16,8 @@ import TasksPage from "@/pages/TasksPage";
 import OpportunitiesPage from "@/pages/OpportunitiesPage";
 import AdminPage from "@/pages/AdminPage";
 import BulkImportPage from "@/pages/BulkImportPage";
+import RevenueImportPage from "@/pages/RevenueImportPage";
+import RevenueHistoryPage from "@/pages/RevenueHistoryPage";
 import MapPage from "@/pages/MapPage";
 import PromotionsPage from "@/pages/PromotionsPage";
 import NotFound from "./pages/NotFound.tsx";
@@ -44,6 +46,8 @@ const App = () => (
               <Route path="/promotions" element={<PromotionsPage />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="/admin/import" element={<BulkImportPage />} />
+              <Route path="/admin/import-ca" element={<RevenueImportPage />} />
+              <Route path="/admin/historique-ca" element={<RevenueHistoryPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
