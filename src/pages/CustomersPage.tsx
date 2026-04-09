@@ -238,7 +238,7 @@ export default function CustomersPage() {
           <h1 className="font-heading text-xl md:text-2xl font-bold">
             {tab === 'prospects' ? 'Prospects' : tab === 'clients' ? 'Clients' : 'Clients et prospects'}
           </h1>
-          <p className="text-xs text-muted-foreground">{filtered.length} comptes · trié par potentiel</p>
+          <p className="text-xs text-muted-foreground">{filtered.length} comptes · trié par {sortMode === 'priority' ? 'priorité' : sortMode === 'caM1' ? 'CA M-1' : 'potentiel'}</p>
         </div>
         <Button size="sm" className="h-10 px-4 font-semibold" onClick={() => setSheetOpen(true)}>
           <Plus className="h-4 w-4 mr-1.5" /> Nouveau
@@ -274,6 +274,23 @@ export default function CustomersPage() {
             <SelectItem value="up">📈 En hausse</SelectItem>
             <SelectItem value="down">📉 En baisse</SelectItem>
             <SelectItem value="stable">➡️ Stable</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={priorityFilter} onValueChange={v => setPriorityFilter(v as PriorityFilter)}>
+          <SelectTrigger className="w-[140px] h-11 text-xs"><SelectValue placeholder="Priorité" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="tous">Toute priorité</SelectItem>
+            <SelectItem value="high">🔴 Priorité haute</SelectItem>
+            <SelectItem value="medium">🟠 Priorité moyenne</SelectItem>
+            <SelectItem value="low">⚪ Priorité faible</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={sortMode} onValueChange={v => setSortMode(v as SortMode)}>
+          <SelectTrigger className="w-[120px] h-11 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="priority">Tri: Priorité</SelectItem>
+            <SelectItem value="potential">Tri: Potentiel</SelectItem>
+            <SelectItem value="caM1">Tri: CA M-1</SelectItem>
           </SelectContent>
         </Select>
       </div>
