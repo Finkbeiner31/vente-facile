@@ -205,7 +205,7 @@ export default function AdminPage() {
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('weekly_zone_planning')
-        .select('*, commercial_zones(name, color)')
+        .select('*, commercial_zones(system_name, custom_label, color)')
         .eq('user_id', selectedUserId)
         .order('day_of_week');
       if (error) throw error;
@@ -498,7 +498,7 @@ export default function AdminPage() {
                                     {zone ? (
                                       <div className="mt-1">
                                         <div className="h-2 w-full rounded-full mx-auto" style={{ backgroundColor: zone.color }} />
-                                        <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{zone.name}</p>
+                                        <p className="text-[10px] text-muted-foreground mt-0.5 truncate">{zone.custom_label ? `${zone.system_name} — ${zone.custom_label}` : zone.system_name}</p>
                                       </div>
                                     ) : (
                                       <p className="text-[10px] text-muted-foreground mt-1">—</p>

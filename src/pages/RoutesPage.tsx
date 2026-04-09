@@ -13,7 +13,7 @@ import {
 import RouteOptimizerSheet from '@/components/RouteOptimizerSheet';
 import { useTourSession } from '@/contexts/TourSessionContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { useCommercialZones } from '@/hooks/useCommercialZones';
+import { useCommercialZones, formatZoneName } from '@/hooks/useCommercialZones';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -85,7 +85,7 @@ export default function RoutesPage() {
 
       // Build OR filter: zone name match OR city in zone.cities OR postal_code in zone.postal_codes
       const filters: string[] = [];
-      filters.push(`zone.eq.${zone.name}`);
+      filters.push(`zone.eq.${zone.system_name}`);
       if (zone.cities.length > 0) {
         filters.push(`city.in.(${zone.cities.join(',')})`);
       }
@@ -258,7 +258,7 @@ export default function RoutesPage() {
                 style={zoneColor ? { borderColor: zoneColor, borderWidth: '2px' } : undefined}>
                 <span className="block text-xs font-semibold">{DAY_SHORT[d - 1]}</span>
                 <span className="block text-[10px] text-muted-foreground mt-0.5 truncate">
-                  {zones.find(z => z.id === zoneId)?.name || '—'}
+                  {(() => { const z = zones.find(z => z.id === zoneId); return z ? formatZoneName(z) : '—'; })()}
                 </span>
                 {zoneColor && <div className="h-1 w-full rounded-full mt-1" style={{ backgroundColor: zoneColor }} />}
               </button>
@@ -292,7 +292,7 @@ export default function RoutesPage() {
                   <SelectItem key={z.id} value={z.id}>
                     <div className="flex items-center gap-2">
                       <div className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: z.color }} />
-                      {z.name}
+                      {formatZoneName(z)}
                     </div>
                   </SelectItem>
                 ))}
@@ -306,7 +306,7 @@ export default function RoutesPage() {
       {todayZone && (
         <div className="flex items-center gap-2 rounded-lg px-3 py-2" style={{ backgroundColor: `${todayZone.color}15` }}>
           <div className="h-3 w-3 rounded-full" style={{ backgroundColor: todayZone.color }} />
-          <span className="text-sm font-semibold" style={{ color: todayZone.color }}>{todayZone.name}</span>
+          <span className="text-sm font-semibold" style={{ color: todayZone.color }}>{formatZoneName(todayZone)}</span>
           <span className="text-xs text-muted-foreground ml-auto">{zoneCustomers.length} clients dans cette zone</span>
         </div>
       )}
@@ -444,7 +444,7 @@ export default function RoutesPage() {
             <div className="py-12 text-center">
               <Calendar className="mx-auto h-10 w-10 text-muted-foreground/30" />
               <p className="mt-3 text-sm text-muted-foreground">Aucun client dans cette zone</p>
-              <p className="text-xs text-muted-foreground mt-1">Assignez des clients à la zone « {todayZone?.name} »</p>
+              <p className="text-xs text-muted-foreground mt-1">Assignez des clients à la zone « {todayZone ? formatZoneName(todayZone) : ''} »</p>
             </div>
           )}
         </>

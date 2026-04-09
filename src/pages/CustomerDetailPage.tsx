@@ -18,7 +18,7 @@ import {
   Star, Mail, MessageCircle, Truck, Wrench, Building2,
 } from 'lucide-react';
 import { RevenueHistoryCard } from '@/components/RevenueHistoryCard';
-import { useCommercialZones, findMatchingZone } from '@/hooks/useCommercialZones';
+import { useCommercialZones, findMatchingZone, formatZoneName } from '@/hooks/useCommercialZones';
 import { useCustomerPerformance } from '@/hooks/useCustomerPerformance';
 import { computeVisitPriority, PRIORITY_CONFIGS } from '@/lib/priorityEngine';
 import {
@@ -360,10 +360,10 @@ export default function CustomerDetailPage() {
             <SelectContent>
               <SelectItem value="none">Aucune zone</SelectItem>
               {zones.map(z => (
-                <SelectItem key={z.id} value={z.name}>
+                <SelectItem key={z.id} value={z.system_name}>
                   <div className="flex items-center gap-2">
                     <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: z.color }} />
-                    {z.name}
+                    {formatZoneName(z)}
                   </div>
                 </SelectItem>
               ))}
@@ -375,8 +375,8 @@ export default function CustomerDetailPage() {
             if (!suggested) return null;
             return (
               <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5 text-primary"
-                onClick={() => updateCustomerMutation.mutate({ zone: suggested.name } as any)}>
-                → {suggested.name}
+                onClick={() => updateCustomerMutation.mutate({ zone: suggested.system_name } as any)}>
+                → {formatZoneName(suggested)}
               </Button>
             );
           })()}

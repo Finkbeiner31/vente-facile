@@ -90,9 +90,10 @@ export type Database = {
           cities: string[]
           color: string | null
           created_at: string
+          custom_label: string | null
           id: string
-          name: string
           postal_codes: string[]
+          system_name: string
           updated_at: string
           user_id: string | null
         }
@@ -100,9 +101,10 @@ export type Database = {
           cities?: string[]
           color?: string | null
           created_at?: string
+          custom_label?: string | null
           id?: string
-          name: string
           postal_codes?: string[]
+          system_name: string
           updated_at?: string
           user_id?: string | null
         }
@@ -110,9 +112,10 @@ export type Database = {
           cities?: string[]
           color?: string | null
           created_at?: string
+          custom_label?: string | null
           id?: string
-          name?: string
           postal_codes?: string[]
+          system_name?: string
           updated_at?: string
           user_id?: string | null
         }
