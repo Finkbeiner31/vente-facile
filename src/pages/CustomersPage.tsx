@@ -188,7 +188,8 @@ export default function CustomersPage() {
     return customers.map(c => {
       const history = revenueMap?.get(c.id) || [];
       const perf = analyzeCustomerPerformance(c.revenue, history);
-      return { ...c, perf };
+      const priority = computeVisitPriority(perf, c.lastVisitDate, c.visitFrequency, null, null, c.latitude, c.longitude);
+      return { ...c, perf, priority };
     });
   }, [customers, revenueMap]);
 
