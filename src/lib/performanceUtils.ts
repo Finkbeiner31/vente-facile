@@ -198,6 +198,19 @@ export function analyzeCustomerPerformance(
     return { month: p.month, year: p.year, monthly_revenue: rev ?? 0 };
   }).reverse();
 
+  // Latest known CA fallback (when M-1 is missing)
+  const MONTH_SHORT_LABELS = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc'];
+  let latestKnownCA: number | null = null;
+  let latestKnownLabel: string | null = null;
+  if (caM1 === null && revenueHistory.length > 0) {
+    const sorted = [...revenueHistory].sort((a, b) => b.year - a.year || b.month - a.month);
+    const latest = sorted.find(r => Number(r.monthly_revenue) > 0);
+    if (latest) {
+      latestKnownCA = Number(latest.monthly_revenue);
+      latestKnownLabel = `${MONTH_SHORT_LABELS[latest.month - 1]} ${latest.year}`;
+    }
+  }
+
   return {
     monthlyPotential,
     caM1, caM2, caM3,
@@ -213,5 +226,9 @@ export function analyzeCustomerPerformance(
     priorityScore,
     alerts,
     recentMonths,
+    latestKnownCA,
+    latestKnownLabel,
+  };
+}
   };
 }
