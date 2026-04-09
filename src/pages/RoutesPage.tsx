@@ -10,6 +10,7 @@ import {
   GripVertical, ChevronLeft, ChevronRight, Calendar, Target,
   Sun, Flag, ArrowUpDown, RotateCcw,
 } from 'lucide-react';
+import RouteOptimizerSheet from '@/components/RouteOptimizerSheet';
 import {
   generateRouteCycle,
   getDayLabel,
@@ -44,7 +45,7 @@ export default function RoutesPage() {
   const [dayStarted, setDayStarted] = useState(false);
   const [tourMode, setTourMode] = useState(false);
   const [reorderMode, setReorderMode] = useState(false);
-
+  const [optimizerOpen, setOptimizerOpen] = useState(false);
   const { session, startSession } = useTourSession();
 
   const todayStops = dayOverrides[selectedDay] || baseCycle[selectedDay] || [];
@@ -142,15 +143,25 @@ export default function RoutesPage() {
             Cycle 3 semaines · {getDayLabel(selectedDay)}
           </p>
         </div>
-        <Button
-          variant={reorderMode ? 'default' : 'outline'}
-          size="sm"
-          className="h-9 gap-1.5 text-xs font-semibold"
-          onClick={() => setReorderMode(!reorderMode)}
-        >
-          <ArrowUpDown className="h-4 w-4" />
-          {reorderMode ? 'Terminé' : 'Modifier l\'ordre'}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            className="h-9 gap-1.5 text-xs font-semibold"
+            onClick={() => setOptimizerOpen(true)}
+          >
+            <Sparkles className="h-4 w-4" />
+            Optimiser
+          </Button>
+          <Button
+            variant={reorderMode ? 'default' : 'outline'}
+            size="sm"
+            className="h-9 gap-1.5 text-xs font-semibold"
+            onClick={() => setReorderMode(!reorderMode)}
+          >
+            <ArrowUpDown className="h-4 w-4" />
+            {reorderMode ? 'Terminé' : 'Modifier l\'ordre'}
+          </Button>
+        </div>
       </div>
 
       {/* Day selector */}
@@ -312,6 +323,10 @@ export default function RoutesPage() {
       )}
 
       <QuickReportDialog open={reportOpen} onOpenChange={setReportOpen} clientName={activeClient} />
+      <RouteOptimizerSheet
+        open={optimizerOpen}
+        onOpenChange={setOptimizerOpen}
+      />
     </div>
   );
 }
