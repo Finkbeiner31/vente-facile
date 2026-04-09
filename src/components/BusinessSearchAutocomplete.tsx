@@ -70,28 +70,36 @@ export function BusinessSearchAutocomplete({
 
     ac.addListener('place_changed', () => {
       const place = ac.getPlace();
-      if (!place.address_components || !place.geometry?.location) return;
+      if (!place.geometry?.location) return;
 
       let streetNumber = '';
       let route = '';
       let city = '';
       let postalCode = '';
 
-      place.address_components.forEach((c) => {
-        const t = c.types;
-        if (t.includes('street_number')) streetNumber = c.long_name;
-        if (t.includes('route')) route = c.long_name;
-        if (t.includes('locality')) city = c.long_name;
-        if (t.includes('postal_code')) postalCode = c.long_name;
-      });
+      if (place.address_components) {
+        place.address_components.forEach((c) => {
+          const t = c.types;
+          if (t.includes('street_number')) streetNumber = c.long_name;
+          if (t.includes('route')) route = c.long_name;
+          if (t.includes('locality')) city = c.long_name;
+          if (t.includes('postal_code')) postalCode = c.long_name;
+        });
+      }
 
-      const address = [streetNumber, route].filter(Boolean).join(' ');
+      const streetAddress = [streetNumber, route].filter(Boolean).join(' ');
       const name = place.name || '';
 
+      // Google overwrites the input DOM value with formatted_address;
+      // reset it to only the company name so the field stays clean.
+      if (inputRef.current) {
+        inputRef.current.value = name;
+      }
       onChange(name);
+
       onSelect({
         companyName: name,
-        fullAddress: address || place.formatted_address || '',
+        fullAddress: streetAddress || place.formatted_address || '',
         city,
         postalCode,
         latitude: place.geometry.location.lat(),
