@@ -75,6 +75,7 @@ export default function AdminPage() {
       <Tabs defaultValue="users">
         <TabsList className="flex-wrap">
           <TabsTrigger value="users"><Users className="mr-1 h-4 w-4" />Utilisateurs</TabsTrigger>
+          <TabsTrigger value="conversions"><ArrowRightCircle className="mr-1 h-4 w-4" />Conversions</TabsTrigger>
           <TabsTrigger value="roles"><Shield className="mr-1 h-4 w-4" />Rôles</TabsTrigger>
           <TabsTrigger value="potentials"><Truck className="mr-1 h-4 w-4" />Potentiels</TabsTrigger>
           <TabsTrigger value="settings"><SettingsIcon className="mr-1 h-4 w-4" />Paramètres</TabsTrigger>
