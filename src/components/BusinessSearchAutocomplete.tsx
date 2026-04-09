@@ -1,5 +1,5 @@
 /// <reference types="google.maps" />
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { Building2, Loader2 } from 'lucide-react';
 
@@ -38,6 +38,21 @@ export function BusinessSearchAutocomplete({
   const inputRef = useRef<HTMLInputElement>(null);
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null);
   const [isReady, setIsReady] = useState(false);
+  const skipNextChangeRef = useRef(false);
+
+  // Keep refs to avoid stale closures in the Google listener
+  const onSelectRef = useRef(onSelect);
+  const onChangeRef = useRef(onChange);
+  onSelectRef.current = onSelect;
+  onChangeRef.current = onChange;
+
+  // Sync external value → DOM (only when typing, not after selection)
+  useEffect(() => {
+    if (inputRef.current && !skipNextChangeRef.current) {
+      inputRef.current.value = value;
+    }
+    skipNextChangeRef.current = false;
+  }, [value]);
 
   // Wait for Google Maps to load
   useEffect(() => {
@@ -51,7 +66,7 @@ export function BusinessSearchAutocomplete({
     check();
   }, []);
 
-  // Initialize autocomplete
+  // Initialize autocomplete — run once
   useEffect(() => {
     if (!isReady || !inputRef.current || autocompleteRef.current) return;
 
@@ -90,20 +105,23 @@ export function BusinessSearchAutocomplete({
       const streetAddress = [streetNumber, route].filter(Boolean).join(' ');
       const name = place.name || '';
 
-      // Google overwrites the input DOM value with formatted_address;
-      // reset it to only the company name so the field stays clean.
+      // Force the DOM input to show only the company name
+      // (Google sets it to formatted_address by default)
       if (inputRef.current) {
         inputRef.current.value = name;
       }
-      onChange(name);
 
-      onSelect({
+      // Tell React about the new company name value
+      skipNextChangeRef.current = true;
+      onChangeRef.current(name);
+
+      onSelectRef.current({
         companyName: name,
         fullAddress: streetAddress || place.formatted_address || '',
         city,
         postalCode,
-        latitude: place.geometry.location.lat(),
-        longitude: place.geometry.location.lng(),
+        latitude: place.geometry!.location!.lat(),
+        longitude: place.geometry!.location!.lng(),
         phone: place.formatted_phone_number,
         website: place.website,
       });
@@ -115,15 +133,19 @@ export function BusinessSearchAutocomplete({
       google.maps.event.clearInstanceListeners(ac);
       autocompleteRef.current = null;
     };
-  }, [isReady, onChange, onSelect]);
+  }, [isReady]);
+
+  const handleInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    onChangeRef.current(e.target.value);
+  }, []);
 
   return (
     <div className="relative">
       <div className="relative">
         <Input
           ref={inputRef}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
+          defaultValue={value}
+          onChange={handleInput}
           placeholder={placeholder}
           className={`h-12 text-base pr-10 ${className}`}
         />
