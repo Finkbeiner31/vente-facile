@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { QuickReportDialog } from '@/components/QuickReportDialog';
+import { useAuth } from '@/contexts/AuthContext';
 import { formatMonthly, formatAnnual, getRevenueTier, getRevenueTierColor } from '@/lib/revenueUtils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -27,28 +28,32 @@ const typeColors: Record<string, string> = {
   opportunity: 'bg-warning/10 text-warning',
 };
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const { user, loading: authLoading } = useAuth();
   const [reportOpen, setReportOpen] = useState(false);
   const queryClient = useQueryClient();
+  const isValidId = Boolean(id && UUID_REGEX.test(id));
 
   const { data: customer, isLoading, error } = useQuery({
-    queryKey: ['customer', id],
+    queryKey: ['customer', id, user?.id],
     queryFn: async () => {
       if (!id) throw new Error('ID manquant');
       const { data, error } = await supabase
         .from('customers')
         .select('*')
         .eq('id', id)
-        .single();
+        .maybeSingle();
       if (error) throw error;
       return data;
     },
-    enabled: !!id,
+    enabled: !authLoading && !!user && isValidId,
   });
 
   const { data: contacts = [] } = useQuery({
-    queryKey: ['contacts', id],
+    queryKey: ['contacts', id, user?.id],
     queryFn: async () => {
       const { data } = await supabase
         .from('contacts')
@@ -57,11 +62,11 @@ export default function CustomerDetailPage() {
         .order('is_primary', { ascending: false });
       return data || [];
     },
-    enabled: !!id,
+    enabled: !authLoading && !!user && isValidId,
   });
 
   const { data: visitReports = [] } = useQuery({
-    queryKey: ['visit-reports', id],
+    queryKey: ['visit-reports', id, user?.id],
     queryFn: async () => {
       const { data } = await supabase
         .from('visit_reports')
@@ -71,11 +76,11 @@ export default function CustomerDetailPage() {
         .limit(5);
       return data || [];
     },
-    enabled: !!id,
+    enabled: !authLoading && !!user && isValidId,
   });
 
   const { data: tasks = [] } = useQuery({
-    queryKey: ['customer-tasks', id],
+    queryKey: ['customer-tasks', id, user?.id],
     queryFn: async () => {
       const { data } = await supabase
         .from('tasks')
@@ -85,7 +90,7 @@ export default function CustomerDetailPage() {
         .limit(5);
       return data || [];
     },
-    enabled: !!id,
+    enabled: !authLoading && !!user && isValidId,
   });
 
   const convertMutation = useMutation({
@@ -111,7 +116,7 @@ export default function CustomerDetailPage() {
     );
   }
 
-  if (error || !customer) {
+  if (!isValidId || error || !customer) {
     return (
       <div className="space-y-4 animate-fade-in pb-20 md:pb-0">
         <div className="flex items-center gap-3">

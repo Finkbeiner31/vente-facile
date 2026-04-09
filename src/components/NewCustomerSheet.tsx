@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -24,12 +24,12 @@ interface NewCustomerSheetProps {
     number_of_vehicles: number;
     notes: string;
     customer_type: 'prospect' | 'client_actif' | 'client_inactif';
-  }) => void;
+  }) => Promise<void> | void;
   defaultType?: 'prospect' | 'client_actif' | 'client_inactif';
 }
 
 export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = 'prospect' }: NewCustomerSheetProps) {
-  const [form, setForm] = useState({
+  const getInitialForm = () => ({
     company_name: '',
     city: '',
     address: '',
@@ -41,6 +41,13 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
     customer_type: defaultType,
   });
 
+  const [form, setForm] = useState(getInitialForm);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setForm(getInitialForm());
+  }, [defaultType, open]);
+
   const set = (key: string, value: string) => setForm(prev => ({ ...prev, [key]: value }));
 
   const vehicles = parseInt(form.number_of_vehicles) || 0;
@@ -48,17 +55,20 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
 
   const isValid = form.company_name.trim() && form.city.trim();
 
-  const handleSubmit = () => {
-    onSubmit({
-      ...form,
-      number_of_vehicles: vehicles,
-    });
-    setForm({
-      company_name: '', city: '', address: '', contact_name: '',
-      phone: '', email: '', number_of_vehicles: '', notes: '',
-      customer_type: defaultType,
-    });
-    onOpenChange(false);
+  const handleSubmit = async () => {
+    if (!isValid || isSubmitting) return;
+
+    setIsSubmitting(true);
+    try {
+      await onSubmit({
+        ...form,
+        number_of_vehicles: vehicles,
+      });
+      setForm(getInitialForm());
+      onOpenChange(false);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -146,10 +156,10 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
               placeholder="Notes..." rows={2} className="mt-1" />
           </div>
 
-          <Button onClick={handleSubmit} disabled={!isValid}
+          <Button onClick={handleSubmit} disabled={!isValid || isSubmitting}
             className="w-full h-14 text-base font-bold">
             <Save className="h-5 w-5 mr-2" />
-            Créer le compte
+            {isSubmitting ? 'Enregistrement...' : 'Créer le compte'}
           </Button>
         </div>
       </SheetContent>
