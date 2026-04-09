@@ -1,6 +1,7 @@
 /**
  * Revenue performance analysis utilities
- * Computes coverage, trend, performance status, alerts, and priority score
+ * Computes coverage, trend, performance status, alerts, priority score,
+ * N-1 comparison, and projected revenue.
  */
 
 export type PerformanceStatus = 'optimise' | 'a_developper' | 'sous_exploite' | 'no_data';
@@ -17,6 +18,11 @@ export interface CustomerPerformance {
   caM1: number | null;
   caM2: number | null;
   caM3: number | null;
+  caN1: number | null; // Same month last year as M-1
+  yoyDelta: number | null; // M-1 minus N-1
+  yoyTrend: RevenueTrend;
+  projectionAnnual: number | null;
+  projectionTrend: RevenueTrend;
   coverageRate: number; // 0-100
   gap: number;
   trend: RevenueTrend;
@@ -37,9 +43,8 @@ export interface PerformanceAlert {
 function getLastMonths(count: number): { month: number; year: number }[] {
   const now = new Date();
   const results: { month: number; year: number }[] = [];
-  let m = now.getMonth(); // 0-indexed, so current month is getMonth()
+  let m = now.getMonth(); // 0-indexed
   let y = now.getFullYear();
-  // M-1 = previous month
   for (let i = 0; i < count; i++) {
     m--;
     if (m < 0) { m = 11; y--; }
@@ -56,7 +61,6 @@ function findRevenue(data: RevenueData[], month: number, year: number): number |
 export function computeTrend(values: (number | null)[]): RevenueTrend {
   const valid = values.filter((v): v is number => v !== null);
   if (valid.length < 2) return 'unknown';
-  // Compare first to last (most recent is first)
   const latest = valid[0];
   const older = valid[valid.length - 1];
   const pctChange = older > 0 ? (latest - older) / older : 0;
@@ -77,7 +81,7 @@ export function getStatusConfig(status: PerformanceStatus): { label: string; col
     case 'optimise': return { label: 'Optimisé', color: 'text-accent', bgColor: 'bg-accent/15', emoji: '🟢' };
     case 'a_developper': return { label: 'À développer', color: 'text-warning', bgColor: 'bg-warning/15', emoji: '🟡' };
     case 'sous_exploite': return { label: 'Sous-exploité', color: 'text-destructive', bgColor: 'bg-destructive/15', emoji: '🔴' };
-    case 'no_data': return { label: 'Pas de données', color: 'text-muted-foreground', bgColor: 'bg-muted', emoji: '⚪' };
+    case 'no_data': return { label: 'Données incomplètes', color: 'text-muted-foreground', bgColor: 'bg-muted', emoji: '⚪' };
   }
 }
 
@@ -122,6 +126,31 @@ export function getActionSuggestions(status: PerformanceStatus): { label: string
   }
 }
 
+/** Compute projected annual revenue from available monthly data */
+function computeProjection(revenueHistory: RevenueData[]): { annual: number | null; trend: RevenueTrend } {
+  if (revenueHistory.length === 0) return { annual: null, trend: 'unknown' };
+
+  // Sort descending by date
+  const sorted = [...revenueHistory].sort((a, b) => b.year - a.year || b.month - a.month);
+  const values = sorted.map(r => Number(r.monthly_revenue));
+
+  if (values.length >= 3) {
+    const avg3 = (values[0] + values[1] + values[2]) / 3;
+    const trend = computeTrend([values[0], values[1], values[2]]);
+    return { annual: Math.round(avg3 * 12), trend };
+  }
+
+  // 1-2 months: use average
+  const avg = values.reduce((s, v) => s + v, 0) / values.length;
+  return { annual: Math.round(avg * 12), trend: 'unknown' };
+}
+
+/** Format compact revenue */
+export function formatCompactRevenue(value: number): string {
+  if (value >= 1000) return `${(value / 1000).toFixed(1).replace('.0', '')}k€`;
+  return `${value}€`;
+}
+
 /** Main computation function */
 export function analyzeCustomerPerformance(
   annualRevenuePotential: number,
@@ -134,6 +163,21 @@ export function analyzeCustomerPerformance(
   const caM2 = periods[1] ? findRevenue(revenueHistory, periods[1].month, periods[1].year) : null;
   const caM3 = periods[2] ? findRevenue(revenueHistory, periods[2].month, periods[2].year) : null;
 
+  // N-1: same month as M-1 but previous year
+  const caN1 = periods[0]
+    ? findRevenue(revenueHistory, periods[0].month, periods[0].year - 1)
+    : null;
+
+  // Year-over-year delta
+  const yoyDelta = (caM1 !== null && caN1 !== null) ? caM1 - caN1 : null;
+  const yoyTrend: RevenueTrend = yoyDelta !== null
+    ? (yoyDelta > 0 ? (caN1! > 0 && yoyDelta / caN1! > 0.05 ? 'up' : 'stable')
+      : (caN1! > 0 && Math.abs(yoyDelta) / caN1! > 0.05 ? 'down' : 'stable'))
+    : 'unknown';
+
+  // Projection
+  const projection = computeProjection(revenueHistory);
+
   const hasData = caM1 !== null;
   const coverageRate = hasData && monthlyPotential > 0 ? (caM1! / monthlyPotential) * 100 : 0;
   const gap = hasData ? monthlyPotential - caM1! : monthlyPotential;
@@ -141,12 +185,10 @@ export function analyzeCustomerPerformance(
   const status = getPerformanceStatus(coverageRate, hasData);
   const alerts = computeAlerts(monthlyPotential, coverageRate, trend, hasData);
 
-  // Priority score: higher = needs more attention
   const priorityScore = hasData
     ? Math.round(monthlyPotential * (1 - coverageRate / 100))
     : 0;
 
-  // Recent months data for chart
   const recentMonths = periods.map(p => {
     const rev = findRevenue(revenueHistory, p.month, p.year);
     return { month: p.month, year: p.year, monthly_revenue: rev ?? 0 };
@@ -155,6 +197,11 @@ export function analyzeCustomerPerformance(
   return {
     monthlyPotential,
     caM1, caM2, caM3,
+    caN1,
+    yoyDelta,
+    yoyTrend,
+    projectionAnnual: projection.annual,
+    projectionTrend: projection.trend,
     coverageRate,
     gap,
     trend,

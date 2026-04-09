@@ -1,9 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { TrendingUp, TrendingDown, Minus, Target, Lightbulb, AlertTriangle, FileSpreadsheet } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Target, Lightbulb, AlertTriangle, FileSpreadsheet, BarChart3 } from 'lucide-react';
 import { useCustomerPerformance } from '@/hooks/useCustomerPerformance';
-import { getStatusConfig, getActionSuggestions, type RevenueData } from '@/lib/performanceUtils';
+import { getStatusConfig, getActionSuggestions, formatCompactRevenue, type RevenueData } from '@/lib/performanceUtils';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, ReferenceLine, Tooltip, Cell } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,7 +21,6 @@ export function RevenueHistoryCard({ customerId, annualRevenuePotential }: Props
   const sc = getStatusConfig(perf.status);
   const actions = getActionSuggestions(perf.status);
 
-  // Fetch ALL actual revenue rows for this customer (not just fixed M-1..M-6)
   const { data: allRevenues = [] } = useQuery({
     queryKey: ['customer-all-revenues', customerId],
     queryFn: async () => {
@@ -40,13 +39,12 @@ export function RevenueHistoryCard({ customerId, annualRevenuePotential }: Props
   const TrendIcon = perf.trend === 'up' ? TrendingUp : perf.trend === 'down' ? TrendingDown : Minus;
   const trendColor = perf.trend === 'up' ? 'text-accent' : perf.trend === 'down' ? 'text-destructive' : 'text-muted-foreground';
 
-  // Chart data
   const chartData = perf.recentMonths.map(m => ({
     label: MONTH_SHORT[m.month - 1],
     ca: m.monthly_revenue,
   }));
 
-  // Empty state: no revenue data AND no meaningful potential
+  // Full empty state
   if (perf.status === 'no_data' && perf.monthlyPotential <= 0 && allRevenues.length === 0) {
     return (
       <Card>
@@ -93,6 +91,36 @@ export function RevenueHistoryCard({ customerId, annualRevenuePotential }: Props
             </div>
           </div>
 
+          {/* N-1 + Projection row */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-lg bg-muted/30 p-2.5">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">CA N-1</p>
+              <div className="flex items-center gap-1.5">
+                <p className="font-heading text-base font-bold">
+                  {perf.caN1 !== null ? `${perf.caN1.toLocaleString('fr-FR')}€` : '—'}
+                </p>
+                {perf.yoyDelta !== null && (
+                  <span className={`text-[10px] font-semibold ${perf.yoyTrend === 'up' ? 'text-accent' : perf.yoyTrend === 'down' ? 'text-destructive' : 'text-muted-foreground'}`}>
+                    {perf.yoyDelta >= 0 ? '+' : ''}{perf.yoyDelta.toLocaleString('fr-FR')}€
+                  </span>
+                )}
+              </div>
+              {perf.caN1 === null && <p className="text-[10px] text-muted-foreground/60 italic">Non renseigné</p>}
+            </div>
+            <div className="rounded-lg bg-muted/30 p-2.5">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Projection</p>
+              <p className="font-heading text-base font-bold">
+                {perf.projectionAnnual !== null ? `${formatCompactRevenue(perf.projectionAnnual)}/an` : '—'}
+              </p>
+              {perf.projectionAnnual !== null && perf.projectionTrend !== 'unknown' && (
+                <p className={`text-[10px] font-medium ${perf.projectionTrend === 'up' ? 'text-accent' : perf.projectionTrend === 'down' ? 'text-destructive' : 'text-muted-foreground'}`}>
+                  {perf.projectionTrend === 'up' ? '↑ En hausse' : perf.projectionTrend === 'down' ? '↓ En baisse' : '→ Stable'}
+                </p>
+              )}
+              {perf.projectionAnnual === null && <p className="text-[10px] text-muted-foreground/60 italic">Indisponible</p>}
+            </div>
+          </div>
+
           {/* Coverage + Gap */}
           {perf.caM1 !== null && (
             <div className="space-y-2">
@@ -112,6 +140,14 @@ export function RevenueHistoryCard({ customerId, annualRevenuePotential }: Props
                   {perf.gap <= 0 ? '+' : '-'}{Math.abs(Math.round(perf.gap)).toLocaleString('fr-FR')}€
                 </span>
               </div>
+              {perf.yoyDelta !== null && (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Évolution vs N-1</span>
+                  <span className={`font-medium ${perf.yoyDelta >= 0 ? 'text-accent' : 'text-destructive'}`}>
+                    {perf.yoyDelta >= 0 ? '+' : ''}{perf.yoyDelta.toLocaleString('fr-FR')}€
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
@@ -127,7 +163,7 @@ export function RevenueHistoryCard({ customerId, annualRevenuePotential }: Props
             </div>
           </div>
 
-          {/* Mini chart (last 6 months) */}
+          {/* Mini chart */}
           {chartData.some(d => d.ca > 0) && (
             <div className="h-24 mt-2">
               <ResponsiveContainer width="100%" height="100%">
@@ -162,7 +198,7 @@ export function RevenueHistoryCard({ customerId, annualRevenuePotential }: Props
         <Card>
           <CardHeader className="pb-2 px-4 pt-4">
             <CardTitle className="font-heading text-sm flex items-center gap-2">
-              <FileSpreadsheet className="h-4 w-4 text-primary" />
+              <BarChart3 className="h-4 w-4 text-primary" />
               Historique CA ({allRevenues.length} mois)
             </CardTitle>
           </CardHeader>
@@ -177,17 +213,18 @@ export function RevenueHistoryCard({ customerId, annualRevenuePotential }: Props
               </TableHeader>
               <TableBody>
                 {allRevenues.map((r, i) => {
-                  const coverage = perf.monthlyPotential > 0 
-                    ? Math.round((Number(r.monthly_revenue) / perf.monthlyPotential) * 100) 
+                  const rev = Number(r.monthly_revenue);
+                  const coverage = perf.monthlyPotential > 0
+                    ? Math.round((rev / perf.monthlyPotential) * 100)
                     : 0;
-                  const gap = perf.monthlyPotential - Number(r.monthly_revenue);
+                  const gap = perf.monthlyPotential - rev;
                   return (
                     <TableRow key={i}>
                       <TableCell className="text-xs py-2 px-2 font-medium">
                         {MONTH_FULL[r.month - 1]} {r.year}
                       </TableCell>
                       <TableCell className="text-xs py-2 px-2 text-right font-semibold">
-                        {Number(r.monthly_revenue).toLocaleString('fr-FR')}€
+                        {rev.toLocaleString('fr-FR')}€
                       </TableCell>
                       <TableCell className={`text-xs py-2 px-2 text-right ${coverage >= 80 ? 'text-accent' : coverage >= 40 ? 'text-warning' : 'text-destructive'}`}>
                         {coverage}%
