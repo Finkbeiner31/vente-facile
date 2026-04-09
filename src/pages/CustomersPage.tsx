@@ -352,6 +352,12 @@ export default function CustomersPage() {
                       </div>
                       <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                         <span>{customer.city}</span>
+                        {customer.zone && (
+                          <>
+                            <span>·</span>
+                            <span className="flex items-center gap-0.5"><MapPin className="h-2.5 w-2.5" />{customer.zone}</span>
+                          </>
+                        )}
                         <span>·</span>
                         <span className="flex items-center gap-0.5">
                           <Car className="h-2.5 w-2.5" /> {customer.vehicles}
