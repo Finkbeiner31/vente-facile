@@ -32,11 +32,12 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 
-type CustomerStatus = 'prospect' | 'client_actif' | 'client_inactif' | 'pending_conversion';
+type CustomerStatus = 'prospect' | 'prospect_qualifie' | 'client_actif' | 'client_inactif' | 'pending_conversion';
 
 const statusConfig: Record<CustomerStatus, { label: string; class: string }> = {
   prospect: { label: 'Prospect', class: 'bg-warning/15 text-warning' },
-  pending_conversion: { label: 'Conversion en attente', class: 'bg-primary/15 text-primary' },
+  prospect_qualifie: { label: 'Prospect qualifié', class: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+  pending_conversion: { label: 'Validation en attente', class: 'bg-primary/15 text-primary' },
   client_actif: { label: 'Client actif', class: 'bg-accent/15 text-accent' },
   client_inactif: { label: 'Inactif', class: 'bg-muted text-muted-foreground' },
 };
@@ -57,6 +58,7 @@ export default function CustomerDetailPage() {
   const [conversionSheetOpen, setConversionSheetOpen] = useState(false);
   const [rollbackDialogOpen, setRollbackDialogOpen] = useState(false);
   const [rollbackReason, setRollbackReason] = useState('');
+  const [rollbackTarget, setRollbackTarget] = useState<'prospect' | 'prospect_qualifie'>('prospect_qualifie');
   const queryClient = useQueryClient();
   const isValidId = Boolean(id && UUID_REGEX.test(id));
 
@@ -106,6 +108,22 @@ export default function CustomerDetailPage() {
     enabled: !authLoading && !!user && isValidId,
   });
 
+  const qualifyMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from('customers').update({ customer_type: 'prospect_qualifie' } as any).eq('id', id!);
+      if (error) throw error;
+      await (supabase as any).from('activity_logs').insert({
+        user_id: user!.id, entity_type: 'customer', entity_id: id,
+        action: 'qualified', details: { from: 'prospect', to: 'prospect_qualifie' },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customer', id] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast.success('Prospect qualifié');
+    },
+  });
+
   const conversionRequestMutation = useMutation({
     mutationFn: async (comment: string) => {
       const cust = customer as any;
@@ -126,7 +144,7 @@ export default function CustomerDetailPage() {
       // Audit log
       await (supabase as any).from('activity_logs').insert({
         user_id: user!.id, entity_type: 'customer', entity_id: id,
-        action: 'conversion_requested', details: { from: 'prospect', to: 'pending_conversion', comment },
+        action: 'conversion_requested', details: { from: 'prospect_qualifie', to: 'pending_conversion', comment },
       });
     },
     onSuccess: () => {
@@ -145,12 +163,12 @@ export default function CustomerDetailPage() {
   });
 
   const rollbackMutation = useMutation({
-    mutationFn: async (reason: string) => {
-      const { error } = await supabase.from('customers').update({ customer_type: 'prospect' } as any).eq('id', id!);
+    mutationFn: async ({ reason, target }: { reason: string; target: string }) => {
+      const { error } = await supabase.from('customers').update({ customer_type: target } as any).eq('id', id!);
       if (error) throw error;
       await (supabase as any).from('activity_logs').insert({
         user_id: user!.id, entity_type: 'customer', entity_id: id,
-        action: 'rollback_to_prospect', details: { from: customer.customer_type, to: 'prospect', reason },
+        action: 'rollback_status', details: { from: customer.customer_type, to: target, reason },
       });
     },
     onSuccess: () => {
@@ -158,7 +176,7 @@ export default function CustomerDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       setRollbackDialogOpen(false);
       setRollbackReason('');
-      toast.success('Statut remis en Prospect');
+      toast.success('Statut mis à jour');
     },
   });
 
@@ -336,9 +354,25 @@ export default function CustomerDetailPage() {
             <ArrowRightCircle className="h-5 w-5 text-warning shrink-0" />
             <div className="flex-1">
               <p className="text-sm font-medium">Ce compte est un prospect</p>
-              <p className="text-[11px] text-muted-foreground">Soumettez une demande de conversion pour validation admin</p>
+              <p className="text-[11px] text-muted-foreground">Qualifiez ce prospect pour pouvoir demander sa conversion</p>
             </div>
             <Button size="sm" variant="outline" className="shrink-0 border-warning/30 text-warning hover:bg-warning/10"
+              onClick={() => qualifyMutation.mutate()} disabled={qualifyMutation.isPending}>
+              {qualifyMutation.isPending ? 'Qualification...' : 'Qualifier le prospect'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {status === 'prospect_qualifie' && (
+        <Card className="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30">
+          <CardContent className="p-3 flex items-center gap-3">
+            <ArrowRightCircle className="h-5 w-5 text-blue-600 dark:text-blue-400 shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Prospect qualifié</p>
+              <p className="text-[11px] text-muted-foreground">Ce prospect a du potentiel. Demandez la conversion en client.</p>
+            </div>
+            <Button size="sm" variant="outline" className="shrink-0 border-blue-300 text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:text-blue-300 dark:hover:bg-blue-900/50"
               onClick={() => setConversionSheetOpen(true)}>
               Demander la conversion
             </Button>
@@ -352,7 +386,7 @@ export default function CustomerDetailPage() {
             <Loader2 className="h-5 w-5 text-primary shrink-0 animate-spin" />
             <div className="flex-1">
               <p className="text-sm font-medium text-primary">Validation admin en attente</p>
-              <p className="text-[11px] text-muted-foreground">La demande de conversion a été soumise et attend l'approbation d'un administrateur</p>
+              <p className="text-[11px] text-muted-foreground">La demande de conversion attend l'approbation d'un administrateur</p>
             </div>
           </CardContent>
         </Card>
@@ -363,10 +397,10 @@ export default function CustomerDetailPage() {
           <CardContent className="p-3 flex items-center gap-3">
             <ArrowRightCircle className="h-5 w-5 text-muted-foreground shrink-0" />
             <div className="flex-1">
-              <p className="text-[11px] text-muted-foreground">Action admin uniquement</p>
+              <p className="text-[11px] text-muted-foreground">Action admin</p>
             </div>
             <Button size="sm" variant="ghost" className="shrink-0 text-xs text-muted-foreground hover:text-destructive"
-              onClick={() => setRollbackDialogOpen(true)}>
+              onClick={() => { setRollbackTarget('prospect_qualifie'); setRollbackDialogOpen(true); }}>
               Rebasculer en prospect
             </Button>
           </CardContent>
@@ -769,9 +803,19 @@ export default function CustomerDetailPage() {
       <Dialog open={rollbackDialogOpen} onOpenChange={setRollbackDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rebasculer en prospect</DialogTitle>
-            <DialogDescription>Le client sera remis en statut "Prospect". Toutes les données (rapports, tâches, contacts, CA) seront conservées.</DialogDescription>
+            <DialogTitle>Rebasculer le statut</DialogTitle>
+            <DialogDescription>Toutes les données (rapports, tâches, contacts, CA) seront conservées.</DialogDescription>
           </DialogHeader>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Nouveau statut</label>
+            <Select value={rollbackTarget} onValueChange={(v: any) => setRollbackTarget(v)}>
+              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="prospect_qualifie">Prospect qualifié</SelectItem>
+                <SelectItem value="prospect">Prospect</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <Textarea
             value={rollbackReason}
             onChange={e => setRollbackReason(e.target.value)}
@@ -780,7 +824,7 @@ export default function CustomerDetailPage() {
           />
           <DialogFooter>
             <Button variant="ghost" onClick={() => setRollbackDialogOpen(false)}>Annuler</Button>
-            <Button variant="destructive" onClick={() => rollbackMutation.mutate(rollbackReason)} disabled={rollbackMutation.isPending}>
+            <Button variant="destructive" onClick={() => rollbackMutation.mutate({ reason: rollbackReason, target: rollbackTarget })} disabled={rollbackMutation.isPending}>
               {rollbackMutation.isPending ? 'En cours...' : 'Confirmer'}
             </Button>
           </DialogFooter>

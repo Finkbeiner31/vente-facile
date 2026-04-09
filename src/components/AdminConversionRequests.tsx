@@ -79,7 +79,7 @@ export function AdminConversionRequests() {
 
       const { error: e2 } = await supabase
         .from('customers')
-        .update({ customer_type: 'prospect' })
+        .update({ customer_type: 'prospect_qualifie' })
         .eq('id', req.customer_id);
       if (e2) throw e2;
 
@@ -88,7 +88,7 @@ export function AdminConversionRequests() {
         entity_type: 'customer',
         entity_id: req.customer_id,
         action: 'conversion_rejected',
-        details: { from: 'pending_conversion', to: 'prospect', request_id: requestId, reason },
+        details: { from: 'pending_conversion', to: 'prospect_qualifie', request_id: requestId, reason },
       });
     },
     onSuccess: () => {
@@ -96,7 +96,7 @@ export function AdminConversionRequests() {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       setRejectId(null);
       setRejectReason('');
-      toast.success('Conversion refusée — statut remis en prospect');
+      toast.success('Conversion refusée — statut remis en prospect qualifié');
     },
     onError: () => toast.error('Erreur lors du refus'),
   });
