@@ -49,6 +49,8 @@ export default function AdminPage() {
   const [potentialForm, setPotentialForm] = useState<Record<string, number>>({});
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [createForm, setCreateForm] = useState({ firstName: '', lastName: '', email: '', phone: '', role: 'sales_rep', password: '' });
   const queryClient = useQueryClient();
 
