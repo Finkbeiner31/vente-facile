@@ -3,15 +3,18 @@ import { useParams, Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { QuickReportDialog } from '@/components/QuickReportDialog';
 import { useAuth } from '@/contexts/AuthContext';
-import { formatMonthly, formatAnnual, getRevenueTier, getRevenueTierColor } from '@/lib/revenueUtils';
+import { formatMonthly, getRevenueTierColor, getRevenueTier } from '@/lib/revenueUtils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Phone, Navigation, FileText, CheckSquare,
-  Edit, User, Clock, MapPin, ExternalLink, Car, TrendingUp, Calendar, ArrowRightCircle, Loader2, AlertTriangle, Target,
+  User, Clock, MapPin, ExternalLink, Car, Target,
+  Loader2, AlertTriangle, ArrowRightCircle, Plus, Pencil, Trash2,
+  Star, Mail, MessageCircle,
 } from 'lucide-react';
 import { RevenueHistoryCard } from '@/components/RevenueHistoryCard';
 import { useCustomerPerformance } from '@/hooks/useCustomerPerformance';
@@ -27,7 +30,7 @@ const statusConfig: Record<CustomerStatus, { label: string; class: string }> = {
 
 const typeColors: Record<string, string> = {
   visit: 'bg-primary/10 text-primary',
-  task: 'bg-success/10 text-success',
+  task: 'bg-accent/10 text-accent',
   opportunity: 'bg-warning/10 text-warning',
 };
 
@@ -37,6 +40,12 @@ export default function CustomerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user, loading: authLoading } = useAuth();
   const [reportOpen, setReportOpen] = useState(false);
+  const [editingVehicles, setEditingVehicles] = useState(false);
+  const [vehicleValue, setVehicleValue] = useState('');
+  const [editingContact, setEditingContact] = useState<string | null>(null);
+  const [addingContact, setAddingContact] = useState(false);
+  const [newContact, setNewContact] = useState({ first_name: '', last_name: '', role: '', phone: '', email: '' });
+  const [editContactData, setEditContactData] = useState({ first_name: '', last_name: '', role: '', phone: '', email: '' });
   const queryClient = useQueryClient();
   const isValidId = Boolean(id && UUID_REGEX.test(id));
 
@@ -55,7 +64,6 @@ export default function CustomerDetailPage() {
     enabled: !authLoading && !!user && isValidId,
   });
 
-  // Hooks must be called before any early return
   const revenue = customer?.annual_revenue_potential || 0;
   const perf = useCustomerPerformance(customer?.id, revenue);
 
@@ -115,6 +123,85 @@ export default function CustomerDetailPage() {
     },
   });
 
+  const vehicleMutation = useMutation({
+    mutationFn: async (count: number) => {
+      const { error } = await supabase
+        .from('customers')
+        .update({ number_of_vehicles: count })
+        .eq('id', id!);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customer', id] });
+      setEditingVehicles(false);
+      toast.success('Nombre de véhicules mis à jour');
+    },
+  });
+
+  const addContactMutation = useMutation({
+    mutationFn: async (contact: typeof newContact) => {
+      const isPrimary = contacts.length === 0;
+      const { error } = await supabase.from('contacts').insert({
+        customer_id: id!,
+        first_name: contact.first_name,
+        last_name: contact.last_name,
+        role: contact.role || null,
+        phone: contact.phone || null,
+        email: contact.email || null,
+        is_primary: isPrimary,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contacts', id] });
+      setAddingContact(false);
+      setNewContact({ first_name: '', last_name: '', role: '', phone: '', email: '' });
+      toast.success('Contact ajouté');
+    },
+  });
+
+  const updateContactMutation = useMutation({
+    mutationFn: async ({ contactId, data }: { contactId: string; data: typeof editContactData }) => {
+      const { error } = await supabase.from('contacts').update({
+        first_name: data.first_name,
+        last_name: data.last_name,
+        role: data.role || null,
+        phone: data.phone || null,
+        email: data.email || null,
+      }).eq('id', contactId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contacts', id] });
+      setEditingContact(null);
+      toast.success('Contact modifié');
+    },
+  });
+
+  const deleteContactMutation = useMutation({
+    mutationFn: async (contactId: string) => {
+      const { error } = await supabase.from('contacts').delete().eq('id', contactId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contacts', id] });
+      toast.success('Contact supprimé');
+    },
+  });
+
+  const setPrimaryMutation = useMutation({
+    mutationFn: async (contactId: string) => {
+      // Unset all primary
+      await supabase.from('contacts').update({ is_primary: false }).eq('customer_id', id!);
+      const { error } = await supabase.from('contacts').update({ is_primary: true }).eq('id', contactId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contacts', id] });
+      toast.success('Contact principal défini');
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -153,7 +240,6 @@ export default function CustomerDetailPage() {
   );
   const prioConfig = PRIORITY_CONFIGS[priority.level];
 
-  // Build timeline from reports + tasks
   const timeline = [
     ...visitReports.map(r => ({
       date: new Date(r.visit_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }),
@@ -172,23 +258,81 @@ export default function CustomerDetailPage() {
   const primaryContact = contacts.find(c => c.is_primary) || contacts[0];
   const phoneNumber = primaryContact?.phone || customer.phone || '';
   const address = customer.address ? `${customer.address}${customer.city ? ', ' + customer.city : ''}` : customer.city || '';
+  const fullAddress = [customer.address, customer.postal_code, customer.city].filter(Boolean).join(', ');
 
   return (
     <div className="space-y-4 animate-fade-in pb-20 md:pb-0">
-      {/* Header */}
-      <div className="flex items-center gap-3">
+      {/* ─── 1. HEADER ─── */}
+      <div className="flex items-start gap-3">
         <Link to="/clients">
-          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0">
+          <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0 mt-0.5">
             <ArrowLeft className="h-5 w-5" />
           </Button>
         </Link>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <h1 className="font-heading text-lg md:text-2xl font-bold truncate">{customer.company_name}</h1>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h1 className="font-heading text-xl md:text-2xl font-bold truncate">{customer.company_name}</h1>
             <Badge className={`text-[10px] shrink-0 ${sc.class}`}>{sc.label}</Badge>
           </div>
-          <p className="text-xs text-muted-foreground">{customer.activity_type || ''}</p>
+          {(customer.city || customer.address) && (
+            <p className="text-xs text-muted-foreground mt-0.5 truncate">
+              <MapPin className="inline h-3 w-3 mr-0.5 -mt-0.5" />
+              {customer.city}{customer.address ? ` · ${customer.address}` : ''}
+            </p>
+          )}
         </div>
+      </div>
+
+      {/* Key metrics row */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-1.5 rounded-lg bg-accent/10 px-3 py-1.5">
+          <span className="text-xs text-muted-foreground">CA pot.</span>
+          <span className={`text-sm font-bold ${getRevenueTierColor(tier)}`}>{formatMonthly(revenue)}</span>
+        </div>
+        <div className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5">
+          <Car className="h-3.5 w-3.5 text-muted-foreground" />
+          {editingVehicles ? (
+            <form className="flex items-center gap-1" onSubmit={(e) => {
+              e.preventDefault();
+              const v = parseInt(vehicleValue, 10);
+              if (!isNaN(v) && v >= 0) vehicleMutation.mutate(v);
+            }}>
+              <Input
+                type="number"
+                min={0}
+                value={vehicleValue}
+                onChange={e => setVehicleValue(e.target.value)}
+                className="h-6 w-16 text-xs px-1.5"
+                autoFocus
+              />
+              <Button type="submit" size="sm" className="h-6 px-2 text-[10px]" disabled={vehicleMutation.isPending}>OK</Button>
+              <Button type="button" variant="ghost" size="sm" className="h-6 px-1.5 text-[10px]" onClick={() => setEditingVehicles(false)}>✕</Button>
+            </form>
+          ) : (
+            <button
+              type="button"
+              className="flex items-center gap-1 text-sm font-bold hover:text-primary transition-colors"
+              onClick={() => { setVehicleValue(String(customer.number_of_vehicles || 0)); setEditingVehicles(true); }}
+            >
+              {customer.number_of_vehicles || 0} véh.
+              <Pencil className="h-3 w-3 text-muted-foreground" />
+            </button>
+          )}
+        </div>
+        {customer.visit_frequency && (
+          <div className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5">
+            <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-xs">{customer.visit_frequency}</span>
+          </div>
+        )}
+        {customer.last_visit_date && (
+          <div className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5">
+            <span className="text-[10px] text-muted-foreground">Dernière visite</span>
+            <span className="text-xs font-medium">
+              {new Date(customer.last_visit_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Convert banner for prospects */}
@@ -202,38 +346,13 @@ export default function CustomerDetailPage() {
             </div>
             <Button size="sm" variant="outline" className="shrink-0 border-warning/30 text-warning hover:bg-warning/10"
               onClick={() => convertMutation.mutate()} disabled={convertMutation.isPending}>
-              {convertMutation.isPending ? 'Conversion...' : 'Convertir en client'}
+              {convertMutation.isPending ? 'Conversion...' : 'Convertir'}
             </Button>
           </CardContent>
         </Card>
       )}
 
-      {/* Revenue Potential */}
-      <Card className="border-accent/20 bg-accent/5">
-        <CardContent className="p-4">
-          <div className="flex items-center gap-4">
-            <div className="h-12 w-12 rounded-xl bg-accent/15 flex items-center justify-center shrink-0">
-              <TrendingUp className="h-6 w-6 text-accent" />
-            </div>
-            <div className="flex-1">
-              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">CA potentiel</p>
-              <p className={`font-heading text-2xl font-bold ${getRevenueTierColor(tier)}`}>
-                {formatMonthly(revenue)}
-              </p>
-              <p className="text-xs text-muted-foreground">{formatAnnual(revenue)} · CA potentiel</p>
-            </div>
-            <div className="text-right">
-              <div className="flex items-center gap-1.5 text-muted-foreground">
-                <Car className="h-4 w-4" />
-                <span className="text-lg font-bold">{customer.number_of_vehicles || 0}</span>
-              </div>
-              <p className="text-[10px] text-muted-foreground">véhicules</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Quick Actions */}
+      {/* ─── 2. QUICK ACTIONS ─── */}
       <div className="grid grid-cols-4 gap-2">
         {phoneNumber ? (
           <a href={`tel:${phoneNumber}`}>
@@ -249,7 +368,7 @@ export default function CustomerDetailPage() {
           </Button>
         )}
         {address ? (
-          <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`}
+          <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress || address)}`}
             target="_blank" rel="noopener noreferrer">
             <Button variant="outline" className="w-full h-14 flex-col gap-1 text-xs font-medium">
               <Navigation className="h-5 w-5 text-primary" />
@@ -274,26 +393,6 @@ export default function CustomerDetailPage() {
         </Link>
       </div>
 
-      {/* Key Info */}
-      <div className="grid grid-cols-2 gap-2">
-        <Card>
-          <CardContent className="p-3">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Dernière visite</p>
-            <p className="text-sm font-semibold mt-0.5">
-              {customer.last_visit_date
-                ? new Date(customer.last_visit_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })
-                : '—'}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-3">
-            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Fréquence</p>
-            <p className="text-sm font-semibold mt-0.5">{customer.visit_frequency || '—'}</p>
-          </CardContent>
-        </Card>
-      </div>
-
       {/* Next Action */}
       {customer.next_action_description && (
         <Card className="border-primary/20">
@@ -311,7 +410,7 @@ export default function CustomerDetailPage() {
         </Card>
       )}
 
-      {/* Priority Card */}
+      {/* ─── 3. PERFORMANCE (Priority) ─── */}
       <Card className={`border-l-4 ${priority.level === 'high' ? 'border-l-destructive' : priority.level === 'medium' ? 'border-l-warning' : 'border-l-muted'}`}>
         <CardHeader className="pb-2 px-4 pt-4">
           <CardTitle className="font-heading text-sm flex items-center justify-between">
@@ -335,57 +434,175 @@ export default function CustomerDetailPage() {
         )}
       </Card>
 
-      {/* Revenue History */}
-      <RevenueHistoryCard customerId={customer.id} annualRevenuePotential={revenue} />
+      {/* ─── 4. CONTACTS ─── */}
+      <Card>
+        <CardHeader className="pb-2 px-4 pt-4">
+          <CardTitle className="font-heading text-sm flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <User className="h-4 w-4 text-primary" />
+              Contacts
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => setAddingContact(true)}
+            >
+              <Plus className="h-3.5 w-3.5 mr-1" />
+              Ajouter
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-4 pb-4 space-y-2">
+          {contacts.length === 0 && !addingContact && (
+            <div className="text-center py-4 space-y-2">
+              <User className="mx-auto h-8 w-8 text-muted-foreground/30" />
+              <p className="text-sm text-muted-foreground">Aucun contact renseigné</p>
+              <Button variant="outline" size="sm" onClick={() => setAddingContact(true)}>
+                <Plus className="h-3.5 w-3.5 mr-1" /> Ajouter un contact
+              </Button>
+            </div>
+          )}
 
-      {/* Contacts */}
-      {contacts.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2 px-4 pt-4">
-            <CardTitle className="font-heading text-sm">Contacts</CardTitle>
-          </CardHeader>
-          <CardContent className="px-4 pb-4 space-y-2">
-            {contacts.map((contact) => (
-              <div key={contact.id} className="flex items-center gap-3 rounded-xl border p-3">
-                <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  <User className="h-4 w-4 text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium">{contact.first_name} {contact.last_name}</p>
-                    {contact.is_primary && <Badge variant="secondary" className="text-[9px] h-4">Principal</Badge>}
+          {contacts.map((contact) => (
+            <div key={contact.id} className="rounded-xl border border-border p-3 space-y-2">
+              {editingContact === contact.id ? (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input value={editContactData.first_name} onChange={e => setEditContactData(d => ({ ...d, first_name: e.target.value }))} placeholder="Prénom" className="h-9 text-sm" />
+                    <Input value={editContactData.last_name} onChange={e => setEditContactData(d => ({ ...d, last_name: e.target.value }))} placeholder="Nom" className="h-9 text-sm" />
                   </div>
-                  <p className="text-[11px] text-muted-foreground">{contact.role || ''}</p>
-                </div>
-                {contact.phone && (
-                  <a href={`tel:${contact.phone}`}>
-                    <Button variant="outline" size="icon" className="h-10 w-10 shrink-0">
-                      <Phone className="h-4 w-4" />
+                  <Input value={editContactData.role} onChange={e => setEditContactData(d => ({ ...d, role: e.target.value }))} placeholder="Rôle" className="h-9 text-sm" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input type="tel" value={editContactData.phone} onChange={e => setEditContactData(d => ({ ...d, phone: e.target.value }))} placeholder="Téléphone" className="h-9 text-sm" />
+                    <Input type="email" value={editContactData.email} onChange={e => setEditContactData(d => ({ ...d, email: e.target.value }))} placeholder="Email" className="h-9 text-sm" />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" className="h-8 text-xs" onClick={() => updateContactMutation.mutate({ contactId: contact.id, data: editContactData })}
+                      disabled={!editContactData.first_name || !editContactData.last_name || updateContactMutation.isPending}>
+                      Enregistrer
                     </Button>
-                  </a>
-                )}
+                    <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setEditingContact(null)}>Annuler</Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                        <User className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-semibold truncate">{contact.first_name} {contact.last_name}</p>
+                          {contact.is_primary && <Badge variant="secondary" className="text-[9px] h-4 shrink-0">Principal</Badge>}
+                        </div>
+                        {contact.role && <p className="text-[11px] text-muted-foreground">{contact.role}</p>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {!contact.is_primary && (
+                        <button type="button" onClick={() => setPrimaryMutation.mutate(contact.id)}
+                          className="p-1.5 rounded-md text-muted-foreground hover:text-primary transition-colors" title="Définir comme principal">
+                          <Star className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                      <button type="button" onClick={() => {
+                        setEditingContact(contact.id);
+                        setEditContactData({ first_name: contact.first_name, last_name: contact.last_name, role: contact.role || '', phone: contact.phone || '', email: contact.email || '' });
+                      }} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground transition-colors">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button type="button" onClick={() => { if (confirm('Supprimer ce contact ?')) deleteContactMutation.mutate(contact.id); }}
+                        className="p-1.5 rounded-md text-muted-foreground hover:text-destructive transition-colors">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  {/* Contact actions */}
+                  <div className="flex items-center gap-2 ml-11">
+                    {contact.phone && (
+                      <>
+                        <a href={`tel:${contact.phone}`}>
+                          <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+                            <Phone className="h-3.5 w-3.5" />
+                            {contact.phone}
+                          </Button>
+                        </a>
+                        <a href={`https://wa.me/${contact.phone.replace(/\s+/g, '').replace(/^0/, '33')}`} target="_blank" rel="noopener noreferrer">
+                          <Button variant="outline" size="icon" className="h-8 w-8" title="WhatsApp">
+                            <MessageCircle className="h-3.5 w-3.5" />
+                          </Button>
+                        </a>
+                      </>
+                    )}
+                    {contact.email && (
+                      <a href={`mailto:${contact.email}`}>
+                        <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+                          <Mail className="h-3.5 w-3.5" />
+                          {contact.email}
+                        </Button>
+                      </a>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+
+          {/* Add contact form */}
+          {addingContact && (
+            <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 space-y-2">
+              <p className="text-xs font-medium text-primary">Nouveau contact</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Input value={newContact.first_name} onChange={e => setNewContact(c => ({ ...c, first_name: e.target.value }))} placeholder="Prénom *" className="h-9 text-sm" />
+                <Input value={newContact.last_name} onChange={e => setNewContact(c => ({ ...c, last_name: e.target.value }))} placeholder="Nom *" className="h-9 text-sm" />
               </div>
-            ))}
+              <Input value={newContact.role} onChange={e => setNewContact(c => ({ ...c, role: e.target.value }))} placeholder="Rôle (ex: Gérant)" className="h-9 text-sm" />
+              <div className="grid grid-cols-2 gap-2">
+                <Input type="tel" value={newContact.phone} onChange={e => setNewContact(c => ({ ...c, phone: e.target.value }))} placeholder="Téléphone" className="h-9 text-sm" />
+                <Input type="email" value={newContact.email} onChange={e => setNewContact(c => ({ ...c, email: e.target.value }))} placeholder="Email" className="h-9 text-sm" />
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" className="h-8 text-xs" onClick={() => addContactMutation.mutate(newContact)}
+                  disabled={!newContact.first_name || !newContact.last_name || addContactMutation.isPending}>
+                  Ajouter
+                </Button>
+                <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => { setAddingContact(false); setNewContact({ first_name: '', last_name: '', role: '', phone: '', email: '' }); }}>
+                  Annuler
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ─── 5. ADDRESS ─── */}
+      {(fullAddress || address) && (
+        <Card>
+          <CardContent className="p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-primary shrink-0" />
+              <p className="text-sm flex-1">{fullAddress || address}</p>
+            </div>
+            <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress || address)}`}
+              target="_blank" rel="noopener noreferrer">
+              <Button variant="outline" size="sm" className="w-full h-9 text-xs gap-1.5">
+                <Navigation className="h-3.5 w-3.5" />
+                Ouvrir dans Google Maps
+                <ExternalLink className="h-3 w-3 ml-auto" />
+              </Button>
+            </a>
           </CardContent>
         </Card>
       )}
 
-      {/* Address */}
-      {address && (
-        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`}
-          target="_blank" rel="noopener noreferrer">
-          <Card className="cursor-pointer hover:border-primary/30 transition-colors">
-            <CardContent className="p-3 flex items-center gap-3">
-              <MapPin className="h-5 w-5 text-primary shrink-0" />
-              <p className="text-sm flex-1">{address}</p>
-              <ExternalLink className="h-4 w-4 text-muted-foreground shrink-0" />
-            </CardContent>
-          </Card>
-        </a>
-      )}
+      {/* ─── 6. REVENUE HISTORY ─── */}
+      <RevenueHistoryCard customerId={customer.id} annualRevenuePotential={revenue} />
 
-      {/* Timeline */}
-      {timeline.length > 0 && (
+      {/* ─── 7. TIMELINE ─── */}
+      {timeline.length > 0 ? (
         <Card>
           <CardHeader className="pb-2 px-4 pt-4">
             <CardTitle className="font-heading text-sm">Historique récent</CardTitle>
@@ -396,15 +613,13 @@ export default function CustomerDetailPage() {
                 <Badge className={`text-[9px] shrink-0 ${typeColors[item.type]}`}>{item.date}</Badge>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{item.title}</p>
-                  <p className="text-[11px] text-muted-foreground">{item.detail}</p>
+                  {item.detail && <p className="text-[11px] text-muted-foreground line-clamp-2">{item.detail}</p>}
                 </div>
               </div>
             ))}
           </CardContent>
         </Card>
-      )}
-
-      {timeline.length === 0 && (
+      ) : (
         <Card>
           <CardContent className="p-6 text-center">
             <p className="text-sm text-muted-foreground">Aucun historique pour ce client</p>
