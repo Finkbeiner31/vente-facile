@@ -22,8 +22,9 @@ import { useCustomerPerformance } from '@/hooks/useCustomerPerformance';
 import { computeVisitPriority, PRIORITY_CONFIGS } from '@/lib/priorityEngine';
 import {
   useVehiclePotentials, computeFleetPotential,
-  FLEET_KEYS, FLEET_LABELS, CUSTOMER_TYPES, EQUIPMENT_TYPES,
+  FLEET_KEYS, FLEET_LABELS, CUSTOMER_TYPES, EQUIPMENT_TYPES, EQUIPMENT_SUB_TYPES,
 } from '@/hooks/useVehiclePotentials';
+import { Checkbox } from '@/components/ui/checkbox';
 
 type CustomerStatus = 'prospect' | 'client_actif' | 'client_inactif';
 
@@ -45,7 +46,7 @@ export default function CustomerDetailPage() {
   const [newContact, setNewContact] = useState({ first_name: '', last_name: '', role: '', phone: '', email: '' });
   const [editContactData, setEditContactData] = useState({ first_name: '', last_name: '', role: '', phone: '', email: '' });
   const [editingBusiness, setEditingBusiness] = useState(false);
-  const [fleetForm, setFleetForm] = useState({ fleet_pl: 0, fleet_vu: 0, fleet_remorque: 0, fleet_car_bus: 0, activity_type: '', equipment_type: '' });
+  const [fleetForm, setFleetForm] = useState({ fleet_pl: 0, fleet_vu: 0, fleet_remorque: 0, fleet_car_bus: 0, activity_type: '', equipment_type: '', equipment_types: [] as string[] });
   const queryClient = useQueryClient();
   const isValidId = Boolean(id && UUID_REGEX.test(id));
 
