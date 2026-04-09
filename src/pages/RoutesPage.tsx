@@ -140,7 +140,7 @@ export default function RoutesPage() {
         <div>
           <h1 className="font-heading text-xl md:text-2xl font-bold">Tournée</h1>
           <p className="text-xs text-muted-foreground">
-            Cycle 3 semaines · {getDayLabel(selectedDay)}
+            Cycle 4 semaines · {getDayLabel(selectedDay)}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -172,7 +172,7 @@ export default function RoutesPage() {
         </Button>
         <div className="flex-1 overflow-x-auto scrollbar-hide">
           <div className="flex gap-1">
-            {Array.from({ length: 15 }, (_, i) => {
+            {Array.from({ length: 20 }, (_, i) => {
               const dayStops = dayOverrides[i] || baseCycle[i] || [];
               return (
                 <button key={i} onClick={() => setSelectedDay(i)}
@@ -190,7 +190,7 @@ export default function RoutesPage() {
           </div>
         </div>
         <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0"
-          onClick={() => setSelectedDay(d => Math.min(14, d + 1))} disabled={selectedDay === 14}>
+          onClick={() => setSelectedDay(d => Math.min(19, d + 1))} disabled={selectedDay === 19}>
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
