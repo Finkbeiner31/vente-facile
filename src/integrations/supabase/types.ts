@@ -222,6 +222,8 @@ export type Database = {
           address: string | null
           annual_revenue_potential: number | null
           assigned_rep_id: string | null
+          assignment_mode: string | null
+          assignment_source: string | null
           city: string | null
           company_name: string
           created_at: string
@@ -248,6 +250,7 @@ export type Database = {
           visit_frequency: string | null
           website: string | null
           zone: string | null
+          zone_status: string | null
         }
         Insert: {
           account_status?: string
@@ -255,6 +258,8 @@ export type Database = {
           address?: string | null
           annual_revenue_potential?: number | null
           assigned_rep_id?: string | null
+          assignment_mode?: string | null
+          assignment_source?: string | null
           city?: string | null
           company_name: string
           created_at?: string
@@ -281,6 +286,7 @@ export type Database = {
           visit_frequency?: string | null
           website?: string | null
           zone?: string | null
+          zone_status?: string | null
         }
         Update: {
           account_status?: string
@@ -288,6 +294,8 @@ export type Database = {
           address?: string | null
           annual_revenue_potential?: number | null
           assigned_rep_id?: string | null
+          assignment_mode?: string | null
+          assignment_source?: string | null
           city?: string | null
           company_name?: string
           created_at?: string
@@ -314,6 +322,7 @@ export type Database = {
           visit_frequency?: string | null
           website?: string | null
           zone?: string | null
+          zone_status?: string | null
         }
         Relationships: []
       }

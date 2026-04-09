@@ -18,6 +18,7 @@ import { formatMonthly, getRevenueTier, getRevenueTierColor } from '@/lib/revenu
 import { NewCustomerSheet, type NewCustomerFormData } from '@/components/NewCustomerSheet';
 import { toast } from 'sonner';
 import { useAllCustomerRevenues } from '@/hooks/useCustomerPerformance';
+import { useZoneAssignment } from '@/hooks/useZoneAssignment';
 import { analyzeCustomerPerformance, getStatusConfig, formatCompactRevenue, type PerformanceStatus } from '@/lib/performanceUtils';
 import { computeVisitPriority, PRIORITY_CONFIGS, type PriorityLevel } from '@/lib/priorityEngine';
 
@@ -93,6 +94,7 @@ export default function CustomersPage() {
   const [sortMode, setSortMode] = useState<SortMode>('priority');
   const [sheetOpen, setSheetOpen] = useState(false);
   const queryClient = useQueryClient();
+  const { autoAssignCustomer } = useZoneAssignment();
 
   const { data: revenueMap } = useAllCustomerRevenues();
 
@@ -179,6 +181,17 @@ export default function CustomersPage() {
       return createdCustomer;
     },
     onSuccess: async (createdCustomer) => {
+      // Auto-assign zone
+      try {
+        await autoAssignCustomer(createdCustomer.id, {
+          latitude: createdCustomer.latitude,
+          longitude: createdCustomer.longitude,
+          postal_code: createdCustomer.postal_code,
+          city: createdCustomer.city,
+        }, { force: true });
+      } catch (e) {
+        // Non-blocking — zone assignment is best-effort
+      }
       await queryClient.invalidateQueries({ queryKey: ['customers'] });
       toast.success(`${createdCustomer.company_name} enregistré avec succès.`);
     },

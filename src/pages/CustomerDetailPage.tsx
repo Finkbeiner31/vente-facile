@@ -19,6 +19,8 @@ import {
 } from 'lucide-react';
 import { RevenueHistoryCard } from '@/components/RevenueHistoryCard';
 import { useCommercialZones, findMatchingZone, formatZoneName } from '@/hooks/useCommercialZones';
+import { formatAssignmentSource, formatZoneStatus } from '@/lib/zoneAssignment';
+import { useZoneAssignment } from '@/hooks/useZoneAssignment';
 import { useCustomerPerformance } from '@/hooks/useCustomerPerformance';
 import { computeVisitPriority, PRIORITY_CONFIGS } from '@/lib/priorityEngine';
 import {
@@ -82,6 +84,7 @@ export default function CustomerDetailPage() {
   const perf = useCustomerPerformance(customer?.id, revenue);
   const { data: potentials = [] } = useVehiclePotentials();
   const { data: zones = [] } = useCommercialZones();
+  const { autoAssignCustomer } = useZoneAssignment();
 
   const { data: contacts = [] } = useQuery({
     queryKey: ['contacts', id, user?.id],
@@ -348,11 +351,19 @@ export default function CustomerDetailPage() {
           </div>
         )}
         {/* Zone */}
-        <div className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5">
+        <div className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5 flex-wrap">
           <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
           <Select
             value={(customer as any).zone || 'none'}
-            onValueChange={v => updateCustomerMutation.mutate({ zone: v === 'none' ? null : v } as any)}
+            onValueChange={v => {
+              const isManual = v !== 'none';
+              updateCustomerMutation.mutate({
+                zone: v === 'none' ? null : v,
+                assignment_mode: isManual ? 'manual' : 'automatic',
+                assignment_source: isManual ? null : (customer as any).assignment_source,
+                zone_status: isManual ? 'assigned' : 'outside',
+              } as any);
+            }}
           >
             <SelectTrigger className="h-7 border-0 bg-transparent p-0 text-xs font-medium w-auto min-w-[100px]">
               <SelectValue placeholder="Zone..." />
@@ -369,17 +380,52 @@ export default function CustomerDetailPage() {
               ))}
             </SelectContent>
           </Select>
+          {/* Assignment info badges */}
+          {(customer as any).zone && (
+            <Badge variant="outline" className="text-[9px] h-4">
+              {formatAssignmentSource((customer as any).assignment_source, (customer as any).assignment_mode || 'manual')}
+            </Badge>
+          )}
+          {(customer as any).zone_status === 'to_confirm' && (
+            <Badge className="text-[9px] h-4 bg-warning/15 text-warning">⚠ Zone à confirmer</Badge>
+          )}
+          {(customer as any).zone_status === 'outside' && !(customer as any).zone && (
+            <Badge className="text-[9px] h-4 bg-muted text-muted-foreground">Hors zone</Badge>
+          )}
           {/* Auto-suggest if no zone set */}
           {!(customer as any).zone && (() => {
             const suggested = findMatchingZone(zones, customer.city, customer.postal_code);
             if (!suggested) return null;
             return (
               <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5 text-primary"
-                onClick={() => updateCustomerMutation.mutate({ zone: suggested.system_name } as any)}>
+                onClick={() => updateCustomerMutation.mutate({ 
+                  zone: suggested.system_name,
+                  assignment_mode: 'automatic',
+                  assignment_source: 'city',
+                  zone_status: 'assigned',
+                } as any)}>
                 → {formatZoneName(suggested)}
               </Button>
             );
           })()}
+          {/* Recalculate button */}
+          {(customer as any).assignment_mode !== 'manual' && (
+            <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5 text-primary"
+              onClick={async () => {
+                const result = await autoAssignCustomer(customer.id, {
+                  latitude: customer.latitude,
+                  longitude: customer.longitude,
+                  postal_code: customer.postal_code,
+                  city: customer.city,
+                }, { force: true });
+                if (result.zone_status === 'assigned') toast.success(`Zone assignée : ${result.zone}`);
+                else if (result.zone_status === 'to_confirm') toast.warning('Plusieurs zones possibles');
+                else toast.info('Aucune zone correspondante');
+                queryClient.invalidateQueries({ queryKey: ['customer', id] });
+              }}>
+              ↻ Recalculer
+            </Button>
+          )}
         </div>
       </div>
 

@@ -1,4 +1,4 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState, useCallback, lazy, Suspense } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,12 +7,13 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { MapPin, Plus, Pencil, Trash2, Save, Loader2, Users, Building2, Palette, Map } from 'lucide-react';
+import { MapPin, Plus, Pencil, Trash2, Save, Loader2, Users, Building2, Palette, Map, RefreshCw } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatZoneName, getNextSystemName, type CommercialZone } from '@/hooks/useCommercialZones';
+import { useZoneAssignment } from '@/hooks/useZoneAssignment';
 import type { LatLng } from '@/components/MapZoneDrawer';
 
 const MapZoneDrawer = lazy(() => import('@/components/MapZoneDrawer'));
@@ -107,7 +108,8 @@ export function AdminZoneManager() {
   const [editForm, setEditForm] = useState(defaultForm);
   const [mapMode, setMapMode] = useState<'create' | 'edit' | null>(null);
   const [showMapOverview, setShowMapOverview] = useState(false);
-
+  const [recalculating, setRecalculating] = useState(false);
+  const { bulkRecalculate } = useZoneAssignment();
   const { data: profiles = [] } = useQuery({
     queryKey: ['profiles-list'],
     queryFn: async () => {
@@ -236,15 +238,39 @@ export function AdminZoneManager() {
               <MapPin className="h-5 w-5 text-primary" />
               Zones commerciales
             </CardTitle>
-            <Button
-              variant={showMapOverview ? 'default' : 'outline'}
-              size="sm"
-              className="h-8 gap-1.5 text-xs"
-              onClick={() => setShowMapOverview(!showMapOverview)}
-            >
-              <Map className="h-4 w-4" />
-              {showMapOverview ? 'Liste' : 'Carte des zones'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 text-xs"
+                disabled={recalculating}
+                onClick={async () => {
+                  setRecalculating(true);
+                  try {
+                    const result = await bulkRecalculate();
+                    toast.success(
+                      `Recalcul terminé : ${result.assigned} assigné(s), ${result.conflicts} à confirmer, ${result.outside} hors zone, ${result.skippedManual} manuel(s) conservé(s)`
+                    );
+                  } catch {
+                    toast.error('Erreur lors du recalcul');
+                  } finally {
+                    setRecalculating(false);
+                  }
+                }}
+              >
+                {recalculating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                Recalculer les zones
+              </Button>
+              <Button
+                variant={showMapOverview ? 'default' : 'outline'}
+                size="sm"
+                className="h-8 gap-1.5 text-xs"
+                onClick={() => setShowMapOverview(!showMapOverview)}
+              >
+                <Map className="h-4 w-4" />
+                {showMapOverview ? 'Liste' : 'Carte des zones'}
+              </Button>
+            </div>
           </div>
         </CardHeader>
         {showMapOverview ? (
