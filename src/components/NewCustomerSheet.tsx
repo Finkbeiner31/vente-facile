@@ -70,6 +70,9 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
       await onSubmit({
         ...form,
         number_of_vehicles: vehicles,
+        latitude: form.latitude,
+        longitude: form.longitude,
+        postal_code: form.postal_code,
       });
       setForm(getInitialForm());
       onOpenChange(false);
