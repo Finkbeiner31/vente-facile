@@ -3,13 +3,13 @@
  * Generates daily visit plans based on visit frequency, priority, and geography.
  */
 
-export type VisitFrequency = 'multiple_per_week' | 'weekly' | 'biweekly' | 'triweekly';
+export type VisitFrequency = 'multiple_per_week' | 'weekly' | 'biweekly' | 'monthly';
 
 export const VISIT_FREQUENCY_OPTIONS: { value: VisitFrequency; label: string; visitsPerCycle: number }[] = [
-  { value: 'multiple_per_week', label: 'Plusieurs fois / semaine', visitsPerCycle: 9 },
-  { value: 'weekly', label: '1 fois / semaine', visitsPerCycle: 3 },
+  { value: 'multiple_per_week', label: 'Plusieurs fois / semaine', visitsPerCycle: 12 },
+  { value: 'weekly', label: '1 fois / semaine', visitsPerCycle: 4 },
   { value: 'biweekly', label: 'Toutes les 2 semaines', visitsPerCycle: 2 },
-  { value: 'triweekly', label: 'Toutes les 3 semaines', visitsPerCycle: 1 },
+  { value: 'monthly', label: 'Toutes les 4 semaines', visitsPerCycle: 1 },
 ];
 
 export interface CustomerForRouting {
@@ -29,7 +29,7 @@ export interface CustomerForRouting {
 export interface PlannedVisit {
   customer: CustomerForRouting;
   priority: number; // higher = more important
-  dayIndex: number; // 0-14 (15 working days in 3 weeks)
+  dayIndex: number; // 0-19 (20 working days in 4 weeks)
 }
 
 function getVisitsPerCycle(freq: string | null): number {
@@ -44,14 +44,13 @@ function getPriorityScore(customer: CustomerForRouting): number {
 }
 
 /**
- * Generate a 3-week (15 working days) cycle of visits.
+ * Generate a 4-week (20 working days) cycle of visits.
  * Each day targets 8-12 visits.
  */
 export function generateRouteCycle(
   customers: CustomerForRouting[],
   targetPerDay: number = 10
 ): PlannedVisit[][] {
-  // Build a pool of visits needed
   const pool: { customer: CustomerForRouting; priority: number }[] = [];
 
   for (const c of customers) {
@@ -62,23 +61,19 @@ export function generateRouteCycle(
     }
   }
 
-  // Sort by priority descending
   pool.sort((a, b) => b.priority - a.priority);
 
-  // Distribute across 15 days
-  const days: PlannedVisit[][] = Array.from({ length: 15 }, () => []);
+  const days: PlannedVisit[][] = Array.from({ length: 20 }, () => []);
 
   for (const item of pool) {
-    // Find the day with fewest visits (and under target)
     let bestDay = 0;
     let bestCount = Infinity;
-    for (let d = 0; d < 15; d++) {
+    for (let d = 0; d < 20; d++) {
       if (days[d].length < bestCount) {
         bestCount = days[d].length;
         bestDay = d;
       }
     }
-    // Skip if all days full
     if (days[bestDay].length >= 12) continue;
 
     days[bestDay].push({
@@ -88,7 +83,6 @@ export function generateRouteCycle(
     });
   }
 
-  // Sort each day by priority
   for (const day of days) {
     day.sort((a, b) => b.priority - a.priority);
   }
