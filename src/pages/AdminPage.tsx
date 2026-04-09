@@ -39,6 +39,7 @@ interface UserWithRole {
   email: string | null;
   phone: string | null;
   role: string;
+  is_active: boolean;
 }
 
 export default function AdminPage() {
@@ -48,6 +49,8 @@ export default function AdminPage() {
   const [potentialForm, setPotentialForm] = useState<Record<string, number>>({});
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [createForm, setCreateForm] = useState({ firstName: '', lastName: '', email: '', phone: '', role: 'sales_rep', password: '' });
   const queryClient = useQueryClient();
 
@@ -56,7 +59,7 @@ export default function AdminPage() {
     queryFn: async () => {
       const { data: profiles, error: pErr } = await supabase
         .from('profiles')
-        .select('id, full_name, email, phone')
+        .select('id, full_name, email, phone, is_active')
         .order('full_name');
       if (pErr) throw pErr;
 
@@ -74,12 +77,38 @@ export default function AdminPage() {
         email: p.email,
         phone: p.phone,
         role: roleMap[p.id] || 'sales_rep',
+        is_active: (p as any).is_active !== false,
       }));
     },
     enabled: !!currentUser,
   });
 
   const isAdmin = currentRole === 'admin';
+
+  // Manage user (delete/deactivate/reactivate)
+  const manageUserMutation = useMutation({
+    mutationFn: async ({ userId, action }: { userId: string; action: 'delete' | 'deactivate' | 'reactivate' }) => {
+      const { data, error } = await supabase.functions.invoke('manage-user', {
+        body: { user_id: userId, action },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      setShowDeleteModal(null);
+      if (data.result === 'deleted') {
+        setSelectedUserId(null);
+        toast.success('Profil supprimé');
+      } else if (data.result === 'deactivated') {
+        toast.success(data.reason || 'Profil désactivé');
+      } else if (data.result === 'reactivated') {
+        toast.success('Profil réactivé');
+      }
+    },
+    onError: (e: any) => toast.error(e.message || 'Erreur'),
+  });
 
   // Create user mutation
   const createUserMutation = useMutation({
@@ -221,6 +250,12 @@ export default function AdminPage() {
 
   const dayNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
   const isCommercialRole = (role: string) => role === 'sales_rep';
+  const filteredUsers = allUsers.filter(u => {
+    if (statusFilter === 'active') return u.is_active;
+    if (statusFilter === 'inactive') return !u.is_active;
+    return true;
+  });
+  const deleteTargetUser = allUsers.find(u => u.id === showDeleteModal);
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -241,11 +276,21 @@ export default function AdminPage() {
 
         {/* ===== PROFILS TAB ===== */}
         <TabsContent value="users" className="mt-4 space-y-4">
-          {/* Header with create button */}
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Gestion des profils ({allUsers.length})
-            </p>
+          {/* Header with create button and filter */}
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Gestion des profils ({filteredUsers.length})
+              </p>
+              <div className="flex gap-1">
+                {(['all', 'active', 'inactive'] as const).map(f => (
+                  <Button key={f} variant={statusFilter === f ? 'default' : 'ghost'} size="sm" className="h-6 text-[10px] px-2"
+                    onClick={() => setStatusFilter(f)}>
+                    {f === 'all' ? 'Tous' : f === 'active' ? 'Actifs' : 'Inactifs'}
+                  </Button>
+                ))}
+              </div>
+            </div>
             {isAdmin && (
               <Button size="sm" onClick={() => setShowCreateModal(true)}>
                 <UserPlus className="h-4 w-4 mr-1" />Créer un profil
@@ -255,12 +300,14 @@ export default function AdminPage() {
 
           {usersLoading ? (
             <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
-          ) : allUsers.length === 0 ? (
+          ) : filteredUsers.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center">
                 <Users className="mx-auto h-10 w-10 text-muted-foreground/30" />
-                <p className="mt-3 text-sm text-muted-foreground">Aucun profil créé</p>
-                {isAdmin && (
+                <p className="mt-3 text-sm text-muted-foreground">
+                  {statusFilter !== 'all' ? 'Aucun profil dans ce filtre' : 'Aucun profil créé'}
+                </p>
+                {isAdmin && statusFilter === 'all' && (
                   <Button size="sm" className="mt-4" onClick={() => setShowCreateModal(true)}>
                     <UserPlus className="h-4 w-4 mr-1" />Créer un profil
                   </Button>
@@ -271,22 +318,38 @@ export default function AdminPage() {
             <div className="grid gap-4 md:grid-cols-3">
               {/* User list */}
               <div className="space-y-2 md:col-span-1">
-                {allUsers.map(u => (
+                {filteredUsers.map(u => (
                   <button key={u.id} onClick={() => setSelectedUserId(u.id)}
                     className={`w-full rounded-lg border p-3 text-left transition-all ${
                       selectedUserId === u.id ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-primary/30'
-                    }`}>
+                    } ${!u.is_active ? 'opacity-60' : ''}`}>
                     <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 font-heading text-xs font-bold text-primary shrink-0">
+                      <div className={`flex h-9 w-9 items-center justify-center rounded-full font-heading text-xs font-bold shrink-0 ${
+                        u.is_active ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+                      }`}>
                         {u.full_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{u.full_name}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-medium truncate">{u.full_name}</p>
+                          {!u.is_active && <Badge variant="secondary" className="text-[8px] h-3.5 px-1">Inactif</Badge>}
+                        </div>
                         <p className="text-[10px] text-muted-foreground truncate">{u.email}</p>
                       </div>
-                      <Badge variant="outline" className={`text-[9px] shrink-0 ${roleBadgeColors[u.role] || ''}`}>
-                        {roleLabels[u.role] || u.role}
-                      </Badge>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Badge variant="outline" className={`text-[9px] ${roleBadgeColors[u.role] || ''}`}>
+                          {roleLabels[u.role] || u.role}
+                        </Badge>
+                        {isAdmin && u.role !== 'admin' && (
+                          <button
+                            onClick={e => { e.stopPropagation(); setShowDeleteModal(u.id); }}
+                            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                            title="Supprimer / Désactiver"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </button>
                 ))}
@@ -333,6 +396,33 @@ export default function AdminPage() {
                             <Badge variant="outline" className={roleBadgeColors[selectedUser.role]}>
                               {roleLabels[selectedUser.role]}
                             </Badge>
+                          )}
+                        </div>
+                        {/* Status + actions row */}
+                        <div className="mt-3 flex items-center gap-2 pt-2 border-t">
+                          <Badge variant={selectedUser.is_active ? 'default' : 'secondary'} className="text-[10px]">
+                            {selectedUser.is_active ? 'Actif' : 'Inactif'}
+                          </Badge>
+                          {isAdmin && selectedUser.role !== 'admin' && (
+                            <>
+                              {selectedUser.is_active ? (
+                                <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground"
+                                  onClick={() => manageUserMutation.mutate({ userId: selectedUser.id, action: 'deactivate' })}
+                                  disabled={manageUserMutation.isPending}>
+                                  <Power className="h-3.5 w-3.5 mr-1" />Désactiver
+                                </Button>
+                              ) : (
+                                <Button variant="ghost" size="sm" className="h-7 text-xs text-primary"
+                                  onClick={() => manageUserMutation.mutate({ userId: selectedUser.id, action: 'reactivate' })}
+                                  disabled={manageUserMutation.isPending}>
+                                  <Power className="h-3.5 w-3.5 mr-1" />Réactiver
+                                </Button>
+                              )}
+                              <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive ml-auto"
+                                onClick={() => setShowDeleteModal(selectedUser.id)}>
+                                <Trash2 className="h-3.5 w-3.5 mr-1" />Supprimer
+                              </Button>
+                            </>
                           )}
                         </div>
                       </CardContent>
@@ -676,6 +766,34 @@ export default function AdminPage() {
                 <UserPlus className="h-4 w-4 mr-1" />
               )}
               Créer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== DELETE CONFIRMATION MODAL ===== */}
+      <Dialog open={!!showDeleteModal} onOpenChange={open => !open && setShowDeleteModal(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Supprimer ce profil
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Voulez-vous supprimer le profil de <strong>{deleteTargetUser?.full_name}</strong> ?
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Les données associées (clients, visites, CA) seront conservées.
+            Si ce profil a des données, il sera désactivé au lieu d'être supprimé.
+          </p>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowDeleteModal(null)}>Annuler</Button>
+            <Button variant="destructive"
+              onClick={() => showDeleteModal && manageUserMutation.mutate({ userId: showDeleteModal, action: 'delete' })}
+              disabled={manageUserMutation.isPending}>
+              {manageUserMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
+              Confirmer
             </Button>
           </DialogFooter>
         </DialogContent>
