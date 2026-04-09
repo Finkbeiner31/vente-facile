@@ -59,7 +59,7 @@ export default function AdminPage() {
     queryFn: async () => {
       const { data: profiles, error: pErr } = await supabase
         .from('profiles')
-        .select('id, full_name, email, phone')
+        .select('id, full_name, email, phone, is_active')
         .order('full_name');
       if (pErr) throw pErr;
 
@@ -77,6 +77,7 @@ export default function AdminPage() {
         email: p.email,
         phone: p.phone,
         role: roleMap[p.id] || 'sales_rep',
+        is_active: (p as any).is_active !== false,
       }));
     },
     enabled: !!currentUser,
