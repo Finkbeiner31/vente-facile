@@ -16,6 +16,7 @@ import { formatZoneName, getNextSystemName, type CommercialZone } from '@/hooks/
 import type { LatLng } from '@/components/MapZoneDrawer';
 
 const MapZoneDrawer = lazy(() => import('@/components/MapZoneDrawer'));
+const ZoneMapOverview = lazy(() => import('@/components/ZoneMapOverview'));
 
 // 30 visually distinct colors — good contrast on white & map backgrounds
 const ZONE_PALETTE = [
@@ -105,6 +106,7 @@ export function AdminZoneManager() {
   const [editingZone, setEditingZone] = useState<CommercialZone | null>(null);
   const [editForm, setEditForm] = useState(defaultForm);
   const [mapMode, setMapMode] = useState<'create' | 'edit' | null>(null);
+  const [showMapOverview, setShowMapOverview] = useState(false);
 
   const { data: profiles = [] } = useQuery({
     queryKey: ['profiles-list'],
@@ -229,14 +231,29 @@ export function AdminZoneManager() {
     <>
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="font-heading text-base flex items-center gap-2">
-            <MapPin className="h-5 w-5 text-primary" />
-            Zones commerciales
-          </CardTitle>
-          <p className="text-xs text-muted-foreground">
-            Le numéro est attribué automatiquement. La couleur est auto-assignée si vous n'en choisissez pas.
-          </p>
+          <div className="flex items-center justify-between">
+            <CardTitle className="font-heading text-base flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-primary" />
+              Zones commerciales
+            </CardTitle>
+            <Button
+              variant={showMapOverview ? 'default' : 'outline'}
+              size="sm"
+              className="h-8 gap-1.5 text-xs"
+              onClick={() => setShowMapOverview(!showMapOverview)}
+            >
+              <Map className="h-4 w-4" />
+              {showMapOverview ? 'Liste' : 'Carte des zones'}
+            </Button>
+          </div>
         </CardHeader>
+        {showMapOverview ? (
+          <CardContent>
+            <Suspense fallback={<div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}>
+              <ZoneMapOverview zones={zones} profiles={profiles} />
+            </Suspense>
+          </CardContent>
+        ) : (
         <CardContent className="space-y-3">
           {/* Create form */}
           <div className="space-y-2">
@@ -344,6 +361,7 @@ export function AdminZoneManager() {
             </div>
           )}
         </CardContent>
+        )}
       </Card>
 
       {/* Edit zone dialog */}
