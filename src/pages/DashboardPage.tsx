@@ -90,6 +90,20 @@ export default function DashboardPage() {
     return { totalPotential, totalRealM1, avgCoverage, statusCounts, clientsWithData };
   }, [allCustomers, revenueMap]);
 
+  // Top 5 priority clients
+  const topPriority = useMemo(() => {
+    return allCustomers
+      .map(c => {
+        const revenue = Number(c.annual_revenue_potential || 0);
+        const history = revenueMap?.get(c.id) || [];
+        const perf = analyzeCustomerPerformance(revenue, history);
+        const priority = computeVisitPriority(perf, c.last_visit_date, c.visit_frequency, null, null, c.latitude, c.longitude);
+        return { ...c, perf, priority, revenue };
+      })
+      .sort((a, b) => b.priority.score - a.priority.score)
+      .slice(0, 5);
+  }, [allCustomers, revenueMap]);
+
   const firstName = profile?.full_name?.split(' ')[0] || 'Commercial';
   const completedCount = todayStops.filter(s => statuses[s.customer.id] === 'completed').length;
   const inProgress = todayStops.find(s => statuses[s.customer.id] === 'in_progress');
