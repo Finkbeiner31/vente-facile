@@ -300,26 +300,25 @@ export default function CustomersPage() {
                         )}
                         <Badge className={`text-[9px] h-4 ${sc.class}`}>{sc.label}</Badge>
                       </div>
-                      <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                         <span>{customer.city}</span>
                         <span>·</span>
                         <span className="flex items-center gap-0.5">
                           <Car className="h-2.5 w-2.5" /> {customer.vehicles}
                         </span>
-                        <span>·</span>
-                        <span className={`font-semibold ${getRevenueTierColor(getRevenueTier(customer.revenue))}`}>
-                          {formatMonthly(customer.revenue)}
-                          <span className="font-normal text-muted-foreground ml-1 text-[10px]">pot.</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[11px] mt-0.5">
+                        <span className="text-muted-foreground">
+                          CA pot. <span className={`font-semibold ${getRevenueTierColor(getRevenueTier(customer.revenue))}`}>{formatMonthly(customer.revenue)}</span>
                         </span>
-                        {customer.perf.caM1 !== null && (
-                          <>
-                            <span>·</span>
-                            <span className="font-semibold flex items-center gap-0.5">
-                              {customer.perf.caM1.toLocaleString('fr-FR')}€
-                              <span className="font-normal text-muted-foreground text-[10px]">M-1</span>
-                              <TrendIcon trend={customer.perf.trend} />
-                            </span>
-                          </>
+                        <span className="text-muted-foreground">·</span>
+                        {customer.perf.caM1 !== null ? (
+                          <span className="font-semibold text-foreground flex items-center gap-0.5">
+                            M-1 {customer.perf.caM1.toLocaleString('fr-FR')}€
+                            <TrendIcon trend={customer.perf.trend} />
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground/70 italic text-[10px]">M-1 non renseigné</span>
                         )}
                       </div>
                       {customer.nextAction && (
