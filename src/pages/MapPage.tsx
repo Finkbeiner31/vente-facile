@@ -168,17 +168,6 @@ export default function MapPage() {
   const routePolylineRef = useRef<google.maps.Polyline | null>(null);
   const { data: revenueMap } = useAllCustomerRevenues();
 
-  // Compute performance map for marker colors
-  const perfMap = useMemo(() => {
-    const map = new Map<string, PerformanceStatus>();
-    customers.forEach(c => {
-      const history = revenueMap?.get(c.id) || [];
-      const perf = analyzeCustomerPerformance(c.annual_revenue_potential, history);
-      map.set(c.id, perf.status);
-    });
-    return map;
-  }, [customers, revenueMap]);
-
   // Fetch customers with coordinates
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ['customers-map', user?.id],
