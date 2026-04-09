@@ -19,12 +19,12 @@ export function useVehiclePotentials() {
   return useQuery({
     queryKey: ['vehicle-type-potentials'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('vehicle_type_potentials' as any)
+      const { data, error } = await (supabase as any)
+        .from('vehicle_type_potentials')
         .select('*')
         .order('vehicle_type');
       if (error) throw error;
-      return (data || []) as VehiclePotential[];
+      return (data || []) as unknown as VehiclePotential[];
     },
     staleTime: 300_000,
   });
