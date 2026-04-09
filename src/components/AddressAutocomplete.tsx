@@ -34,6 +34,8 @@ interface AddressAutocompleteProps {
   onSelect: (selection: AddressSelection) => void;
   placeholder?: string;
   className?: string;
+  /** When true, the field is a plain input — no autocomplete suggestions appear */
+  suppressAutocomplete?: boolean;
 }
 
 export function AddressAutocomplete({
@@ -42,6 +44,7 @@ export function AddressAutocomplete({
   onSelect,
   placeholder = 'Tapez une adresse ou un nom...',
   className = '',
+  suppressAutocomplete = false,
 }: AddressAutocompleteProps) {
   const [results, setResults] = useState<NominatimResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -50,6 +53,7 @@ export function AddressAutocomplete({
   const containerRef = useRef<HTMLDivElement>(null);
 
   const search = useCallback(async (query: string) => {
+    if (suppressAutocomplete) return;
     if (query.trim().length < 3) {
       setResults([]);
       setIsOpen(false);
@@ -81,15 +85,20 @@ export function AddressAutocomplete({
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [suppressAutocomplete]);
 
   useEffect(() => {
+    if (suppressAutocomplete) {
+      setResults([]);
+      setIsOpen(false);
+      return;
+    }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => search(value), 300);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [value, search]);
+  }, [value, search, suppressAutocomplete]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -124,7 +133,7 @@ export function AddressAutocomplete({
         <Input
           value={value}
           onChange={e => onChange(e.target.value)}
-          onFocus={() => results.length > 0 && setIsOpen(true)}
+          onFocus={() => !suppressAutocomplete && results.length > 0 && setIsOpen(true)}
           placeholder={placeholder}
           className={`h-12 pr-10 ${className}`}
         />
@@ -137,7 +146,7 @@ export function AddressAutocomplete({
         </div>
       </div>
 
-      {isOpen && (
+      {isOpen && !suppressAutocomplete && (
         <div className="absolute z-50 mt-1 w-full rounded-lg border bg-popover shadow-lg overflow-hidden">
           {results.map(r => {
             const parts = r.display_name.split(',');

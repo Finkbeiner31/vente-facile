@@ -8,7 +8,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Building2, Save } from 'lucide-react';
+import { Building2, Save, RotateCcw } from 'lucide-react';
 import { formatMonthly, formatAnnual } from '@/lib/revenueUtils';
 import { AddressAutocomplete, type AddressSelection } from '@/components/AddressAutocomplete';
 import { BusinessSearchAutocomplete, type BusinessSelection } from '@/components/BusinessSearchAutocomplete';
@@ -51,9 +51,12 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
 
   const [form, setForm] = useState(getInitialForm);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  /** When true, address autocomplete suggestions are suppressed (filled by Google Places) */
+  const [addressLocked, setAddressLocked] = useState(false);
 
   useEffect(() => {
     setForm(getInitialForm());
+    setAddressLocked(false);
   }, [defaultType, open]);
 
   const set = (key: string, value: string) => setForm(prev => ({ ...prev, [key]: value }));
@@ -80,6 +83,10 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleUnlockAddress = () => {
+    setAddressLocked(false);
   };
 
   return (
@@ -121,7 +128,12 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
                   postal_code: sel.postalCode,
                   latitude: sel.latitude,
                   longitude: sel.longitude,
+                  ...(sel.phone ? { phone: sel.phone } : {}),
                 }));
+                // Lock address autocomplete since it was filled by Google Places
+                if (sel.fullAddress || sel.city) {
+                  setAddressLocked(true);
+                }
               }}
               className="mt-1"
             />
@@ -151,7 +163,19 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
           )}
 
           <div>
-            <label className="text-xs font-medium text-muted-foreground">Adresse</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-muted-foreground">Adresse</label>
+              {addressLocked && (
+                <button
+                  type="button"
+                  onClick={handleUnlockAddress}
+                  className="flex items-center gap-1 text-xs text-primary hover:underline"
+                >
+                  <RotateCcw className="h-3 w-3" />
+                  Modifier l'adresse
+                </button>
+              )}
+            </div>
             <AddressAutocomplete
               value={form.address}
               onChange={v => set('address', v)}
@@ -167,7 +191,21 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
               }}
               placeholder="Tapez une adresse..."
               className="mt-1"
+              suppressAutocomplete={addressLocked}
             />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Code postal</label>
+              <Input value={form.postal_code} onChange={e => set('postal_code', e.target.value)}
+                placeholder="75001" className="h-12 mt-1" />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground">Téléphone</label>
+              <Input type="tel" value={form.phone} onChange={e => set('phone', e.target.value)}
+                placeholder="06..." className="h-12 mt-1" />
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
@@ -177,16 +215,10 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
                 placeholder="Nom du contact" className="h-12 mt-1" />
             </div>
             <div>
-              <label className="text-xs font-medium text-muted-foreground">Téléphone</label>
-              <Input type="tel" value={form.phone} onChange={e => set('phone', e.target.value)}
-                placeholder="06..." className="h-12 mt-1" />
+              <label className="text-xs font-medium text-muted-foreground">Email</label>
+              <Input type="email" value={form.email} onChange={e => set('email', e.target.value)}
+                placeholder="email@exemple.fr" className="h-12 mt-1" />
             </div>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">Email</label>
-            <Input type="email" value={form.email} onChange={e => set('email', e.target.value)}
-              placeholder="email@exemple.fr" className="h-12 mt-1" />
           </div>
 
           <div>
