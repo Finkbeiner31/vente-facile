@@ -184,6 +184,7 @@ export default function CustomerDetailPage() {
   const fullAddress = [customer.address, customer.postal_code, customer.city].filter(Boolean).join(', ');
 
   const startEditBusiness = () => {
+    const eqTypes = (cust as any).equipment_types;
     setFleetForm({
       fleet_pl: cust.fleet_pl || 0,
       fleet_vu: cust.fleet_vu || 0,
@@ -191,12 +192,20 @@ export default function CustomerDetailPage() {
       fleet_car_bus: cust.fleet_car_bus || 0,
       activity_type: cust.activity_type || '',
       equipment_type: cust.equipment_type || '',
+      equipment_types: Array.isArray(eqTypes) ? eqTypes : [],
     });
     setEditingBusiness(true);
   };
 
   const saveBusiness = () => {
+    if (fleetForm.equipment_type === 'Multi-équipement' && fleetForm.equipment_types.length === 0) {
+      toast.error('Veuillez sélectionner au moins un type d\'équipement');
+      return;
+    }
     const totalV = fleetForm.fleet_pl + fleetForm.fleet_vu + fleetForm.fleet_remorque + fleetForm.fleet_car_bus;
+    const eqTypes = fleetForm.equipment_type === 'Multi-équipement'
+      ? fleetForm.equipment_types
+      : fleetForm.equipment_type ? [fleetForm.equipment_type] : [];
     updateCustomerMutation.mutate({
       fleet_pl: fleetForm.fleet_pl,
       fleet_vu: fleetForm.fleet_vu,
@@ -205,7 +214,8 @@ export default function CustomerDetailPage() {
       number_of_vehicles: totalV,
       activity_type: fleetForm.activity_type || null,
       equipment_type: fleetForm.equipment_type || null,
-    });
+      equipment_types: eqTypes,
+    } as any);
   };
 
   return (
