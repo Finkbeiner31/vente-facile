@@ -73,14 +73,27 @@ export default function RoutesPage() {
     queryKey: ['zone-customers', todayZoneId],
     queryFn: async () => {
       if (!todayZoneId) return [];
-      const zoneName = zones.find(z => z.id === todayZoneId)?.name;
-      if (!zoneName) return [];
-      const { data, error } = await supabase
+      const zone = zones.find(z => z.id === todayZoneId);
+      if (!zone) return [];
+
+      // Fetch customers matching zone name, cities, or postal codes
+      let query = supabase
         .from('customers')
         .select('*')
-        .eq('zone', zoneName)
         .in('customer_type', ['client_actif', 'prospect_qualifie'])
         .order('annual_revenue_potential', { ascending: false, nullsFirst: false });
+
+      // Build OR filter: zone name match OR city in zone.cities OR postal_code in zone.postal_codes
+      const filters: string[] = [];
+      filters.push(`zone.eq.${zone.name}`);
+      if (zone.cities.length > 0) {
+        filters.push(`city.in.(${zone.cities.join(',')})`);
+      }
+      if (zone.postal_codes.length > 0) {
+        filters.push(`postal_code.in.(${zone.postal_codes.join(',')})`);
+      }
+
+      const { data, error } = await query.or(filters.join(','));
       if (error) throw error;
       return (data || []) as any[];
     },

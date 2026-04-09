@@ -87,26 +87,32 @@ export type Database = {
       }
       commercial_zones: {
         Row: {
+          cities: string[]
           color: string | null
           created_at: string
           id: string
           name: string
+          postal_codes: string[]
           updated_at: string
           user_id: string | null
         }
         Insert: {
+          cities?: string[]
           color?: string | null
           created_at?: string
           id?: string
           name: string
+          postal_codes?: string[]
           updated_at?: string
           user_id?: string | null
         }
         Update: {
+          cities?: string[]
           color?: string | null
           created_at?: string
           id?: string
           name?: string
+          postal_codes?: string[]
           updated_at?: string
           user_id?: string | null
         }
