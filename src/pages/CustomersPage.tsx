@@ -4,16 +4,21 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Search, Plus, Phone, Navigation, Building2, Car, Loader2,
+  Search, Plus, Phone, Navigation, Building2, Car, Loader2, TrendingUp, TrendingDown, Minus,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatMonthly, getRevenueTier, getRevenueTierColor } from '@/lib/revenueUtils';
 import { NewCustomerSheet, type NewCustomerFormData } from '@/components/NewCustomerSheet';
 import { toast } from 'sonner';
+import { useAllCustomerRevenues } from '@/hooks/useCustomerPerformance';
+import { analyzeCustomerPerformance, getStatusConfig, type PerformanceStatus } from '@/lib/performanceUtils';
 
 type CustomerStatus = 'prospect' | 'client_actif' | 'client_inactif';
 
@@ -44,6 +49,8 @@ const potentialColors: Record<string, string> = {
 };
 
 type FilterTab = 'tous' | 'clients' | 'prospects';
+type PerfFilter = 'tous' | 'optimise' | 'a_developper' | 'sous_exploite';
+type TrendFilter = 'tous' | 'up' | 'down' | 'stable';
 
 const formatLastVisit = (value: string | null) => {
   if (!value) return '—';
@@ -61,22 +68,21 @@ const getPotential = (revenue: number, savedPotential: string | null) => {
 const splitContactName = (fullName: string) => {
   const trimmed = fullName.trim();
   if (!trimmed) return { first_name: '', last_name: '' };
-
   const parts = trimmed.split(/\s+/);
   if (parts.length === 1) return { first_name: parts[0], last_name: '' };
-
-  return {
-    first_name: parts.slice(0, -1).join(' '),
-    last_name: parts[parts.length - 1],
-  };
+  return { first_name: parts.slice(0, -1).join(' '), last_name: parts[parts.length - 1] };
 };
 
 export default function CustomersPage() {
   const { user, loading } = useAuth();
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<FilterTab>('tous');
+  const [perfFilter, setPerfFilter] = useState<PerfFilter>('tous');
+  const [trendFilter, setTrendFilter] = useState<TrendFilter>('tous');
   const [sheetOpen, setSheetOpen] = useState(false);
   const queryClient = useQueryClient();
+
+  const { data: revenueMap } = useAllCustomerRevenues();
 
   const { data: customers = [], isLoading, isError } = useQuery({
     queryKey: ['customers', user?.id],
@@ -86,12 +92,9 @@ export default function CustomersPage() {
         .select('*')
         .order('annual_revenue_potential', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false });
-
       if (error) throw error;
-
       return (data || []).map((customer): CustomerListItem => {
         const revenue = Number(customer.annual_revenue_potential || 0);
-
         return {
           id: customer.id,
           company_name: customer.company_name,
@@ -113,10 +116,7 @@ export default function CustomersPage() {
   const createCustomerMutation = useMutation({
     mutationFn: async (data: NewCustomerFormData) => {
       if (!user) throw new Error('Vous devez être connecté pour créer un compte.');
-
-      // Use primary contact's phone/email as the customer-level phone/email
       const primaryContact = data.contacts.find(c => c.isPrimary) || data.contacts[0];
-
       const { data: createdCustomer, error: createError } = await supabase
         .from('customers')
         .insert({
@@ -136,42 +136,29 @@ export default function CustomersPage() {
         })
         .select('*')
         .single();
-
       if (createError) throw createError;
       if (!createdCustomer?.id) throw new Error('Le compte n\'a pas pu être créé correctement.');
-
-      // Insert all contacts
       if (data.contacts.length > 0) {
         const contactRows = data.contacts.map(c => {
           const { first_name, last_name } = splitContactName(c.name);
           return {
             customer_id: createdCustomer.id,
-            first_name,
-            last_name,
+            first_name, last_name,
             phone: c.phone.trim() || null,
             email: c.email.trim() || null,
             role: c.role.trim() || null,
             is_primary: c.isPrimary,
           };
         });
-
-        const { error: contactError } = await supabase
-          .from('contacts')
-          .insert(contactRows);
-
+        const { error: contactError } = await supabase.from('contacts').insert(contactRows);
         if (contactError) throw contactError;
       }
-
       const { data: verifiedCustomer, error: verifyError } = await supabase
         .from('customers')
         .select('id, company_name, customer_type')
         .eq('id', createdCustomer.id)
         .maybeSingle();
-
-      if (verifyError || !verifiedCustomer) {
-        throw new Error('Le compte a été enregistré mais ne peut pas être rechargé immédiatement.');
-      }
-
+      if (verifyError || !verifiedCustomer) throw new Error('Le compte a été enregistré mais ne peut pas être rechargé immédiatement.');
       return createdCustomer;
     },
     onSuccess: async (createdCustomer) => {
@@ -179,20 +166,34 @@ export default function CustomersPage() {
       toast.success(`${createdCustomer.company_name} enregistré avec succès.`);
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Échec de l’enregistrement du compte.');
+      toast.error(error.message || 'Échec de l'enregistrement du compte.');
     },
   });
 
-  const filtered = useMemo(() => customers
+  // Enrich customers with performance data
+  const enriched = useMemo(() => {
+    return customers.map(c => {
+      const history = revenueMap?.get(c.id) || [];
+      const perf = analyzeCustomerPerformance(c.revenue, history);
+      return { ...c, perf };
+    });
+  }, [customers, revenueMap]);
+
+  const filtered = useMemo(() => enriched
     .filter(c => {
       if (tab === 'clients') return c.status === 'client_actif' || c.status === 'client_inactif';
       if (tab === 'prospects') return c.status === 'prospect';
       return true;
     })
+    .filter(c => {
+      if (perfFilter !== 'tous' && c.perf.status !== perfFilter) return false;
+      if (trendFilter !== 'tous' && c.perf.trend !== trendFilter) return false;
+      return true;
+    })
     .filter(c =>
       c.company_name.toLowerCase().includes(search.toLowerCase()) ||
       c.city.toLowerCase().includes(search.toLowerCase())
-    ), [customers, search, tab]);
+    ), [enriched, search, tab, perfFilter, trendFilter]);
 
   const counts = {
     tous: customers.length,
@@ -202,6 +203,12 @@ export default function CustomersPage() {
 
   const handleCreate = async (data: NewCustomerFormData) => {
     await createCustomerMutation.mutateAsync(data);
+  };
+
+  const TrendIcon = ({ trend }: { trend: string }) => {
+    if (trend === 'up') return <TrendingUp className="h-3 w-3 text-accent" />;
+    if (trend === 'down') return <TrendingDown className="h-3 w-3 text-destructive" />;
+    return <Minus className="h-3 w-3 text-muted-foreground" />;
   };
 
   return (
@@ -226,9 +233,29 @@ export default function CustomersPage() {
         </TabsList>
       </Tabs>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input placeholder="Rechercher..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10 h-11" />
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[180px]">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input placeholder="Rechercher..." value={search} onChange={e => setSearch(e.target.value)} className="pl-10 h-11" />
+        </div>
+        <Select value={perfFilter} onValueChange={v => setPerfFilter(v as PerfFilter)}>
+          <SelectTrigger className="w-[150px] h-11 text-xs"><SelectValue placeholder="Performance" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="tous">Toute perf.</SelectItem>
+            <SelectItem value="optimise">🟢 Optimisé</SelectItem>
+            <SelectItem value="a_developper">🟡 À développer</SelectItem>
+            <SelectItem value="sous_exploite">🔴 Sous-exploité</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={trendFilter} onValueChange={v => setTrendFilter(v as TrendFilter)}>
+          <SelectTrigger className="w-[130px] h-11 text-xs"><SelectValue placeholder="Tendance" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="tous">Toute tendance</SelectItem>
+            <SelectItem value="up">📈 En hausse</SelectItem>
+            <SelectItem value="down">📉 En baisse</SelectItem>
+            <SelectItem value="stable">➡️ Stable</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {isLoading && (
@@ -249,9 +276,13 @@ export default function CustomersPage() {
       <div className="space-y-2">
         {filtered.map(customer => {
           const sc = statusConfig[customer.status];
+          const perfSc = getStatusConfig(customer.perf.status);
           return (
             <Link key={customer.id} to={`/clients/${customer.id}`} className="block">
               <Card className={`transition-all hover:border-primary/30 cursor-pointer ${
+                customer.perf.status === 'sous_exploite' ? 'border-l-2 border-l-destructive' :
+                customer.perf.status === 'a_developper' ? 'border-l-2 border-l-warning' :
+                customer.perf.status === 'optimise' ? 'border-l-2 border-l-accent' :
                 customer.potential === 'A' ? 'border-l-2 border-l-accent' : ''
               }`}>
                 <CardContent className="p-3">
@@ -262,7 +293,11 @@ export default function CustomersPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-semibold truncate">{customer.company_name}</p>
-                        <Badge className={`text-[9px] h-4 ${potentialColors[customer.potential]}`}>{customer.potential}</Badge>
+                        {customer.perf.status !== 'no_data' && (
+                          <Badge className={`text-[9px] h-4 ${perfSc.bgColor} ${perfSc.color}`}>
+                            {perfSc.emoji} {Math.round(customer.perf.coverageRate)}%
+                          </Badge>
+                        )}
                         <Badge className={`text-[9px] h-4 ${sc.class}`}>{sc.label}</Badge>
                       </div>
                       <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
@@ -274,8 +309,18 @@ export default function CustomersPage() {
                         <span>·</span>
                         <span className={`font-semibold ${getRevenueTierColor(getRevenueTier(customer.revenue))}`}>
                           {formatMonthly(customer.revenue)}
-                          <span className="font-normal text-muted-foreground ml-1 text-[10px]">CA pot.</span>
+                          <span className="font-normal text-muted-foreground ml-1 text-[10px]">pot.</span>
                         </span>
+                        {customer.perf.caM1 !== null && (
+                          <>
+                            <span>·</span>
+                            <span className="font-semibold flex items-center gap-0.5">
+                              {customer.perf.caM1.toLocaleString('fr-FR')}€
+                              <span className="font-normal text-muted-foreground text-[10px]">M-1</span>
+                              <TrendIcon trend={customer.perf.trend} />
+                            </span>
+                          </>
+                        )}
                       </div>
                       {customer.nextAction && (
                         <p className="text-[10px] text-primary font-medium mt-0.5 truncate">→ {customer.nextAction}</p>

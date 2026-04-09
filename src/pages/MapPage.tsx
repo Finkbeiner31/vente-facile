@@ -17,6 +17,8 @@ import { formatMonthly } from '@/lib/revenueUtils';
 import { MarkerClusterer } from '@googlemaps/markerclusterer';
 import { useIsMobile } from '@/hooks/use-mobile';
 import RouteOptimizerSheet, { type OptimizedRoute } from '@/components/RouteOptimizerSheet';
+import { useAllCustomerRevenues } from '@/hooks/useCustomerPerformance';
+import { analyzeCustomerPerformance, getStatusConfig, type PerformanceStatus } from '@/lib/performanceUtils';
 
 // ── Types ──
 
@@ -84,8 +86,13 @@ function getPriorityScore(c: MapCustomer): number {
   return score;
 }
 
-function getMarkerColor(c: MapCustomer): string {
+function getMarkerColor(c: MapCustomer, perfStatus?: PerformanceStatus): string {
   if (c.customer_type === 'prospect') return '#3B82F6';
+  // Use performance status if available
+  if (perfStatus === 'optimise') return '#22C55E';
+  if (perfStatus === 'a_developper') return '#F97316';
+  if (perfStatus === 'sous_exploite') return '#EF4444';
+  // Fallback to potential-based
   const monthly = getMonthly(c.annual_revenue_potential);
   if (monthly >= 5000) return '#EF4444';
   if (monthly >= 2000) return '#F97316';
