@@ -369,6 +369,17 @@ export default function CustomerDetailPage() {
               ))}
             </SelectContent>
           </Select>
+          {/* Auto-suggest if no zone set */}
+          {!(customer as any).zone && (() => {
+            const suggested = findMatchingZone(zones, customer.city, customer.postal_code);
+            if (!suggested) return null;
+            return (
+              <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5 text-primary"
+                onClick={() => updateCustomerMutation.mutate({ zone: suggested.name } as any)}>
+                → {suggested.name}
+              </Button>
+            );
+          })()}
         </div>
       </div>
 
