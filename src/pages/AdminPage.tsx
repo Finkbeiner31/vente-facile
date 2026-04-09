@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Users, Shield, Settings as SettingsIcon, Truck, Plus, Edit, Trash2, Save,
@@ -31,7 +32,7 @@ interface UserWithRole {
 }
 
 export default function AdminPage() {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, role: currentRole, loading: authLoading } = useAuth();
   const { data: potentials = [], isLoading: potentialsLoading } = useVehiclePotentials();
   const [editingPotentials, setEditingPotentials] = useState(false);
   const [potentialForm, setPotentialForm] = useState<Record<string, number>>({});
