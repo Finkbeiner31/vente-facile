@@ -32,11 +32,12 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 
-type CustomerStatus = 'prospect' | 'client_actif' | 'client_inactif' | 'pending_conversion';
+type CustomerStatus = 'prospect' | 'prospect_qualifie' | 'client_actif' | 'client_inactif' | 'pending_conversion';
 
 const statusConfig: Record<CustomerStatus, { label: string; class: string }> = {
   prospect: { label: 'Prospect', class: 'bg-warning/15 text-warning' },
-  pending_conversion: { label: 'Conversion en attente', class: 'bg-primary/15 text-primary' },
+  prospect_qualifie: { label: 'Prospect qualifié', class: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+  pending_conversion: { label: 'Validation en attente', class: 'bg-primary/15 text-primary' },
   client_actif: { label: 'Client actif', class: 'bg-accent/15 text-accent' },
   client_inactif: { label: 'Inactif', class: 'bg-muted text-muted-foreground' },
 };
