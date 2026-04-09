@@ -9,12 +9,9 @@ import { TourMode } from '@/components/TourMode';
 import {
   Play, Square, Phone, Navigation, AlertTriangle, ArrowRight,
   Sun, Flag, Target, TrendingUp, Eye, Calendar, RotateCcw, DollarSign, Sparkles,
+  Inbox,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import {
-  generateRouteCycle,
-  type CustomerForRouting,
-} from '@/lib/routeCycleEngine';
 import { useTourSession } from '@/contexts/TourSessionContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -22,28 +19,11 @@ import { useAllCustomerRevenues } from '@/hooks/useCustomerPerformance';
 import { analyzeCustomerPerformance, getStatusConfig, formatCompactRevenue, type PerformanceStatus } from '@/lib/performanceUtils';
 import { computeVisitPriority, PRIORITY_CONFIGS } from '@/lib/priorityEngine';
 import RouteOptimizerSheet from '@/components/RouteOptimizerSheet';
-
-const demoCustomers: CustomerForRouting[] = [
-  { id: '1', company_name: 'Boulangerie Martin', address: '12 Rue de la Paix, Paris', city: 'Paris', phone: '01 42 33 44 55', visit_frequency: 'weekly', number_of_vehicles: 8, annual_revenue_potential: 28000, latitude: null, longitude: null, sales_potential: 'A' },
-  { id: '2', company_name: 'Café du Commerce', address: '45 Av. des Champs, Lyon', city: 'Lyon', phone: '04 72 11 22 33', visit_frequency: 'weekly', number_of_vehicles: 5, annual_revenue_potential: 17500, latitude: null, longitude: null, sales_potential: 'B' },
-  { id: '3', company_name: 'Restaurant Le Gourmet', address: '8 Pl. Bellecour, Lyon', city: 'Lyon', phone: '04 78 99 88 77', visit_frequency: 'biweekly', number_of_vehicles: 12, annual_revenue_potential: 42000, latitude: null, longitude: null, sales_potential: 'A' },
-  { id: '4', company_name: 'Pharmacie du Centre', address: '22 Rue Nationale, Toulouse', city: 'Toulouse', phone: '05 61 77 88 99', visit_frequency: 'biweekly', number_of_vehicles: 3, annual_revenue_potential: 10500, latitude: null, longitude: null, sales_potential: 'B' },
-  { id: '5', company_name: 'Garage Auto Plus', address: '8 Bd de la Prairie, Nantes', city: 'Nantes', phone: '02 40 11 22 33', visit_frequency: 'multiple_per_week', number_of_vehicles: 25, annual_revenue_potential: 87500, latitude: null, longitude: null, sales_potential: 'A' },
-  { id: '6', company_name: 'SuperMarché Bio', address: '99 Av. de la République, Paris', city: 'Paris', phone: '01 55 66 77 88', visit_frequency: 'multiple_per_week', number_of_vehicles: 18, annual_revenue_potential: 63000, latitude: null, longitude: null, sales_potential: 'A' },
-];
-
-const urgentTasks = [
-  { id: '1', title: 'Envoyer devis Boulangerie Martin', due: "Aujourd'hui", priority: 'high', client: 'Boulangerie Martin' },
-  { id: '2', title: 'Relancer Garage Auto Plus', due: 'Demain', priority: 'medium', client: 'Garage Auto Plus' },
-  { id: '3', title: 'Envoyer documentation Pharmacie', due: 'En retard', priority: 'high', client: 'Pharmacie du Centre' },
-];
+import { format } from 'date-fns';
 
 export default function DashboardPage() {
   const { profile, user, loading: authLoading } = useAuth();
-  const cycle = useMemo(() => generateRouteCycle(demoCustomers), []);
-  const todayStops = cycle[0] || [];
 
-  const [statuses, setStatuses] = useState<Record<string, string>>({});
   const [reportOpen, setReportOpen] = useState(false);
   const [activeClient, setActiveClient] = useState('');
   const [tourMode, setTourMode] = useState(false);
@@ -51,13 +31,13 @@ export default function DashboardPage() {
 
   const { session, startSession } = useTourSession();
 
-  // Fetch real customers for CA KPIs
+  // ─── Real customers ───
   const { data: allCustomers = [] } = useQuery({
     queryKey: ['dashboard-customers', user?.id],
     queryFn: async () => {
       const { data } = await supabase
         .from('customers')
-        .select('id, company_name, annual_revenue_potential, customer_type, last_visit_date, visit_frequency, latitude, longitude, city');
+        .select('id, company_name, annual_revenue_potential, customer_type, last_visit_date, visit_frequency, latitude, longitude, city, phone, address, number_of_vehicles, sales_potential');
       return data || [];
     },
     enabled: !authLoading && !!user,
@@ -65,7 +45,86 @@ export default function DashboardPage() {
 
   const { data: revenueMap } = useAllCustomerRevenues();
 
-  // Compute CA KPIs
+  // ─── Real today's route ───
+  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  const { data: todayRoute } = useQuery({
+    queryKey: ['dashboard-today-route', user?.id, todayStr],
+    queryFn: async () => {
+      const { data: routes } = await supabase
+        .from('routes')
+        .select('id')
+        .eq('rep_id', user!.id)
+        .eq('route_date', todayStr)
+        .eq('status', 'planned')
+        .limit(1);
+      if (!routes || routes.length === 0) return [];
+      const routeId = routes[0].id;
+      const { data: stops } = await supabase
+        .from('route_stops')
+        .select('id, customer_id, stop_order, status, notes')
+        .eq('route_id', routeId)
+        .order('stop_order', { ascending: true });
+      return stops || [];
+    },
+    enabled: !authLoading && !!user,
+  });
+
+  // Map stop customer_ids to customer data
+  const todayStops = useMemo(() => {
+    if (!todayRoute || todayRoute.length === 0) return [];
+    const customerMap = new Map(allCustomers.map(c => [c.id, c]));
+    return todayRoute
+      .map(stop => {
+        const customer = customerMap.get(stop.customer_id);
+        if (!customer) return null;
+        return { ...stop, customer };
+      })
+      .filter(Boolean) as Array<{
+        id: string;
+        customer_id: string;
+        stop_order: number;
+        status: string;
+        notes: string | null;
+        customer: typeof allCustomers[0];
+      }>;
+  }, [todayRoute, allCustomers]);
+
+  // ─── Real urgent tasks ───
+  const { data: realTasks = [] } = useQuery({
+    queryKey: ['dashboard-urgent-tasks', user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('tasks')
+        .select('id, title, due_date, priority, status, customer_id')
+        .in('status', ['todo', 'in_progress'])
+        .in('priority', ['high', 'urgent'])
+        .order('due_date', { ascending: true })
+        .limit(5);
+      return data || [];
+    },
+    enabled: !authLoading && !!user,
+  });
+
+  const urgentTasksDisplay = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return realTasks.map(t => {
+      let dueLabel = '';
+      if (!t.due_date) {
+        dueLabel = 'Sans date';
+      } else {
+        const d = new Date(t.due_date + 'T00:00:00');
+        const diff = Math.floor((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        if (diff < 0) dueLabel = 'En retard';
+        else if (diff === 0) dueLabel = "Aujourd'hui";
+        else if (diff === 1) dueLabel = 'Demain';
+        else dueLabel = format(d, 'dd/MM');
+      }
+      return { ...t, dueLabel };
+    });
+  }, [realTasks]);
+
+  // ─── CA KPIs ───
   const caKpis = useMemo(() => {
     const clients = allCustomers.filter(c => c.customer_type !== 'prospect');
     let totalPotential = 0;
@@ -86,11 +145,10 @@ export default function DashboardPage() {
     });
 
     const avgCoverage = totalPotential > 0 ? (totalRealM1 / totalPotential) * 100 : 0;
-
     return { totalPotential, totalRealM1, avgCoverage, statusCounts, clientsWithData };
   }, [allCustomers, revenueMap]);
 
-  // Top 5 priority clients
+  // ─── Top priority clients ───
   const topPriority = useMemo(() => {
     return allCustomers
       .map(c => {
@@ -105,40 +163,57 @@ export default function DashboardPage() {
   }, [allCustomers, revenueMap]);
 
   const firstName = profile?.full_name?.split(' ')[0] || 'Commercial';
-  const completedCount = todayStops.filter(s => statuses[s.customer.id] === 'completed').length;
-  const inProgress = todayStops.find(s => statuses[s.customer.id] === 'in_progress');
+  const completedCount = todayStops.filter(s => s.status === 'completed').length;
   const targetMin = 8;
   const targetMax = 12;
-
-  const handleStart = (id: string) => {
-    setStatuses(prev => ({ ...prev, [id]: 'in_progress' }));
-  };
-
-  const handleEnd = (id: string, name: string) => {
-    setStatuses(prev => ({ ...prev, [id]: 'completed' }));
-    setActiveClient(name);
-    setReportOpen(true);
-  };
+  const overdueCount = urgentTasksDisplay.filter(t => t.dueLabel === 'En retard').length;
 
   const handleLaunchTour = () => {
-    if (!session?.active) {
-      const stops = todayStops.map(s => ({ customer: s.customer, priority: s.priority }));
+    if (!session?.active && todayStops.length > 0) {
+      const stops = todayStops.map(s => ({
+        customer: {
+          id: s.customer.id,
+          company_name: s.customer.company_name,
+          address: s.customer.address || '',
+          city: s.customer.city || '',
+          phone: s.customer.phone || '',
+          visit_frequency: s.customer.visit_frequency || 'monthly',
+          number_of_vehicles: s.customer.number_of_vehicles || 0,
+          annual_revenue_potential: Number(s.customer.annual_revenue_potential || 0),
+          latitude: s.customer.latitude,
+          longitude: s.customer.longitude,
+          sales_potential: s.customer.sales_potential || 'C',
+        },
+        priority: s.stop_order,
+      }));
       startSession(0, stops);
     }
     setTourMode(true);
   };
 
   if (tourMode && session?.active) {
+    const tourCustomers = allCustomers.map(c => ({
+      id: c.id,
+      company_name: c.company_name,
+      address: c.address || '',
+      city: c.city || '',
+      phone: c.phone || '',
+      visit_frequency: c.visit_frequency || 'monthly',
+      number_of_vehicles: c.number_of_vehicles || 0,
+      annual_revenue_potential: Number(c.annual_revenue_potential || 0),
+      latitude: c.latitude,
+      longitude: c.longitude,
+      sales_potential: c.sales_potential || 'C',
+    }));
     return (
       <TourMode
         onExit={() => setTourMode(false)}
-        allCustomers={demoCustomers}
+        allCustomers={tourCustomers}
       />
     );
   }
 
   const sessionCompletedCount = session ? Object.values(session.statuses).filter(s => s === 'completed').length : 0;
-
   const fmtK = (v: number) => v >= 1000 ? `${(v / 1000).toFixed(1).replace('.0', '')}k€` : `${Math.round(v)}€`;
 
   return (
@@ -230,9 +305,7 @@ export default function DashboardPage() {
         </Card>
         <Card>
           <CardContent className="p-3 text-center">
-            <p className="font-heading text-2xl font-bold text-warning">
-              {urgentTasks.filter(t => t.due === 'En retard').length}
-            </p>
+            <p className="font-heading text-2xl font-bold text-warning">{overdueCount}</p>
             <p className="text-[10px] text-muted-foreground">En retard</p>
           </CardContent>
         </Card>
@@ -258,38 +331,28 @@ export default function DashboardPage() {
             <div className="h-full bg-primary rounded-full transition-all duration-500"
               style={{ width: `${todayStops.length > 0 ? (completedCount / todayStops.length) * 100 : 0}%` }} />
           </div>
-          {!session?.active ? (
-            <Button className="w-full h-14 font-bold text-base" onClick={handleLaunchTour}>
-              <Sun className="h-5 w-5 mr-2" /> Lancer la tournée
-            </Button>
+          {todayStops.length > 0 ? (
+            !session?.active ? (
+              <Button className="w-full h-14 font-bold text-base" onClick={handleLaunchTour}>
+                <Sun className="h-5 w-5 mr-2" /> Lancer la tournée
+              </Button>
+            ) : (
+              <Button className="w-full h-14 font-bold text-base gap-2" onClick={() => setTourMode(true)}>
+                <RotateCcw className="h-5 w-5" /> Reprendre la tournée
+              </Button>
+            )
           ) : (
-            <Button className="w-full h-14 font-bold text-base gap-2" onClick={() => setTourMode(true)}>
-              <RotateCcw className="h-5 w-5" /> Reprendre la tournée
-            </Button>
+            <div className="text-center py-2">
+              <p className="text-sm text-muted-foreground">Aucune tournée planifiée aujourd'hui</p>
+              <Link to="/tournees">
+                <Button variant="outline" size="sm" className="mt-2 text-xs">Planifier une tournée</Button>
+              </Link>
+            </div>
           )}
         </CardContent>
       </Card>
 
-      {/* In-progress visit */}
-      {inProgress && (
-        <Card className="border-primary/30 bg-primary/5">
-          <CardContent className="p-3">
-            <div className="flex items-center gap-3">
-              <div className="h-3 w-3 rounded-full bg-primary animate-pulse" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold truncate">{inProgress.customer.company_name}</p>
-                <p className="text-[11px] text-muted-foreground truncate">{inProgress.customer.address}</p>
-              </div>
-              <Button size="sm" variant="destructive" className="h-10 px-4 font-semibold shrink-0"
-                onClick={() => handleEnd(inProgress.customer.id, inProgress.customer.company_name)}>
-                <Square className="h-4 w-4 mr-1" /> Terminer
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Today's visits - compact */}
+      {/* Today's visits */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
           <CardTitle className="font-heading text-sm">Visites du jour</CardTitle>
@@ -300,58 +363,68 @@ export default function DashboardPage() {
           </Link>
         </CardHeader>
         <CardContent className="px-4 pb-4 space-y-1.5">
-          {todayStops.slice(0, 6).map((stop, i) => {
-            const status = statuses[stop.customer.id] || 'planned';
-            return (
-              <div key={stop.customer.id} className={`flex items-center gap-2.5 rounded-lg p-2 transition-all ${
-                status === 'in_progress' ? 'bg-primary/5 border border-primary/20' : ''
-              }`}>
-                <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                  status === 'completed' ? 'bg-success/10 text-success' :
-                  status === 'in_progress' ? 'bg-primary text-primary-foreground' :
-                  'bg-muted text-muted-foreground'
-                }`}>{status === 'completed' ? '✓' : i + 1}</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{stop.customer.company_name}</p>
-                  {stop.customer.annual_revenue_potential > 0 && (
-                    <p className={`text-[10px] font-medium ${getRevenueTierColor(getRevenueTier(stop.customer.annual_revenue_potential))}`}>
-                      {formatMonthly(stop.customer.annual_revenue_potential)}
-                      <span className="font-normal text-muted-foreground ml-1">CA pot.</span>
-                    </p>
-                  )}
-                </div>
-                {status === 'planned' && (
-                  <Button size="sm" className="h-8 px-3 text-xs shrink-0" onClick={() => handleStart(stop.customer.id)}>
-                    <Play className="h-3 w-3 mr-1" /> Go
-                  </Button>
-                )}
-              </div>
-            );
-          })}
-          {todayStops.length > 6 && (
-            <Link to="/tournees">
-              <p className="text-xs text-primary font-medium text-center py-1">
-                +{todayStops.length - 6} autres visites →
-              </p>
-            </Link>
+          {todayStops.length === 0 ? (
+            <div className="flex flex-col items-center py-4 text-center">
+              <Inbox className="h-8 w-8 text-muted-foreground/50 mb-2" />
+              <p className="text-sm text-muted-foreground">Aucune visite prévue aujourd'hui</p>
+            </div>
+          ) : (
+            <>
+              {todayStops.slice(0, 6).map((stop, i) => (
+                <Link key={stop.id} to={`/clients/${stop.customer.id}`} className="block">
+                  <div className={`flex items-center gap-2.5 rounded-lg p-2 transition-all hover:bg-accent/5 ${
+                    stop.status === 'in_progress' ? 'bg-primary/5 border border-primary/20' : ''
+                  }`}>
+                    <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                      stop.status === 'completed' ? 'bg-success/10 text-success' :
+                      stop.status === 'in_progress' ? 'bg-primary text-primary-foreground' :
+                      'bg-muted text-muted-foreground'
+                    }`}>{stop.status === 'completed' ? '✓' : i + 1}</div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{stop.customer.company_name}</p>
+                      {Number(stop.customer.annual_revenue_potential || 0) > 0 && (
+                        <p className={`text-[10px] font-medium ${getRevenueTierColor(getRevenueTier(Number(stop.customer.annual_revenue_potential)))}`}>
+                          {formatMonthly(Number(stop.customer.annual_revenue_potential))}
+                          <span className="font-normal text-muted-foreground ml-1">CA pot.</span>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              ))}
+              {todayStops.length > 6 && (
+                <Link to="/tournees">
+                  <p className="text-xs text-primary font-medium text-center py-1">
+                    +{todayStops.length - 6} autres visites →
+                  </p>
+                </Link>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
 
       {/* Top Priority Clients */}
-      {topPriority.length > 0 && (
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
-            <CardTitle className="font-heading text-sm flex items-center gap-2">
-              <Target className="h-4 w-4 text-destructive" />
-              Clients prioritaires
-            </CardTitle>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
+          <CardTitle className="font-heading text-sm flex items-center gap-2">
+            <Target className="h-4 w-4 text-destructive" />
+            Clients prioritaires
+          </CardTitle>
+          {topPriority.length > 0 && (
             <Button variant="default" size="sm" className="text-xs h-8 gap-1" onClick={() => setOptimizerOpen(true)}>
               <Sparkles className="h-3 w-3" /> Tournée intelligente
             </Button>
-          </CardHeader>
-          <CardContent className="px-4 pb-4 space-y-1.5">
-            {topPriority.map(c => {
+          )}
+        </CardHeader>
+        <CardContent className="px-4 pb-4 space-y-1.5">
+          {topPriority.length === 0 ? (
+            <div className="flex flex-col items-center py-4 text-center">
+              <Inbox className="h-8 w-8 text-muted-foreground/50 mb-2" />
+              <p className="text-sm text-muted-foreground">Aucun client prioritaire pour le moment</p>
+            </div>
+          ) : (
+            topPriority.map(c => {
               const pc = PRIORITY_CONFIGS[c.priority.level];
               const effectiveCA = c.perf.caM1 ?? c.perf.latestKnownCA;
               return (
@@ -371,10 +444,10 @@ export default function DashboardPage() {
                   </div>
                 </Link>
               );
-            })}
-          </CardContent>
-        </Card>
-      )}
+            })
+          )}
+        </CardContent>
+      </Card>
 
       {/* Urgent Tasks */}
       <Card>
@@ -390,20 +463,27 @@ export default function DashboardPage() {
           </Link>
         </CardHeader>
         <CardContent className="px-4 pb-4 space-y-1.5">
-          {urgentTasks.map(task => (
-            <div key={task.id} className="flex items-center gap-3 rounded-lg border p-2.5">
-              <div className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-                task.priority === 'high' ? 'bg-destructive' : 'bg-warning'
-              }`} />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{task.title}</p>
-              </div>
-              <Badge variant="secondary"
-                className={`text-[10px] shrink-0 ${task.due === 'En retard' ? 'bg-destructive/10 text-destructive' : ''}`}>
-                {task.due}
-              </Badge>
+          {urgentTasksDisplay.length === 0 ? (
+            <div className="flex flex-col items-center py-4 text-center">
+              <Inbox className="h-8 w-8 text-muted-foreground/50 mb-2" />
+              <p className="text-sm text-muted-foreground">Aucune tâche urgente</p>
             </div>
-          ))}
+          ) : (
+            urgentTasksDisplay.map(task => (
+              <div key={task.id} className="flex items-center gap-3 rounded-lg border p-2.5">
+                <div className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                  task.priority === 'urgent' ? 'bg-destructive' : 'bg-warning'
+                }`} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{task.title}</p>
+                </div>
+                <Badge variant="secondary"
+                  className={`text-[10px] shrink-0 ${task.dueLabel === 'En retard' ? 'bg-destructive/10 text-destructive' : ''}`}>
+                  {task.dueLabel}
+                </Badge>
+              </div>
+            ))
+          )}
         </CardContent>
       </Card>
 
