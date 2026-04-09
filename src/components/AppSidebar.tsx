@@ -32,6 +32,7 @@ import { Button } from '@/components/ui/button';
 const mainNav = [
   { title: 'Tableau de bord', url: '/', icon: LayoutDashboard },
   { title: 'Clients', url: '/clients', icon: Users },
+  { title: 'Carte clients', url: '/carte', icon: MapPin },
   { title: 'Tournées', url: '/tournees', icon: MapPin },
   { title: 'Rapports de visite', url: '/rapports', icon: FileText },
   { title: 'Tâches', url: '/taches', icon: CheckSquare },
