@@ -55,6 +55,10 @@ export default function CustomerDetailPage() {
     enabled: !authLoading && !!user && isValidId,
   });
 
+  // Hooks must be called before any early return
+  const revenue = customer?.annual_revenue_potential || 0;
+  const perf = useCustomerPerformance(customer?.id, revenue);
+
   const { data: contacts = [] } = useQuery({
     queryKey: ['contacts', id, user?.id],
     queryFn: async () => {
