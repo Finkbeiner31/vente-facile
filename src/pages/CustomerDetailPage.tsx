@@ -106,12 +106,60 @@ export default function CustomerDetailPage() {
     enabled: !authLoading && !!user && isValidId,
   });
 
-  const convertMutation = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.from('customers').update({ customer_type: 'client_actif' }).eq('id', id!);
-      if (error) throw error;
+  const conversionRequestMutation = useMutation({
+    mutationFn: async (comment: string) => {
+      const cust = customer as any;
+      const totalV = (cust.fleet_pl || 0) + (cust.fleet_vu || 0) + (cust.fleet_remorque || 0) + (cust.fleet_car_bus || 0);
+      if (totalV === 0 && !(customer.number_of_vehicles && customer.number_of_vehicles > 0)) {
+        throw new Error('NO_VEHICLES');
+      }
+      // Create conversion request
+      const { error: e1 } = await (supabase as any).from('conversion_requests').insert({
+        customer_id: id!,
+        requested_by: user!.id,
+        comment: comment || null,
+      });
+      if (e1) throw e1;
+      // Update status to pending
+      const { error: e2 } = await supabase.from('customers').update({ customer_type: 'pending_conversion' } as any).eq('id', id!);
+      if (e2) throw e2;
+      // Audit log
+      await (supabase as any).from('activity_logs').insert({
+        user_id: user!.id, entity_type: 'customer', entity_id: id,
+        action: 'conversion_requested', details: { from: 'prospect', to: 'pending_conversion', comment },
+      });
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['customer', id] }); queryClient.invalidateQueries({ queryKey: ['customers'] }); toast.success('Converti en Client actif'); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customer', id] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      setConversionSheetOpen(false);
+      toast.success('Demande de conversion envoyée');
+    },
+    onError: (err: any) => {
+      if (err.message === 'NO_VEHICLES') {
+        toast.error('Impossible de convertir ce prospect en client : veuillez renseigner le nombre de véhicules.');
+      } else {
+        toast.error('Erreur lors de la demande');
+      }
+    },
+  });
+
+  const rollbackMutation = useMutation({
+    mutationFn: async (reason: string) => {
+      const { error } = await supabase.from('customers').update({ customer_type: 'prospect' } as any).eq('id', id!);
+      if (error) throw error;
+      await (supabase as any).from('activity_logs').insert({
+        user_id: user!.id, entity_type: 'customer', entity_id: id,
+        action: 'rollback_to_prospect', details: { from: customer.customer_type, to: 'prospect', reason },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customer', id] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      setRollbackDialogOpen(false);
+      setRollbackReason('');
+      toast.success('Statut remis en Prospect');
+    },
   });
 
   const updateCustomerMutation = useMutation({
