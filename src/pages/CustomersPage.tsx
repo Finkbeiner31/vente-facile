@@ -31,10 +31,14 @@ interface CustomerListItem {
   phone: string;
   potential: string;
   lastVisit: string;
+  lastVisitDate: string | null;
+  visitFrequency: string | null;
   nextAction: string | null;
   address: string;
   vehicles: number;
   revenue: number;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 const statusConfig: Record<CustomerStatus, { label: string; class: string }> = {
