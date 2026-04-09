@@ -16,6 +16,7 @@ import TasksPage from "@/pages/TasksPage";
 import OpportunitiesPage from "@/pages/OpportunitiesPage";
 import AdminPage from "@/pages/AdminPage";
 import BulkImportPage from "@/pages/BulkImportPage";
+import MapPage from "@/pages/MapPage";
 import PromotionsPage from "@/pages/PromotionsPage";
 import NotFound from "./pages/NotFound.tsx";
 
@@ -36,6 +37,7 @@ const App = () => (
               <Route path="/clients" element={<CustomersPage />} />
               <Route path="/clients/:id" element={<CustomerDetailPage />} />
               <Route path="/tournees" element={<RoutesPage />} />
+              <Route path="/carte" element={<MapPage />} />
               <Route path="/rapports" element={<ReportsPage />} />
               <Route path="/taches" element={<TasksPage />} />
               <Route path="/opportunites" element={<OpportunitiesPage />} />
