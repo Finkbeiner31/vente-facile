@@ -129,7 +129,7 @@ export function AdminZoneManager() {
   const parseArray = (s: string) => s.split(',').map(v => v.trim()).filter(Boolean);
 
   const createMutation = useMutation({
-    mutationFn: async () => {
+   mutationFn: async () => {
       const userId = isAdmin && form.userId ? form.userId : user?.id;
       if (!userId) throw new Error('Utilisateur requis');
       const systemName = getNextSystemName(zones);
@@ -141,6 +141,7 @@ export function AdminZoneManager() {
         user_id: userId,
         cities: parseArray(form.cities),
         postal_codes: parseArray(form.postalCodes),
+        polygon_coordinates: form.polygonCoordinates,
       });
       if (error) throw error;
     },
@@ -160,6 +161,7 @@ export function AdminZoneManager() {
         color: normalizeColor(editForm.color || FALLBACK_COLOR),
         cities: parseArray(editForm.cities),
         postal_codes: parseArray(editForm.postalCodes),
+        polygon_coordinates: editForm.polygonCoordinates,
       }).eq('id', editingZone.id);
       if (error) throw error;
     },
@@ -196,7 +198,31 @@ export function AdminZoneManager() {
       userId: z.user_id || '',
       cities: z.cities.join(', '),
       postalCodes: z.postal_codes.join(', '),
+      polygonCoordinates: z.polygon_coordinates || null,
     });
+  };
+
+  const handleMapConfirm = (polygon: LatLng[], suggestedPostalCodes: string[], suggestedCities: string[]) => {
+    if (mapMode === 'create') {
+      setForm(f => {
+        const existingCities = parseArray(f.cities);
+        const existingPc = parseArray(f.postalCodes);
+        const mergedCities = Array.from(new Set([...existingCities, ...suggestedCities]));
+        const mergedPc = Array.from(new Set([...existingPc, ...suggestedPostalCodes]));
+        return { ...f, cities: mergedCities.join(', '), postalCodes: mergedPc.join(', '), polygonCoordinates: polygon };
+      });
+      toast.success(`${suggestedPostalCodes.length} codes postaux et ${suggestedCities.length} villes suggérés`);
+    } else if (mapMode === 'edit') {
+      setEditForm(f => {
+        const existingCities = parseArray(f.cities);
+        const existingPc = parseArray(f.postalCodes);
+        const mergedCities = Array.from(new Set([...existingCities, ...suggestedCities]));
+        const mergedPc = Array.from(new Set([...existingPc, ...suggestedPostalCodes]));
+        return { ...f, cities: mergedCities.join(', '), postalCodes: mergedPc.join(', '), polygonCoordinates: polygon };
+      });
+      toast.success(`${suggestedPostalCodes.length} codes postaux et ${suggestedCities.length} villes suggérés`);
+    }
+    setMapMode(null);
   };
 
   return (
