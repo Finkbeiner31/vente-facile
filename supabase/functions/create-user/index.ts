@@ -11,18 +11,35 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+    if (!supabaseUrl || !serviceRoleKey) {
+      return new Response(JSON.stringify({ error: "Configuration serveur manquante" }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
 
     // Verify caller is admin
-    const authHeader = req.headers.get("Authorization")!;
-    const callerClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Non authentifié" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY");
+    if (!anonKey) {
+      return new Response(JSON.stringify({ error: "Configuration serveur manquante (anon key)" }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const callerClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
     const { data: { user: caller } } = await callerClient.auth.getUser();
     if (!caller) {
       return new Response(JSON.stringify({ error: "Non authentifié" }), {
@@ -50,7 +67,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Create user
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password: password || undefined,
@@ -64,20 +80,12 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Update profile with phone if provided
     if (phone) {
-      await supabaseAdmin
-        .from("profiles")
-        .update({ phone })
-        .eq("id", newUser.user!.id);
+      await supabaseAdmin.from("profiles").update({ phone }).eq("id", newUser.user!.id);
     }
 
-    // Set role (the trigger creates default sales_rep, so update it)
     if (role !== "sales_rep") {
-      await supabaseAdmin
-        .from("user_roles")
-        .update({ role })
-        .eq("user_id", newUser.user!.id);
+      await supabaseAdmin.from("user_roles").update({ role }).eq("user_id", newUser.user!.id);
     }
 
     return new Response(JSON.stringify({ user: { id: newUser.user!.id, email } }), {
