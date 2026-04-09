@@ -67,6 +67,41 @@ export default function AdminPage() {
     enabled: !!currentUser,
   });
 
+  const isAdmin = currentRole === 'admin';
+
+  // Change user role
+  const changeRoleMutation = useMutation({
+    mutationFn: async ({ userId, newRole }: { userId: string; newRole: string }) => {
+      const { error } = await (supabase as any)
+        .from('user_roles')
+        .update({ role: newRole })
+        .eq('user_id', userId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      toast.success('Rôle modifié');
+    },
+    onError: () => toast.error('Erreur lors du changement de rôle'),
+  });
+
+  // Reassign client to another commercial
+  const reassignClientMutation = useMutation({
+    mutationFn: async ({ clientId, newRepId }: { clientId: string; newRepId: string }) => {
+      const { error } = await supabase
+        .from('customers')
+        .update({ assigned_rep_id: newRepId } as any)
+        .eq('id', clientId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-user-clients'] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast.success('Client réassigné');
+    },
+    onError: () => toast.error('Erreur de réassignation'),
+  });
+
   // Load selected user's data
   const selectedUser = allUsers.find(u => u.id === selectedUserId);
 
