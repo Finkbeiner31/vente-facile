@@ -12,24 +12,25 @@ import { Building2, Save, RotateCcw, MapPin, Users, Briefcase } from 'lucide-rea
 import { formatMonthly, formatAnnual } from '@/lib/revenueUtils';
 import { AddressAutocomplete, type AddressSelection } from '@/components/AddressAutocomplete';
 import { BusinessSearchAutocomplete, type BusinessSelection } from '@/components/BusinessSearchAutocomplete';
+import { ContactListEditor, emptyContact, type ContactEntry } from '@/components/ContactListEditor';
+
+export interface NewCustomerFormData {
+  company_name: string;
+  city: string;
+  address: string;
+  postal_code: string;
+  latitude: number | null;
+  longitude: number | null;
+  contacts: ContactEntry[];
+  number_of_vehicles: number;
+  notes: string;
+  customer_type: 'prospect' | 'client_actif' | 'client_inactif';
+}
 
 interface NewCustomerSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: {
-    company_name: string;
-    city: string;
-    address: string;
-    postal_code: string;
-    latitude: number | null;
-    longitude: number | null;
-    contact_name: string;
-    phone: string;
-    email: string;
-    number_of_vehicles: number;
-    notes: string;
-    customer_type: 'prospect' | 'client_actif' | 'client_inactif';
-  }) => Promise<void> | void;
+  onSubmit: (data: NewCustomerFormData) => Promise<void> | void;
   defaultType?: 'prospect' | 'client_actif' | 'client_inactif';
 }
 
@@ -51,20 +52,19 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
     postal_code: '',
     latitude: null as number | null,
     longitude: null as number | null,
-    contact_name: '',
-    phone: '',
-    email: '',
     number_of_vehicles: '',
     notes: '',
     customer_type: defaultType,
   });
 
   const [form, setForm] = useState(getInitialForm);
+  const [contacts, setContacts] = useState<ContactEntry[]>([emptyContact(true)]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [addressLocked, setAddressLocked] = useState(false);
 
   useEffect(() => {
     setForm(getInitialForm());
+    setContacts([emptyContact(true)]);
     setAddressLocked(false);
   }, [defaultType, open]);
 
@@ -80,13 +80,19 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
     setIsSubmitting(true);
     try {
       await onSubmit({
-        ...form,
-        number_of_vehicles: vehicles,
+        company_name: form.company_name,
+        city: form.city,
+        address: form.address,
+        postal_code: form.postal_code,
         latitude: form.latitude,
         longitude: form.longitude,
-        postal_code: form.postal_code,
+        contacts: contacts.filter(c => c.name.trim()),
+        number_of_vehicles: vehicles,
+        notes: form.notes,
+        customer_type: form.customer_type as 'prospect' | 'client_actif' | 'client_inactif',
       });
       setForm(getInitialForm());
+      setContacts([emptyContact(true)]);
       onOpenChange(false);
     } finally {
       setIsSubmitting(false);
@@ -135,8 +141,17 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
                   postal_code: sel.postalCode,
                   latitude: sel.latitude,
                   longitude: sel.longitude,
-                  ...(sel.phone ? { phone: sel.phone } : {}),
                 }));
+                // Auto-fill phone into first contact if available
+                if (sel.phone) {
+                  setContacts(prev => {
+                    const next = [...prev];
+                    if (next.length > 0 && !next[0].phone) {
+                      next[0] = { ...next[0], phone: sel.phone! };
+                    }
+                    return next;
+                  });
+                }
                 if (sel.fullAddress || sel.city) {
                   setAddressLocked(true);
                 }
@@ -194,27 +209,10 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
             </div>
           </div>
 
-          {/* ── Section 3: Contact ── */}
-          <SectionHeader icon={Users} label="Contact" />
+          {/* ── Section 3: Contacts ── */}
+          <SectionHeader icon={Users} label="Contacts" />
 
-          <div>
-            <label className="text-xs font-medium text-muted-foreground">Contact</label>
-            <Input value={form.contact_name} onChange={e => set('contact_name', e.target.value)}
-              placeholder="Nom du contact" className="h-12 mt-1" />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Téléphone</label>
-              <Input type="tel" value={form.phone} onChange={e => set('phone', e.target.value)}
-                placeholder="06..." className="h-12 mt-1" />
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground">Email</label>
-              <Input type="email" value={form.email} onChange={e => set('email', e.target.value)}
-                placeholder="email@exemple.fr" className="h-12 mt-1" />
-            </div>
-          </div>
+          <ContactListEditor contacts={contacts} onChange={setContacts} />
 
           {/* ── Section 4: Business ── */}
           <SectionHeader icon={Briefcase} label="Business" />
