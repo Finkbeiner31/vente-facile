@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Users, Shield, Settings as SettingsIcon, Truck, Plus, Edit, Trash2, Save,
@@ -31,7 +32,7 @@ interface UserWithRole {
 }
 
 export default function AdminPage() {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, role: currentRole, loading: authLoading } = useAuth();
   const { data: potentials = [], isLoading: potentialsLoading } = useVehiclePotentials();
   const [editingPotentials, setEditingPotentials] = useState(false);
   const [potentialForm, setPotentialForm] = useState<Record<string, number>>({});
@@ -64,6 +65,41 @@ export default function AdminPage() {
       }));
     },
     enabled: !!currentUser,
+  });
+
+  const isAdmin = currentRole === 'admin';
+
+  // Change user role
+  const changeRoleMutation = useMutation({
+    mutationFn: async ({ userId, newRole }: { userId: string; newRole: string }) => {
+      const { error } = await (supabase as any)
+        .from('user_roles')
+        .update({ role: newRole })
+        .eq('user_id', userId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      toast.success('Rôle modifié');
+    },
+    onError: () => toast.error('Erreur lors du changement de rôle'),
+  });
+
+  // Reassign client to another commercial
+  const reassignClientMutation = useMutation({
+    mutationFn: async ({ clientId, newRepId }: { clientId: string; newRepId: string }) => {
+      const { error } = await supabase
+        .from('customers')
+        .update({ assigned_rep_id: newRepId } as any)
+        .eq('id', clientId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-user-clients'] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast.success('Client réassigné');
+    },
+    onError: () => toast.error('Erreur de réassignation'),
   });
 
   // Load selected user's data
@@ -208,11 +244,27 @@ export default function AdminPage() {
                           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 font-heading text-lg font-bold text-primary">
                             {selectedUser.full_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                           </div>
-                          <div>
+                          <div className="flex-1 min-w-0">
                             <p className="text-base font-semibold">{selectedUser.full_name}</p>
                             <p className="text-xs text-muted-foreground">{selectedUser.email}</p>
                           </div>
-                          <Badge className="ml-auto">{roleLabels[selectedUser.role]}</Badge>
+                          {isAdmin ? (
+                            <Select
+                              value={selectedUser.role}
+                              onValueChange={v => changeRoleMutation.mutate({ userId: selectedUser.id, newRole: v })}
+                            >
+                              <SelectTrigger className="h-8 w-[160px] text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {Object.entries(roleLabels).map(([key, label]) => (
+                                  <SelectItem key={key} value={key}>{label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Badge>{roleLabels[selectedUser.role]}</Badge>
+                          )}
                         </div>
                       </CardContent>
                     </Card>
@@ -321,6 +373,18 @@ export default function AdminPage() {
                                 <span className="text-[10px] text-muted-foreground shrink-0">
                                   {Number(c.annual_revenue_potential || 0).toLocaleString('fr-FR')}€
                                 </span>
+                                {isAdmin && (
+                                  <Select onValueChange={v => reassignClientMutation.mutate({ clientId: c.id, newRepId: v })}>
+                                    <SelectTrigger className="h-6 w-6 border-0 p-0 [&>svg]:hidden">
+                                      <ArrowRightCircle className="h-3.5 w-3.5 text-muted-foreground" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {allUsers.filter(u => u.id !== selectedUserId).map(u => (
+                                        <SelectItem key={u.id} value={u.id} className="text-xs">{u.full_name}</SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                )}
                               </div>
                             ))}
                           </div>
