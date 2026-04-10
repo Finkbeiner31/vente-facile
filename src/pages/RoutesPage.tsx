@@ -58,8 +58,8 @@ export default function RoutesPage() {
   const [addOpen, setAddOpen] = useState(false);
 
   const [manualStops, setManualStops] = useState<Record<string, ManualStop[]>>({});
-
-  const { session, startSession } = useTourSession();
+  // Tracks user-customized planned stops per day key
+  const [customPlanned, setCustomPlanned] = useState<Record<string, { customer: CustomerForRouting; priority: number; customerType?: string; lastVisitDate?: string | null }[]>>({});
 
   const dayKey = `${selectedWeek}-${selectedDay}`;
 
