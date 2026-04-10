@@ -239,7 +239,7 @@ export default function DashboardPage() {
           ) : (
             <div className="space-y-1.5">
               {/* Start button */}
-              {!session?.active && (
+              {!session?.active && todayVisits.length > 0 && (
                 <Button className="w-full h-12 font-bold text-sm mb-2" onClick={handleLaunchTour}>
                   <Sun className="h-4 w-4 mr-2" /> Démarrer la journée ({todayVisits.length} visites)
                 </Button>
