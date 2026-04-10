@@ -648,7 +648,7 @@ export default function CustomerDetailPage() {
                       <SelectValue placeholder="Par défaut" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Par défaut</SelectItem>
+                      <SelectItem value="default">Par défaut</SelectItem>
                       <SelectItem value="15">15 min</SelectItem>
                       <SelectItem value="20">20 min</SelectItem>
                       <SelectItem value="30">30 min</SelectItem>
