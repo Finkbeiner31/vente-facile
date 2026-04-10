@@ -6,9 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { QuickReportDialog } from '@/components/QuickReportDialog';
 import { TourMode } from '@/components/TourMode';
 import {
-  MapPin, Phone, Navigation, Sparkles, Zap,
+  MapPin, Zap,
   ChevronLeft, ChevronRight, Calendar, Target,
-  RotateCcw, Loader2, Star,
+  RotateCcw, Loader2,
   Plus, Users,
 } from 'lucide-react';
 import RouteOptimizerSheet from '@/components/RouteOptimizerSheet';
