@@ -636,6 +636,34 @@ export default function CustomerDetailPage() {
                 )}
               </div>
 
+              {/* Visit duration */}
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Durée de visite</p>
+                <div className="flex items-center gap-2">
+                  <Select
+                    value={String(cust.visit_duration_minutes || '')}
+                    onValueChange={v => updateCustomerMutation.mutate({ visit_duration_minutes: v === '' ? null : parseInt(v) } as any)}
+                  >
+                    <SelectTrigger className="h-8 w-[140px] text-sm">
+                      <SelectValue placeholder="Par défaut" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Par défaut</SelectItem>
+                      <SelectItem value="15">15 min</SelectItem>
+                      <SelectItem value="20">20 min</SelectItem>
+                      <SelectItem value="30">30 min</SelectItem>
+                      <SelectItem value="45">45 min</SelectItem>
+                      <SelectItem value="60">60 min</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <span className="text-xs text-muted-foreground">
+                    {!cust.visit_duration_minutes && (
+                      <>Défaut : {status === 'prospect' || status === 'prospect_qualifie' ? '20' : '30'} min</>
+                    )}
+                  </span>
+                </div>
+              </div>
+
               {/* Potential breakdown */}
               {fleetPotential.annual > 0 && (
                 <div className="rounded-lg bg-accent/5 border border-accent/20 p-3 space-y-1.5">

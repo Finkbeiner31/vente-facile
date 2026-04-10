@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import {
   Loader2, Navigation, MapPin, Play, Route, Sparkles,
   LocateFixed, AlertTriangle, Users, Target, ArrowDown, ArrowUp,
-  Building2, MapPinned, Flag, CircleDot,
+  Building2, MapPinned, Flag, CircleDot, Clock,
 } from 'lucide-react';
 import { formatMonthly } from '@/lib/revenueUtils';
 import { toast } from 'sonner';
@@ -37,18 +37,26 @@ export interface OptCustomer {
   sales_potential: string | null;
   visit_frequency: string | null;
   address: string | null;
+  visit_duration_minutes?: number | null;
 }
 
 export interface OptimizedRoute {
   customers: OptCustomer[];
   totalDistanceKm: number;
   estimatedDurationMin: number;
+  totalTravelMin: number;
+  totalVisitMin: number;
 }
 
 type TypeFilter = 'tous' | 'clients' | 'prospects';
 type DepartureType = 'gps' | 'custom';
 type ArrivalType = 'same' | 'custom';
 type RouteStrategy = 'nearest' | 'farthest';
+
+// ── Constants ──
+
+const DEFAULT_VISIT_DURATION_CLIENT = 30;
+const DEFAULT_VISIT_DURATION_PROSPECT = 20;
 
 // ── Helpers ──
 
@@ -64,6 +72,12 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): nu
 
 function estimateDriveMin(km: number): number {
   return Math.round(km / 50 * 60);
+}
+
+function getVisitDuration(c: OptCustomer): number {
+  if (c.visit_duration_minutes && c.visit_duration_minutes > 0) return c.visit_duration_minutes;
+  const isProspect = c.customer_type === 'prospect' || c.customer_type === 'prospect_qualifie';
+  return isProspect ? DEFAULT_VISIT_DURATION_PROSPECT : DEFAULT_VISIT_DURATION_CLIENT;
 }
 
 function daysSince(dateStr: string | null): number | null {
@@ -87,102 +101,103 @@ function calcPriorityScore(c: OptCustomer): number {
 }
 
 /**
- * Nearest-neighbor TSP with arrival point consideration.
- * Builds route from start, biasing last stops toward the arrival point.
+ * Time-aware nearest-neighbor: picks next nearest stop while total time fits in budget.
+ * Last stops are biased toward arrival point.
  */
-function buildRouteNearest(
-  customers: OptCustomer[],
+function buildRouteTimeBased(
+  candidates: OptCustomer[],
   startLat: number, startLng: number,
   endLat: number, endLng: number,
-): { ordered: OptCustomer[]; totalKm: number; totalDriveMin: number } {
-  if (customers.length === 0) return { ordered: [], totalKm: 0, totalDriveMin: 0 };
+  strategy: RouteStrategy,
+  timeBudgetMin: number,
+): { ordered: OptCustomer[]; totalKm: number; totalDriveMin: number; totalVisitMin: number } {
+  if (candidates.length === 0) return { ordered: [], totalKm: 0, totalDriveMin: 0, totalVisitMin: 0 };
 
-  const remaining = [...customers];
+  const remaining = [...candidates];
   const ordered: OptCustomer[] = [];
   let currentLat = startLat;
   let currentLng = startLng;
   let totalKm = 0;
+  let totalDriveMin = 0;
+  let totalVisitMin = 0;
 
-  while (remaining.length > 0) {
-    // For the last 3 stops, add bias toward arrival point
-    const biasToEnd = remaining.length <= 3 ? 0.3 : 0;
-
-    let bestScore = Infinity;
-    let bestIdx = 0;
+  // For farthest strategy, first stop is farthest from departure
+  if (strategy === 'farthest' && remaining.length > 0) {
+    let maxDist = 0;
+    let maxIdx = 0;
     for (let i = 0; i < remaining.length; i++) {
-      const distFromCurrent = haversineKm(currentLat, currentLng, remaining[i].latitude!, remaining[i].longitude!);
-      const distToEnd = haversineKm(remaining[i].latitude!, remaining[i].longitude!, endLat, endLng);
-      // Weighted: mainly nearest, but bias last stops toward arrival
-      const score = distFromCurrent * (1 - biasToEnd) + distToEnd * biasToEnd;
-      if (score < bestScore) { bestScore = score; bestIdx = i; }
+      const d = haversineKm(startLat, startLng, remaining[i].latitude!, remaining[i].longitude!);
+      if (d > maxDist) { maxDist = d; maxIdx = i; }
     }
-    const minDist = haversineKm(currentLat, currentLng, remaining[bestIdx].latitude!, remaining[bestIdx].longitude!);
-    totalKm += minDist;
+    const first = remaining.splice(maxIdx, 1)[0];
+    const driveToFirst = estimateDriveMin(maxDist);
+    const visitDur = getVisitDuration(first);
+    // Check if first stop + return fits
+    const returnKm = haversineKm(first.latitude!, first.longitude!, endLat, endLng);
+    const returnMin = estimateDriveMin(returnKm);
+    if (driveToFirst + visitDur + returnMin <= timeBudgetMin) {
+      ordered.push(first);
+      totalKm += maxDist;
+      totalDriveMin += driveToFirst;
+      totalVisitMin += visitDur;
+      currentLat = first.latitude!;
+      currentLng = first.longitude!;
+    } else {
+      remaining.push(first); // put back, too far
+    }
+  }
+
+  // Nearest-neighbor with time budget
+  while (remaining.length > 0) {
+    const biasToEnd = remaining.length <= 3 ? 0.3 : 0;
+    let bestScore = Infinity;
+    let bestIdx = -1;
+
+    for (let i = 0; i < remaining.length; i++) {
+      const c = remaining[i];
+      const distFromCurrent = haversineKm(currentLat, currentLng, c.latitude!, c.longitude!);
+      const distToEnd = haversineKm(c.latitude!, c.longitude!, endLat, endLng);
+      const score = distFromCurrent * (1 - biasToEnd) + distToEnd * biasToEnd;
+
+      // Check if adding this stop fits in the time budget
+      const driveToStop = estimateDriveMin(distFromCurrent);
+      const visitDur = getVisitDuration(c);
+      const returnKm = haversineKm(c.latitude!, c.longitude!, endLat, endLng);
+      const returnMin = estimateDriveMin(returnKm);
+      const projectedTotal = totalDriveMin + driveToStop + totalVisitMin + visitDur + returnMin;
+
+      if (projectedTotal <= timeBudgetMin && score < bestScore) {
+        bestScore = score;
+        bestIdx = i;
+      }
+    }
+
+    if (bestIdx === -1) break; // No more stops fit
+
     const next = remaining.splice(bestIdx, 1)[0];
+    const legKm = haversineKm(currentLat, currentLng, next.latitude!, next.longitude!);
+    totalKm += legKm;
+    totalDriveMin += estimateDriveMin(legKm);
+    totalVisitMin += getVisitDuration(next);
     ordered.push(next);
     currentLat = next.latitude!;
     currentLng = next.longitude!;
   }
 
-  // Add distance from last stop to arrival
+  // Add return leg
   if (ordered.length > 0) {
     const last = ordered[ordered.length - 1];
-    totalKm += haversineKm(last.latitude!, last.longitude!, endLat, endLng);
+    const returnKm = haversineKm(last.latitude!, last.longitude!, endLat, endLng);
+    totalKm += returnKm;
+    totalDriveMin += estimateDriveMin(returnKm);
   }
 
-  return { ordered, totalKm: Math.round(totalKm * 10) / 10, totalDriveMin: estimateDriveMin(totalKm) };
-}
-
-/**
- * Farthest-first: go to farthest from departure, then nearest-neighbor
- * with bias toward arrival point for last stops.
- */
-function buildRouteFarthest(
-  customers: OptCustomer[],
-  startLat: number, startLng: number,
-  endLat: number, endLng: number,
-): { ordered: OptCustomer[]; totalKm: number; totalDriveMin: number } {
-  if (customers.length === 0) return { ordered: [], totalKm: 0, totalDriveMin: 0 };
-
-  // Find farthest from departure
-  let maxDist = 0;
-  let farthestIdx = 0;
-  for (let i = 0; i < customers.length; i++) {
-    const d = haversineKm(startLat, startLng, customers[i].latitude!, customers[i].longitude!);
-    if (d > maxDist) { maxDist = d; farthestIdx = i; }
-  }
-
-  const farthest = customers[farthestIdx];
-  const remaining = customers.filter((_, i) => i !== farthestIdx);
-  const ordered: OptCustomer[] = [farthest];
-  let totalKm = maxDist;
-  let currentLat = farthest.latitude!;
-  let currentLng = farthest.longitude!;
-
-  while (remaining.length > 0) {
-    const biasToEnd = remaining.length <= 3 ? 0.3 : 0;
-    let bestScore = Infinity;
-    let bestIdx = 0;
-    for (let i = 0; i < remaining.length; i++) {
-      const distFromCurrent = haversineKm(currentLat, currentLng, remaining[i].latitude!, remaining[i].longitude!);
-      const distToEnd = haversineKm(remaining[i].latitude!, remaining[i].longitude!, endLat, endLng);
-      const score = distFromCurrent * (1 - biasToEnd) + distToEnd * biasToEnd;
-      if (score < bestScore) { bestScore = score; bestIdx = i; }
-    }
-    const minDist = haversineKm(currentLat, currentLng, remaining[bestIdx].latitude!, remaining[bestIdx].longitude!);
-    totalKm += minDist;
-    const next = remaining.splice(bestIdx, 1)[0];
-    ordered.push(next);
-    currentLat = next.latitude!;
-    currentLng = next.longitude!;
-  }
-
-  if (ordered.length > 0) {
-    const last = ordered[ordered.length - 1];
-    totalKm += haversineKm(last.latitude!, last.longitude!, endLat, endLng);
-  }
-
-  return { ordered, totalKm: Math.round(totalKm * 10) / 10, totalDriveMin: estimateDriveMin(totalKm) };
+  return {
+    ordered,
+    totalKm: Math.round(totalKm * 10) / 10,
+    totalDriveMin,
+    totalVisitMin,
+  };
 }
 
 // ── Component ──
@@ -203,6 +218,13 @@ interface Props {
   dayLabel?: string;
 }
 
+const DAY_DURATION_OPTIONS = [
+  { value: 4, label: '4h — Demi-journée' },
+  { value: 6, label: '6h — Journée courte' },
+  { value: 7, label: '7h — Journée standard' },
+  { value: 8, label: '8h — Journée complète' },
+];
+
 export default function RouteOptimizerSheet({
   open, onOpenChange, onRouteGenerated,
   zone, zoneCustomers = [], dayLabel,
@@ -211,7 +233,7 @@ export default function RouteOptimizerSheet({
 
   // Config
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('tous');
-  const [maxVisits, setMaxVisits] = useState(10);
+  const [dayDurationHours, setDayDurationHours] = useState(7);
   const [excludeRecent, setExcludeRecent] = useState(true);
   const [strategy, setStrategy] = useState<RouteStrategy>('nearest');
   const [departureType, setDepartureType] = useState<DepartureType>('gps');
@@ -229,10 +251,9 @@ export default function RouteOptimizerSheet({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
 
-  // Effective arrival point
   const effectiveArrival = useMemo(() => {
     if (arrivalType === 'custom' && arrivalPos) return arrivalPos;
-    return userPos; // same as departure
+    return userPos;
   }, [arrivalType, arrivalPos, userPos]);
 
   useEffect(() => {
@@ -263,11 +284,13 @@ export default function RouteOptimizerSheet({
           number_of_vehicles: c.number_of_vehicles || 0,
           annual_revenue_potential: Number(c.annual_revenue_potential || 0),
           last_visit_date: c.last_visit_date, phone: c.phone,
-          sales_potential: c.sales_potential, visit_frequency: c.visit_frequency, address: c.address,
+          sales_potential: c.sales_potential, visit_frequency: c.visit_frequency,
+          address: c.address, visit_duration_minutes: c.visit_duration_minutes,
         };
         const score = calcPriorityScore(cust);
         const distance = userPos ? haversineKm(userPos.lat, userPos.lng, c.latitude, c.longitude) : 0;
-        return { ...cust, score, distance };
+        const visitDur = getVisitDuration(cust);
+        return { ...cust, score, distance, visitDur };
       })
       .sort((a: any, b: any) => b.score - a.score);
   }, [zoneCustomers, typeFilter, excludeRecent, userPos]);
@@ -276,6 +299,16 @@ export default function RouteOptimizerSheet({
     c.customer_type !== 'prospect' && c.customer_type !== 'prospect_qualifie').length;
   const eligibleProspects = zoneCustomers.filter((c: any) =>
     c.customer_type === 'prospect' || c.customer_type === 'prospect_qualifie').length;
+
+  // Estimate how many visits fit in the day
+  const estimatedVisitCount = useMemo(() => {
+    const avgVisitDur = candidates.length > 0
+      ? candidates.reduce((sum: number, c: any) => sum + c.visitDur, 0) / candidates.length
+      : 30;
+    const avgTravelPerVisit = 15; // ~15 min between visits on average
+    const perVisit = avgVisitDur + avgTravelPerVisit;
+    return Math.floor((dayDurationHours * 60) / perVisit);
+  }, [candidates, dayDurationHours]);
 
   const handleLocate = () => {
     if (!navigator.geolocation) { toast.error('Géolocalisation non disponible'); return; }
@@ -293,7 +326,8 @@ export default function RouteOptimizerSheet({
   };
 
   const handleGeneratePreview = () => {
-    const top = candidates.slice(0, maxVisits);
+    // Pre-select top candidates that would fit in the time budget
+    const top = candidates.slice(0, Math.min(estimatedVisitCount + 2, candidates.length));
     setSelectedIds(new Set(top.map((c: any) => c.id)));
     setStep('preview');
   };
@@ -310,14 +344,18 @@ export default function RouteOptimizerSheet({
     if (!userPos) { toast.error('Veuillez définir votre point de départ'); return; }
     const endPoint = effectiveArrival || userPos;
     const selected = candidates.filter((c: any) => selectedIds.has(c.id));
-    const buildFn = strategy === 'farthest' ? buildRouteFarthest : buildRouteNearest;
-    const { ordered, totalKm, totalDriveMin } = buildFn(selected, userPos.lat, userPos.lng, endPoint.lat, endPoint.lng);
-    const visitTimeMin = ordered.length * 25;
+    const timeBudgetMin = dayDurationHours * 60;
+
+    const { ordered, totalKm, totalDriveMin, totalVisitMin } = buildRouteTimeBased(
+      selected, userPos.lat, userPos.lng, endPoint.lat, endPoint.lng, strategy, timeBudgetMin
+    );
 
     setOptimizedRoute({
       customers: ordered,
       totalDistanceKm: totalKm,
-      estimatedDurationMin: totalDriveMin + visitTimeMin,
+      estimatedDurationMin: totalDriveMin + totalVisitMin,
+      totalTravelMin: totalDriveMin,
+      totalVisitMin,
     });
     setStep('result');
   };
@@ -414,31 +452,19 @@ export default function RouteOptimizerSheet({
                   Point de départ
                 </label>
                 <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant={departureType === 'gps' ? 'default' : 'outline'}
-                    className="h-10 text-xs gap-1.5"
-                    onClick={handleLocate}
-                    disabled={locating}
-                  >
+                  <Button variant={departureType === 'gps' ? 'default' : 'outline'} className="h-10 text-xs gap-1.5"
+                    onClick={handleLocate} disabled={locating}>
                     {locating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <LocateFixed className="h-3.5 w-3.5" />}
                     Ma position GPS
                   </Button>
-                  <Button
-                    variant={departureType === 'custom' ? 'default' : 'outline'}
-                    className="h-10 text-xs gap-1.5"
-                    onClick={() => setDepartureType('custom')}
-                  >
-                    <Building2 className="h-3.5 w-3.5" />
-                    Adresse perso.
+                  <Button variant={departureType === 'custom' ? 'default' : 'outline'} className="h-10 text-xs gap-1.5"
+                    onClick={() => setDepartureType('custom')}>
+                    <Building2 className="h-3.5 w-3.5" />Adresse perso.
                   </Button>
                 </div>
                 {departureType === 'custom' && (
-                  <Input
-                    placeholder="Entrez une adresse de départ..."
-                    value={customDepartureAddress}
-                    onChange={e => setCustomDepartureAddress(e.target.value)}
-                    className="h-10"
-                  />
+                  <Input placeholder="Entrez une adresse de départ..." value={customDepartureAddress}
+                    onChange={e => setCustomDepartureAddress(e.target.value)} className="h-10" />
                 )}
                 {userPos && departureType === 'gps' && (
                   <Badge variant="secondary" className="text-[10px]">
@@ -455,35 +481,21 @@ export default function RouteOptimizerSheet({
                   Point d'arrivée
                 </label>
                 <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    variant={arrivalType === 'same' ? 'default' : 'outline'}
-                    className="h-10 text-xs gap-1.5"
-                    onClick={() => { setArrivalType('same'); setArrivalPos(null); }}
-                  >
-                    <MapPinned className="h-3.5 w-3.5" />
-                    Même que départ
+                  <Button variant={arrivalType === 'same' ? 'default' : 'outline'} className="h-10 text-xs gap-1.5"
+                    onClick={() => { setArrivalType('same'); setArrivalPos(null); }}>
+                    <MapPinned className="h-3.5 w-3.5" />Même que départ
                   </Button>
-                  <Button
-                    variant={arrivalType === 'custom' ? 'default' : 'outline'}
-                    className="h-10 text-xs gap-1.5"
-                    onClick={() => setArrivalType('custom')}
-                  >
-                    <Building2 className="h-3.5 w-3.5" />
-                    Adresse perso.
+                  <Button variant={arrivalType === 'custom' ? 'default' : 'outline'} className="h-10 text-xs gap-1.5"
+                    onClick={() => setArrivalType('custom')}>
+                    <Building2 className="h-3.5 w-3.5" />Adresse perso.
                   </Button>
                 </div>
                 {arrivalType === 'custom' && (
-                  <Input
-                    placeholder="Entrez une adresse d'arrivée..."
-                    value={customArrivalAddress}
-                    onChange={e => setCustomArrivalAddress(e.target.value)}
-                    className="h-10"
-                  />
+                  <Input placeholder="Entrez une adresse d'arrivée..." value={customArrivalAddress}
+                    onChange={e => setCustomArrivalAddress(e.target.value)} className="h-10" />
                 )}
                 {arrivalType === 'same' && userPos && (
-                  <p className="text-[10px] text-muted-foreground">
-                    Le trajet revient au point de départ
-                  </p>
+                  <p className="text-[10px] text-muted-foreground">Le trajet revient au point de départ</p>
                 )}
               </div>
 
@@ -494,27 +506,46 @@ export default function RouteOptimizerSheet({
                   Ordre de départ
                 </label>
                 <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => setStrategy('nearest')}
+                  <button onClick={() => setStrategy('nearest')}
                     className={`rounded-xl border p-3 text-left transition-all ${
                       strategy === 'nearest' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-primary/30'
-                    }`}
-                  >
+                    }`}>
                     <ArrowDown className="h-4 w-4 text-primary mb-1" />
                     <p className="text-xs font-semibold">Plus proche d'abord</p>
                     <p className="text-[10px] text-muted-foreground">Commence par le plus proche</p>
                   </button>
-                  <button
-                    onClick={() => setStrategy('farthest')}
+                  <button onClick={() => setStrategy('farthest')}
                     className={`rounded-xl border p-3 text-left transition-all ${
                       strategy === 'farthest' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-primary/30'
-                    }`}
-                  >
+                    }`}>
                     <ArrowUp className="h-4 w-4 text-primary mb-1" />
                     <p className="text-xs font-semibold">Plus loin d'abord</p>
                     <p className="text-[10px] text-muted-foreground">Va au plus loin, puis revient</p>
                   </button>
                 </div>
+              </div>
+
+              {/* Day duration */}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold flex items-center gap-1.5">
+                  <Clock className="h-4 w-4 text-primary" />
+                  Durée de la journée
+                </label>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {DAY_DURATION_OPTIONS.map(opt => (
+                    <button key={opt.value} onClick={() => setDayDurationHours(opt.value)}
+                      className={`rounded-lg border px-2 py-2 text-center transition-all ${
+                        dayDurationHours === opt.value
+                          ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                          : 'hover:border-primary/30'
+                      }`}>
+                      <p className="text-sm font-bold">{opt.value}h</p>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-muted-foreground text-center">
+                  ~{estimatedVisitCount} visites estimées ({dayDurationHours * 60} min disponibles)
+                </p>
               </div>
 
               {/* Type filter */}
@@ -528,17 +559,6 @@ export default function RouteOptimizerSheet({
                     <SelectItem value="prospects">Prospects uniquement</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-
-              {/* Max visits */}
-              <div className="space-y-2">
-                <label className="text-sm font-semibold">Nombre de visites : {maxVisits}</label>
-                <Slider value={[maxVisits]} onValueChange={v => setMaxVisits(v[0])} min={3} max={15} step={1} className="py-2" />
-                <div className="flex justify-between text-[10px] text-muted-foreground">
-                  <span>3</span>
-                  <span className="text-primary font-medium">Objectif : 8–12</span>
-                  <span>15</span>
-                </div>
               </div>
 
               {/* Options */}
@@ -569,7 +589,6 @@ export default function RouteOptimizerSheet({
                 {candidates.length === 0 && (
                   <p className="text-xs text-muted-foreground text-center">Aucun compte géolocalisé</p>
                 )}
-                {/* Route summary */}
                 {userPos && (
                   <div className="border-t pt-2 mt-2 space-y-1 text-[11px] text-muted-foreground">
                     <div className="flex items-center gap-2">
@@ -584,6 +603,10 @@ export default function RouteOptimizerSheet({
                       <Route className="h-3 w-3 text-primary shrink-0" />
                       <span>Stratégie : {strategyLabel}</span>
                     </div>
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-3 w-3 text-primary shrink-0" />
+                      <span>Journée : {dayDurationHours}h · ~{estimatedVisitCount} visites</span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -592,7 +615,7 @@ export default function RouteOptimizerSheet({
             <div className="p-4 border-t mt-auto">
               <Button className="w-full h-12 font-semibold" disabled={candidates.length === 0} onClick={handleGeneratePreview}>
                 <Route className="h-4 w-4 mr-2" />
-                Générer la tournée ({Math.min(maxVisits, candidates.length)} visites)
+                Générer la tournée (~{Math.min(estimatedVisitCount, candidates.length)} visites)
               </Button>
             </div>
           </div>
@@ -605,8 +628,8 @@ export default function RouteOptimizerSheet({
               <p className="text-sm font-semibold">{selectedIds.size} visites sélectionnées sur {candidates.length}</p>
               <div className="flex flex-wrap gap-x-3 text-[11px] text-muted-foreground mt-0.5">
                 {zoneName && <span>Zone : {zoneName}</span>}
-                <span>Stratégie : {strategyLabel}</span>
-                <span>Arrivée : {arrivalLabel}</span>
+                <span>{strategyLabel}</span>
+                <span>Journée {dayDurationHours}h</span>
               </div>
             </div>
             <ScrollArea className="flex-1">
@@ -631,12 +654,14 @@ export default function RouteOptimizerSheet({
                             <span>{c.city}</span>
                             <span>·</span>
                             <span className="font-medium">{formatMonthly(c.annual_revenue_potential)}</span>
+                            <span>·</span>
+                            <span className="flex items-center gap-0.5">
+                              <Clock className="h-3 w-3" />{c.visitDur}min
+                            </span>
                             {userPos && (
                               <>
                                 <span>·</span>
                                 <span>{c.distance.toFixed(1)} km</span>
-                                <span>·</span>
-                                <span>~{estimateDriveMin(c.distance)} min</span>
                               </>
                             )}
                             {days === null && (
@@ -675,19 +700,30 @@ export default function RouteOptimizerSheet({
         {/* ── Result ── */}
         {step === 'result' && optimizedRoute && (
           <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Time breakdown header */}
             <div className="px-4 py-3 border-b bg-muted/30 shrink-0">
               <div className="grid grid-cols-3 gap-3 text-center">
                 <div>
-                  <p className="text-lg font-bold text-primary">{optimizedRoute.customers.length}</p>
+                  <p className="text-lg font-bold text-primary">{formatDuration(optimizedRoute.estimatedDurationMin)}</p>
+                  <p className="text-[10px] text-muted-foreground">⏱ durée totale</p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold">{formatDuration(optimizedRoute.totalTravelMin)}</p>
+                  <p className="text-[10px] text-muted-foreground">🚗 trajet</p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold">{formatDuration(optimizedRoute.totalVisitMin)}</p>
+                  <p className="text-[10px] text-muted-foreground">🤝 visites</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-center mt-2 pt-2 border-t">
+                <div>
+                  <p className="text-sm font-bold">{optimizedRoute.customers.length}</p>
                   <p className="text-[10px] text-muted-foreground">visites</p>
                 </div>
                 <div>
-                  <p className="text-lg font-bold">{optimizedRoute.totalDistanceKm} km</p>
-                  <p className="text-[10px] text-muted-foreground">distance totale</p>
-                </div>
-                <div>
-                  <p className="text-lg font-bold">{formatDuration(optimizedRoute.estimatedDurationMin)}</p>
-                  <p className="text-[10px] text-muted-foreground">durée estimée</p>
+                  <p className="text-sm font-bold">{optimizedRoute.totalDistanceKm} km</p>
+                  <p className="text-[10px] text-muted-foreground">distance</p>
                 </div>
               </div>
               <div className="flex items-center justify-center gap-3 mt-2 text-[11px] text-muted-foreground">
@@ -696,8 +732,12 @@ export default function RouteOptimizerSheet({
                 <span className="flex items-center gap-1"><Flag className="h-3 w-3 text-primary" />{arrivalLabel}</span>
               </div>
               {zoneName && (
+                <p className="text-[10px] text-center text-muted-foreground mt-1">{zoneName} · {strategyLabel}</p>
+              )}
+              {/* Time budget warning */}
+              {optimizedRoute.estimatedDurationMin < dayDurationHours * 60 - 30 && (
                 <p className="text-[10px] text-center text-muted-foreground mt-1">
-                  {zoneName} · {strategyLabel}
+                  💡 {formatDuration(dayDurationHours * 60 - optimizedRoute.estimatedDurationMin)} disponibles dans la journée
                 </p>
               )}
             </div>
@@ -718,6 +758,7 @@ export default function RouteOptimizerSheet({
                     ? haversineKm(c.latitude!, c.longitude!, nextC.latitude!, nextC.longitude!)
                     : (effectiveArrival ? haversineKm(c.latitude!, c.longitude!, effectiveArrival.lat, effectiveArrival.lng) : 0);
                   const isLast = i === optimizedRoute.customers.length - 1;
+                  const visitDur = getVisitDuration(c);
                   return (
                     <div key={c.id}>
                       <div className="rounded-xl border p-3 flex items-center gap-3">
@@ -731,7 +772,9 @@ export default function RouteOptimizerSheet({
                             <span>·</span>
                             <span>{formatMonthly(c.annual_revenue_potential)}</span>
                             <span>·</span>
-                            <span>{c.number_of_vehicles} véh.</span>
+                            <span className="flex items-center gap-0.5">
+                              <Clock className="h-3 w-3" />{visitDur}min
+                            </span>
                           </div>
                         </div>
                         <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
