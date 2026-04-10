@@ -32,14 +32,7 @@ interface Task {
   history: TaskHistoryEntry[];
 }
 
-const initialTasks: Task[] = [
-  { id: '1', title: 'Envoyer devis Boulangerie Martin', client: 'Boulangerie Martin', visitRef: 'Visite du 08 Avr', due: '12 Avr', dueRaw: '2026-04-12', status: 'todo', priority: 'high', history: [{ action: 'created', date: '2026-04-08', detail: 'Visite du 08 Avr' }] },
-  { id: '2', title: 'Relancer Café du Commerce', client: 'Café du Commerce', visitRef: 'Visite du 07 Avr', due: '10 Avr', dueRaw: '2026-04-10', status: 'todo', priority: 'medium', history: [{ action: 'created', date: '2026-04-07', detail: 'Visite du 07 Avr' }] },
-  { id: '3', title: 'Envoyer documentation Pharmacie', client: 'Pharmacie du Centre', visitRef: 'Visite du 03 Avr', due: '06 Avr', dueRaw: '2026-04-06', status: 'todo', priority: 'high', history: [{ action: 'created', date: '2026-04-03', detail: 'Visite du 03 Avr' }] },
-  { id: '4', title: 'Préparer présentation nouveau produit', client: '—', visitRef: null, due: '15 Avr', dueRaw: '2026-04-15', status: 'in_progress', priority: 'high', history: [{ action: 'created', date: '2026-04-05' }] },
-  { id: '5', title: 'Mettre à jour fiche Restaurant', client: 'Restaurant Le Gourmet', visitRef: null, due: '16 Avr', dueRaw: '2026-04-16', status: 'todo', priority: 'low', history: [{ action: 'created', date: '2026-04-06' }] },
-  { id: '6', title: 'Confirmer RDV Librairie Centrale', client: 'Librairie Centrale', visitRef: null, due: '07 Avr', dueRaw: '2026-04-07', status: 'done', priority: 'medium', completedAt: '2026-04-07T14:30:00', history: [{ action: 'created', date: '2026-04-04' }, { action: 'completed', date: '2026-04-07' }] },
-];
+const initialTasks: Task[] = [];
 
 const isOverdue = (dateStr: string) => new Date(dateStr) < new Date('2026-04-08');
 
