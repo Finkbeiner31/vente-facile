@@ -152,6 +152,7 @@ export default function CustomersPage() {
           number_of_vehicles: data.number_of_vehicles,
           assigned_rep_id: user.id,
           sales_potential: getPotential(data.number_of_vehicles * 3500, null),
+          visit_frequency: data.visit_frequency,
         })
         .select('*')
         .single();
