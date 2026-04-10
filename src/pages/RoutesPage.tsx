@@ -156,13 +156,23 @@ export default function RoutesPage() {
 
   const currentManual = manualStops[dayKey] || [];
   const allStops = useMemo(() => {
+    // If user has customized the planned list (via dual list drag-and-drop), use that
+    if (customPlanned[dayKey]) {
+      const customIds = new Set(customPlanned[dayKey].map(s => s.customer.id));
+      const filteredManual = currentManual.filter(m => !customIds.has(m.customer.id));
+      return [
+        ...customPlanned[dayKey].map(s => ({ ...s, source: 'custom' as const })),
+        ...filteredManual.map(s => ({ ...s, source: 'manual' as const })),
+      ];
+    }
+    // Otherwise use auto-generated stops
     const autoIds = new Set(autoStops.map(s => s.customer.id));
     const filteredManual = currentManual.filter(m => !autoIds.has(m.customer.id));
     return [
       ...autoStops.map(s => ({ ...s, source: 'auto' as const })),
       ...filteredManual.map(s => ({ ...s, source: 'manual' as const })),
     ];
-  }, [autoStops, currentManual]);
+  }, [autoStops, currentManual, customPlanned, dayKey]);
 
   const totalPlanned = allStops.length;
   const isUnderTarget = totalPlanned < MIN_VISITS;
