@@ -20,6 +20,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { CustomerForRouting } from '@/lib/routeCycleEngine';
 import { AddUnplannedVisitSheet } from '@/components/AddUnplannedVisitSheet';
+import { TourneeDualList } from '@/components/TourneeDualList';
 
 const DAY_NAMES = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
 const WEEK_LABELS = ['S1', 'S2', 'S3', 'S4'];
