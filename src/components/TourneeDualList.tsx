@@ -1,4 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
+import { Input } from '@/components/ui/input';
+import { Search, Flame, Star } from 'lucide-react';
 import {
   DndContext,
   closestCenter,
@@ -223,6 +225,18 @@ export function TourneeDualList({ plannedStops, availableCustomers, onUpdatePlan
   const [isMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [showAllAvailable, setShowAllAvailable] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
+
+  const toggleFilter = useCallback((filter: string) => {
+    setActiveFilters(prev => {
+      const next = new Set(prev);
+      if (next.has(filter)) next.delete(filter);
+      else next.add(filter);
+      return next;
+    });
+    setShowAllAvailable(false);
+  }, []);
 
   const plannedIds = useMemo(() => new Set(plannedStops.map(s => s.customer.id)), [plannedStops]);
 
@@ -232,7 +246,32 @@ export function TourneeDualList({ plannedStops, availableCustomers, onUpdatePlan
       .sort((a, b) => calcPriority(b) - calcPriority(a));
   }, [availableCustomers, plannedIds]);
 
-  const displayedAvailable = showAllAvailable ? available : available.slice(0, 10);
+  const filteredAvailable = useMemo(() => {
+    let list = available;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter(c =>
+        (c.company_name || '').toLowerCase().includes(q) ||
+        (c.city || '').toLowerCase().includes(q) ||
+        (c.postal_code || '').toLowerCase().includes(q)
+      );
+    }
+    if (activeFilters.size > 0) {
+      list = list.filter(c => {
+        if (activeFilters.has('clients') && c.customer_type !== 'client_actif') return false;
+        if (activeFilters.has('prospects') && c.customer_type !== 'prospect' && c.customer_type !== 'prospect_qualifie') return false;
+        if (activeFilters.has('en_retard')) {
+          const vs = computeVisitStatus(c.visit_frequency, c.last_visit_date);
+          if (vs.status !== 'en_retard') return false;
+        }
+        if (activeFilters.has('prioritaires') && calcPriority(c) < 60) return false;
+        return true;
+      });
+    }
+    return list;
+  }, [available, searchQuery, activeFilters]);
+
+  const displayedAvailable = showAllAvailable ? filteredAvailable : filteredAvailable.slice(0, 10);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -242,7 +281,6 @@ export function TourneeDualList({ plannedStops, availableCustomers, onUpdatePlan
 
   const plannedItemIds = plannedStops.map(s => `planned-${s.customer.id}`);
   const availableItemIds = displayedAvailable.map(c => `available-${c.id}`);
-  const allItemIds = [...plannedItemIds, ...availableItemIds];
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     setActiveDragId(event.active.id as string);
@@ -359,16 +397,57 @@ export function TourneeDualList({ plannedStops, availableCustomers, onUpdatePlan
           <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
             <Building2 className="h-3.5 w-3.5" />
             Disponibles dans la zone
-            <Badge variant="outline" className="text-[10px] h-4 ml-1">{available.length}</Badge>
+            <Badge variant="outline" className="text-[10px] h-4 ml-1">{filteredAvailable.length}</Badge>
           </h3>
+        </div>
+
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            placeholder="Rechercher un client ou une ville..."
+            value={searchQuery}
+            onChange={e => { setSearchQuery(e.target.value); setShowAllAvailable(false); }}
+            className="h-8 pl-8 text-xs"
+          />
+        </div>
+
+        {/* Filter chips */}
+        <div className="flex flex-wrap gap-1">
+          {([
+            { key: 'clients', label: 'Clients' },
+            { key: 'prospects', label: 'Prospects' },
+            { key: 'en_retard', label: 'En retard', icon: <Flame className="h-3 w-3" /> },
+            { key: 'prioritaires', label: 'Prioritaires', icon: <Star className="h-3 w-3" /> },
+          ] as const).map(f => {
+            const active = activeFilters.has(f.key);
+            return (
+              <button
+                key={f.key}
+                onClick={() => toggleFilter(f.key)}
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium border transition-colors ${
+                  active
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-muted/50 text-muted-foreground border-border hover:bg-muted'
+                }`}
+              >
+                {'icon' in f && f.icon}
+                {f.label}
+              </button>
+            );
+          })}
         </div>
 
         <DroppableZone id="available-zone" className="min-h-[40px]">
           <SortableContext items={availableItemIds} strategy={verticalListSortingStrategy}>
             <div className="space-y-1">
-              {available.length === 0 ? (
+              {filteredAvailable.length === 0 ? (
                 <div className="py-6 text-center border border-dashed rounded-xl">
-                  <p className="text-sm text-muted-foreground">Aucun autre client ou prospect disponible dans cette zone</p>
+                  <p className="text-sm text-muted-foreground">
+                    {available.length === 0
+                      ? 'Aucun autre client ou prospect disponible dans cette zone'
+                      : 'Aucun résultat avec ces filtres'}
+                  </p>
                 </div>
               ) : (
                 <>
@@ -380,13 +459,13 @@ export function TourneeDualList({ plannedStops, availableCustomers, onUpdatePlan
                       isMobile={isMobile}
                     />
                   ))}
-                  {!showAllAvailable && available.length > 10 && (
+                  {!showAllAvailable && filteredAvailable.length > 10 && (
                     <Button
                       variant="ghost"
                       className="w-full text-xs text-muted-foreground h-8"
                       onClick={() => setShowAllAvailable(true)}
                     >
-                      Afficher les {available.length - 10} restants
+                      Afficher les {filteredAvailable.length - 10} restants
                     </Button>
                   )}
                 </>
