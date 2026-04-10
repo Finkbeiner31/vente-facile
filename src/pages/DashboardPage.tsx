@@ -13,10 +13,10 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import {
   Play, RotateCcw, MapPin, CheckCircle2, Clock,
-  AlertTriangle, Zap, ArrowRight, Plus, Flame,
-  TrendingDown, Eye, Calendar,
+  AlertTriangle, ArrowRight, Plus, Flame,
+  Eye, Calendar,
 } from 'lucide-react';
-import RouteOptimizerSheet from '@/components/RouteOptimizerSheet';
+
 import { computeVisitStatus } from '@/lib/visitFrequencyUtils';
 import { formatZoneName, useCommercialZones } from '@/hooks/useCommercialZones';
 
@@ -32,7 +32,7 @@ export default function DashboardPage() {
   const { profile, user, loading: authLoading } = useAuth();
   const { session, startSession } = useTourSession();
   const [tourMode, setTourMode] = useState(false);
-  const [optimizerOpen, setOptimizerOpen] = useState(false);
+  
 
   /* ── Zone du jour ── */
   const { data: zones = [] } = useCommercialZones();
@@ -260,10 +260,12 @@ export default function DashboardPage() {
               Démarrer ma tournée
             </Button>
           ) : (
-            <Button variant="outline" className="w-full h-12 font-bold text-sm gap-2" onClick={() => setOptimizerOpen(true)}>
-              <Zap className="h-4 w-4" />
-              Générer une tournée intelligente
-            </Button>
+            <Link to="/tournees" className="block">
+              <Button variant="outline" className="w-full h-12 font-bold text-sm gap-2">
+                <Calendar className="h-4 w-4" />
+                Planifier ma tournée
+              </Button>
+            </Link>
           )}
         </CardContent>
       </Card>
@@ -389,14 +391,6 @@ export default function DashboardPage() {
         </section>
       )}
 
-      {/* ═══ SECONDARY CTA ═══ */}
-      {totalPlanned > 0 && !session?.active && (
-        <Button variant="outline" className="w-full h-10 text-xs gap-1.5" onClick={() => setOptimizerOpen(true)}>
-          <Zap className="h-3.5 w-3.5" /> Générer une tournée intelligente
-        </Button>
-      )}
-
-      <RouteOptimizerSheet open={optimizerOpen} onOpenChange={setOptimizerOpen} />
     </div>
   );
 }
