@@ -61,6 +61,8 @@ export default function RoutesPage() {
   // Tracks user-customized planned stops per day key
   const [customPlanned, setCustomPlanned] = useState<Record<string, { customer: CustomerForRouting; priority: number; customerType?: string; lastVisitDate?: string | null }[]>>({});
 
+  const { session, startSession } = useTourSession();
+
   const dayKey = `${selectedWeek}-${selectedDay}`;
 
   const { data: planning = [] } = useQuery({
