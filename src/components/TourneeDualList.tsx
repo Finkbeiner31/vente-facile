@@ -225,6 +225,18 @@ export function TourneeDualList({ plannedStops, availableCustomers, onUpdatePlan
   const [isMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [showAllAvailable, setShowAllAvailable] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
+
+  const toggleFilter = useCallback((filter: string) => {
+    setActiveFilters(prev => {
+      const next = new Set(prev);
+      if (next.has(filter)) next.delete(filter);
+      else next.add(filter);
+      return next;
+    });
+    setShowAllAvailable(false);
+  }, []);
 
   const plannedIds = useMemo(() => new Set(plannedStops.map(s => s.customer.id)), [plannedStops]);
 
@@ -234,7 +246,32 @@ export function TourneeDualList({ plannedStops, availableCustomers, onUpdatePlan
       .sort((a, b) => calcPriority(b) - calcPriority(a));
   }, [availableCustomers, plannedIds]);
 
-  const displayedAvailable = showAllAvailable ? available : available.slice(0, 10);
+  const filteredAvailable = useMemo(() => {
+    let list = available;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      list = list.filter(c =>
+        (c.company_name || '').toLowerCase().includes(q) ||
+        (c.city || '').toLowerCase().includes(q) ||
+        (c.postal_code || '').toLowerCase().includes(q)
+      );
+    }
+    if (activeFilters.size > 0) {
+      list = list.filter(c => {
+        if (activeFilters.has('clients') && c.customer_type !== 'client_actif') return false;
+        if (activeFilters.has('prospects') && c.customer_type !== 'prospect' && c.customer_type !== 'prospect_qualifie') return false;
+        if (activeFilters.has('en_retard')) {
+          const vs = computeVisitStatus(c.visit_frequency, c.last_visit_date);
+          if (vs.status !== 'en_retard') return false;
+        }
+        if (activeFilters.has('prioritaires') && calcPriority(c) < 60) return false;
+        return true;
+      });
+    }
+    return list;
+  }, [available, searchQuery, activeFilters]);
+
+  const displayedAvailable = showAllAvailable ? filteredAvailable : filteredAvailable.slice(0, 10);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
