@@ -231,9 +231,14 @@ export default function TasksPage() {
       </div>
 
       {filtered.length === 0 && (
-        <div className="py-12 text-center">
-          <CheckSquare className="mx-auto h-10 w-10 text-muted-foreground/30" />
-          <p className="mt-3 text-sm text-muted-foreground">Aucune tâche dans cette catégorie</p>
+        <div className="py-16 text-center space-y-3">
+          <CheckSquare className="mx-auto h-12 w-12 text-muted-foreground/20" />
+          <p className="text-base font-semibold text-muted-foreground">Aucune tâche</p>
+          <p className="text-sm text-muted-foreground/70">Ajoutez vos premières tâches pour suivre vos actions commerciales</p>
+          <Button size="sm" className="mt-2 h-10 px-5 font-semibold">
+            <Plus className="h-4 w-4 mr-1.5" />
+            Nouvelle tâche
+          </Button>
         </div>
       )}
 
