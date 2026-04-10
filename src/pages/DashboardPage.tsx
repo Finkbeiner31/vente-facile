@@ -1,67 +1,84 @@
 import { useState, useMemo } from 'react';
-import { formatMonthly, getRevenueTier, getRevenueTierColor } from '@/lib/revenueUtils';
 import { useAuth } from '@/contexts/AuthContext';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { TourMode } from '@/components/TourMode';
-import {
-  ArrowRight, Sun, Target, RotateCcw, DollarSign,
-  Sparkles, Inbox, AlertTriangle, MapPin, Calendar,
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { useTourSession } from '@/contexts/TourSessionContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useAllCustomerRevenues } from '@/hooks/useCustomerPerformance';
-import { analyzeCustomerPerformance, type PerformanceStatus } from '@/lib/performanceUtils';
-import { computeVisitPriority, PRIORITY_CONFIGS } from '@/lib/priorityEngine';
-import RouteOptimizerSheet from '@/components/RouteOptimizerSheet';
 import { format } from 'date-fns';
+import { Link } from 'react-router-dom';
+import { TourMode } from '@/components/TourMode';
 
-function EmptyBlock({ icon: Icon, message, action }: { icon: React.ElementType; message: string; action?: React.ReactNode }) {
-  return (
-    <div className="flex flex-col items-center py-6 text-center">
-      <Icon className="h-8 w-8 text-muted-foreground/40 mb-2" />
-      <p className="text-sm text-muted-foreground">{message}</p>
-      {action && <div className="mt-3">{action}</div>}
-    </div>
-  );
-}
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import {
+  Play, RotateCcw, MapPin, CheckCircle2, Clock,
+  AlertTriangle, Zap, ArrowRight, Plus, Flame,
+  TrendingDown, Eye, Calendar,
+} from 'lucide-react';
+import RouteOptimizerSheet from '@/components/RouteOptimizerSheet';
+import { computeVisitStatus } from '@/lib/visitFrequencyUtils';
+import { formatZoneName, useCommercialZones } from '@/hooks/useCommercialZones';
 
+/* ────────────────────────── helpers ────────────────────────── */
+
+const todayStr = () => format(new Date(), 'yyyy-MM-dd');
+const todayDow = () => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1; }; // 0=Mon
+
+/* ═══════════════════════════════════════════════════════════════
+   DASHBOARD PAGE
+   ═══════════════════════════════════════════════════════════════ */
 export default function DashboardPage() {
   const { profile, user, loading: authLoading } = useAuth();
+  const { session, startSession } = useTourSession();
   const [tourMode, setTourMode] = useState(false);
   const [optimizerOpen, setOptimizerOpen] = useState(false);
-  const { session, startSession } = useTourSession();
 
-  // ─── Real customers ───
+  /* ── Zone du jour ── */
+  const { data: zones = [] } = useCommercialZones();
+  const { data: planning = [] } = useQuery({
+    queryKey: ['dashboard-zone-planning', user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('weekly_zone_planning')
+        .select('day_of_week, zone_id')
+        .eq('user_id', user!.id);
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  const todayZone = useMemo(() => {
+    const dow = todayDow();
+    const p = planning.find(p => p.day_of_week === dow);
+    if (!p?.zone_id) return null;
+    return zones.find(z => z.id === p.zone_id) || null;
+  }, [planning, zones]);
+
+  /* ── Customers ── */
   const { data: allCustomers = [] } = useQuery({
     queryKey: ['dashboard-customers', user?.id],
     queryFn: async () => {
       const { data } = await supabase
         .from('customers')
-        .select('id, company_name, annual_revenue_potential, customer_type, last_visit_date, visit_frequency, latitude, longitude, city, phone, address, number_of_vehicles, sales_potential');
+        .select('id, company_name, customer_type, last_visit_date, visit_frequency, latitude, longitude, city, phone, address, number_of_vehicles, annual_revenue_potential, sales_potential, zone');
       return data || [];
     },
-    enabled: !authLoading && !!user,
+    enabled: !!user,
   });
 
-  const { data: revenueMap } = useAllCustomerRevenues();
-
-  // ─── Real today's route ───
-  const todayStr = format(new Date(), 'yyyy-MM-dd');
+  /* ── Today's route stops ── */
   const { data: todayStops = [] } = useQuery({
-    queryKey: ['dashboard-today-route', user?.id, todayStr],
+    queryKey: ['dashboard-today-route', user?.id, todayStr()],
     queryFn: async () => {
       const { data: routes } = await supabase
         .from('routes')
         .select('id')
         .eq('rep_id', user!.id)
-        .eq('route_date', todayStr)
+        .eq('route_date', todayStr())
         .eq('status', 'planned')
         .limit(1);
-      if (!routes || routes.length === 0) return [];
+      if (!routes?.length) return [];
       const { data: stops } = await supabase
         .from('route_stops')
         .select('id, customer_id, stop_order, status')
@@ -69,7 +86,7 @@ export default function DashboardPage() {
         .order('stop_order', { ascending: true });
       return stops || [];
     },
-    enabled: !authLoading && !!user,
+    enabled: !!user,
   });
 
   const todayVisits = useMemo(() => {
@@ -80,75 +97,83 @@ export default function DashboardPage() {
       .filter(s => s.customer) as Array<typeof todayStops[0] & { customer: typeof allCustomers[0] }>;
   }, [todayStops, allCustomers]);
 
-  // ─── Real urgent tasks ───
+  const completedCount = todayVisits.filter(v => v.status === 'completed').length;
+  const totalPlanned = todayVisits.length;
+  const progressPct = totalPlanned > 0 ? (completedCount / totalPlanned) * 100 : 0;
+
+  /* ── Urgent tasks ── */
   const { data: urgentTasks = [] } = useQuery({
     queryKey: ['dashboard-urgent-tasks', user?.id],
     queryFn: async () => {
       const { data } = await supabase
         .from('tasks')
-        .select('id, title, due_date, priority, status')
+        .select('id, title, due_date, priority, status, customer_id')
         .in('status', ['todo', 'in_progress'])
-        .in('priority', ['high', 'urgent'])
+        .lte('due_date', format(new Date(Date.now() + 86400000), 'yyyy-MM-dd'))
         .order('due_date', { ascending: true })
-        .limit(5);
+        .limit(6);
       return data || [];
     },
-    enabled: !authLoading && !!user,
+    enabled: !!user,
   });
 
   const tasksDisplay = useMemo(() => {
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
+    const now = new Date(); now.setHours(0, 0, 0, 0);
     return urgentTasks.map(t => {
-      if (!t.due_date) return { ...t, label: 'Sans date', overdue: false };
+      if (!t.due_date) return { ...t, dateLabel: '—', overdue: false };
       const d = new Date(t.due_date + 'T00:00:00');
       const diff = Math.floor((d.getTime() - now.getTime()) / 86400000);
-      if (diff < 0) return { ...t, label: 'En retard', overdue: true };
-      if (diff === 0) return { ...t, label: "Aujourd'hui", overdue: false };
-      if (diff === 1) return { ...t, label: 'Demain', overdue: false };
-      return { ...t, label: format(d, 'dd/MM'), overdue: false };
+      if (diff < 0) return { ...t, dateLabel: `J${diff}`, overdue: true };
+      if (diff === 0) return { ...t, dateLabel: "Aujourd'hui", overdue: false };
+      return { ...t, dateLabel: 'Demain', overdue: false };
     });
   }, [urgentTasks]);
 
-  // ─── CA KPIs ───
-  const caKpis = useMemo(() => {
-    const clients = allCustomers.filter(c => c.customer_type !== 'prospect' && c.customer_type !== 'prospect_qualifie');
-    let totalPotential = 0;
-    let totalRealM1 = 0;
-    let clientsWithData = 0;
+  /* ── Smart alerts ── */
+  const alerts = useMemo(() => {
+    const items: { icon: React.ElementType; text: string; color: string; link?: string }[] = [];
 
-    clients.forEach(c => {
-      const revenue = Number(c.annual_revenue_potential || 0);
-      const history = revenueMap?.get(c.id) || [];
-      const perf = analyzeCustomerPerformance(revenue, history);
-      totalPotential += perf.monthlyPotential;
-      if (perf.caM1 !== null) {
-        totalRealM1 += perf.caM1;
-        clientsWithData++;
-      }
+    // Overdue clients across zones
+    const overdueClients = allCustomers.filter(c => {
+      if (c.customer_type === 'prospect') return false;
+      const vs = computeVisitStatus(c.visit_frequency, c.last_visit_date);
+      return vs.status === 'en_retard';
     });
+    if (overdueClients.length > 0) {
+      items.push({
+        icon: Flame,
+        text: `${overdueClients.length} client${overdueClients.length > 1 ? 's' : ''} en retard de visite`,
+        color: 'text-destructive',
+        link: '/clients',
+      });
+    }
 
-    const coverage = totalPotential > 0 ? (totalRealM1 / totalPotential) * 100 : 0;
-    return { totalPotential, totalRealM1, coverage, clientsWithData };
-  }, [allCustomers, revenueMap]);
+    // Zones without visits this week
+    const zonesWithVisits = new Set(todayVisits.map(v => v.customer?.zone).filter(Boolean));
+    const unvisitedZones = zones.filter(z => !zonesWithVisits.has(z.system_name));
+    if (unvisitedZones.length > 0 && zones.length > 0) {
+      items.push({
+        icon: Eye,
+        text: `${unvisitedZones.length} zone${unvisitedZones.length > 1 ? 's' : ''} sans visite prévue`,
+        color: 'text-warning',
+        link: '/tournees',
+      });
+    }
 
-  // ─── Top 5 priority clients ───
-  const topPriority = useMemo(() => {
-    return allCustomers
-      .map(c => {
-        const revenue = Number(c.annual_revenue_potential || 0);
-        const history = revenueMap?.get(c.id) || [];
-        const perf = analyzeCustomerPerformance(revenue, history);
-        const priority = computeVisitPriority(perf, c.last_visit_date, c.visit_frequency, null, null, c.latitude, c.longitude);
-        return { ...c, perf, priority, revenue };
-      })
-      .sort((a, b) => b.priority.score - a.priority.score)
-      .slice(0, 5);
-  }, [allCustomers, revenueMap]);
+    // No visits planned today
+    if (totalPlanned === 0) {
+      items.push({
+        icon: Calendar,
+        text: 'Aucune visite planifiée aujourd\'hui',
+        color: 'text-muted-foreground',
+        link: '/tournees',
+      });
+    }
 
-  const firstName = profile?.full_name?.split(' ')[0] || 'Commercial';
+    return items;
+  }, [allCustomers, todayVisits, zones, totalPlanned]);
 
-  // ─── Tour mode ───
+  /* ── Tour mode launch ── */
   const handleLaunchTour = () => {
     if (!session?.active && todayVisits.length > 0) {
       const stops = todayVisits.map(s => ({
@@ -172,6 +197,7 @@ export default function DashboardPage() {
     setTourMode(true);
   };
 
+  /* ── Tour mode view ── */
   if (tourMode && session?.active) {
     const tourCustomers = allCustomers.map(c => ({
       id: c.id, company_name: c.company_name, address: c.address || '', city: c.city || '',
@@ -183,12 +209,12 @@ export default function DashboardPage() {
     return <TourMode onExit={() => setTourMode(false)} allCustomers={tourCustomers} />;
   }
 
-  const fmtK = (v: number) => v >= 1000 ? `${(v / 1000).toFixed(1).replace('.0', '')}k€` : `${Math.round(v)}€`;
-  const sessionCount = session ? Object.values(session.statuses).filter(s => s === 'completed').length : 0;
+  const firstName = profile?.full_name?.split(' ')[0] || 'Commercial';
+  const sessionCompletedCount = session ? Object.values(session.statuses).filter(s => s === 'completed').length : 0;
 
   return (
     <div className="space-y-4 animate-fade-in pb-20 md:pb-0">
-      {/* Greeting */}
+      {/* ═══ GREETING ═══ */}
       <div>
         <h1 className="font-heading text-xl md:text-2xl font-bold">Bonjour, {firstName} 👋</h1>
         <p className="text-xs text-muted-foreground">
@@ -196,219 +222,179 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      {/* Resume tour banner */}
-      {session?.active && !tourMode && (
-        <Card className="border-primary/30 bg-primary/5">
-          <CardContent className="p-3 flex items-center gap-3">
-            <div className="h-3 w-3 rounded-full bg-primary animate-pulse" />
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold">Tournée en cours</p>
-              <p className="text-xs text-muted-foreground">{sessionCount}/{session.stops.length} visites</p>
+      {/* ═══ A. MA JOURNÉE ═══ */}
+      <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
+        <CardContent className="p-4 space-y-3">
+          {/* Zone + stats row */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <MapPin className="h-4 w-4 text-primary shrink-0" />
+              <span className="text-sm font-semibold truncate">
+                {todayZone ? formatZoneName(todayZone) : 'Aucune zone assignée'}
+              </span>
             </div>
-            <Button size="sm" className="h-9 px-4 font-semibold gap-1.5" onClick={() => setTourMode(true)}>
-              <RotateCcw className="h-4 w-4" /> Reprendre
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+            <Badge variant="secondary" className="text-xs font-bold shrink-0">
+              {completedCount} / {totalPlanned} visites
+            </Badge>
+          </div>
 
-      {/* ═══ A. VISITES DU JOUR ═══ */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
-          <CardTitle className="font-heading text-sm flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-primary" />
-            Visites du jour
-          </CardTitle>
+          {/* Progress bar */}
+          {totalPlanned > 0 && (
+            <div className="space-y-1">
+              <Progress value={progressPct} className="h-2" />
+              <p className="text-[10px] text-muted-foreground text-right">
+                {completedCount} réalisée{completedCount > 1 ? 's' : ''} sur {totalPlanned}
+              </p>
+            </div>
+          )}
+
+          {/* Main CTA */}
+          {session?.active ? (
+            <Button className="w-full h-12 font-bold text-sm gap-2" onClick={() => setTourMode(true)}>
+              <RotateCcw className="h-4 w-4" />
+              Reprendre ma tournée ({sessionCompletedCount}/{session.stops.length})
+            </Button>
+          ) : totalPlanned > 0 ? (
+            <Button className="w-full h-12 font-bold text-sm gap-2" onClick={handleLaunchTour}>
+              <Play className="h-4 w-4" />
+              Démarrer ma tournée
+            </Button>
+          ) : (
+            <Button variant="outline" className="w-full h-12 font-bold text-sm gap-2" onClick={() => setOptimizerOpen(true)}>
+              <Zap className="h-4 w-4" />
+              Générer une tournée intelligente
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ═══ B. VISITES DU JOUR ═══ */}
+      <section>
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="font-heading text-sm font-semibold">Visites du jour</h2>
           <Link to="/tournees">
-            <Button variant="ghost" size="sm" className="text-xs h-7">
-              Tournée <ArrowRight className="ml-1 h-3 w-3" />
+            <Button variant="ghost" size="sm" className="text-xs h-7 gap-1">
+              Tournée <ArrowRight className="h-3 w-3" />
             </Button>
           </Link>
-        </CardHeader>
-        <CardContent className="px-4 pb-4">
-          {todayVisits.length === 0 ? (
-            <EmptyBlock
-              icon={Inbox}
-              message="Aucune visite prévue aujourd'hui"
-              action={
-                <Link to="/tournees">
-                  <Button variant="outline" size="sm" className="text-xs">Planifier une tournée</Button>
-                </Link>
-              }
-            />
-          ) : (
-            <div className="space-y-1.5">
-              {/* Start button */}
-              {!session?.active && todayVisits.length > 0 && (
-                <Button className="w-full h-12 font-bold text-sm mb-2" onClick={handleLaunchTour}>
-                  <Sun className="h-4 w-4 mr-2" /> Démarrer la journée ({todayVisits.length} visites)
-                </Button>
-              )}
-              {todayVisits.slice(0, 5).map((stop, i) => (
-                <Link key={stop.id} to={`/clients/${stop.customer.id}`} className="block">
-                  <div className="flex items-center gap-2.5 rounded-lg p-2 hover:bg-accent/5 transition-colors">
-                    <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
-                      stop.status === 'completed' ? 'bg-accent/15 text-accent' : 'bg-muted text-muted-foreground'
-                    }`}>{stop.status === 'completed' ? '✓' : i + 1}</div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate">{stop.customer.company_name}</p>
-                      <p className="text-[10px] text-muted-foreground truncate">
-                        {stop.customer.city}
-                        {Number(stop.customer.annual_revenue_potential || 0) > 0 &&
-                          ` · ${formatMonthly(Number(stop.customer.annual_revenue_potential))}`}
-                      </p>
-                    </div>
-                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
-                  </div>
-                </Link>
-              ))}
-              {todayVisits.length > 5 && (
-                <Link to="/tournees">
-                  <p className="text-xs text-primary font-medium text-center py-1">
-                    +{todayVisits.length - 5} autres →
-                  </p>
-                </Link>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* ═══ B. CLIENTS PRIORITAIRES ═══ */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
-          <CardTitle className="font-heading text-sm flex items-center gap-2">
-            <Target className="h-4 w-4 text-destructive" />
-            Clients prioritaires
-          </CardTitle>
-          <div className="flex gap-1.5">
-            {topPriority.length > 0 && (
-              <Button variant="default" size="sm" className="text-xs h-7 gap-1" onClick={() => setOptimizerOpen(true)}>
-                <Sparkles className="h-3 w-3" /> Tournée intelligente
-              </Button>
-            )}
-            <Link to="/clients">
-              <Button variant="ghost" size="sm" className="text-xs h-7">
-                Tous <ArrowRight className="ml-1 h-3 w-3" />
-              </Button>
-            </Link>
-          </div>
-        </CardHeader>
-        <CardContent className="px-4 pb-4">
-          {topPriority.length === 0 ? (
-            <EmptyBlock
-              icon={Target}
-              message="Aucun client prioritaire"
-              action={
-                <Link to="/clients">
-                  <Button variant="outline" size="sm" className="text-xs">Importer des clients</Button>
-                </Link>
-              }
-            />
-          ) : (
-            <div className="space-y-1.5">
-              {topPriority.map(c => {
-                const pc = PRIORITY_CONFIGS[c.priority.level];
-                return (
-                  <Link key={c.id} to={`/clients/${c.id}`} className="block">
-                    <div className="flex items-center gap-3 rounded-lg border p-2.5 hover:bg-accent/5 transition-colors">
-                      <Badge className={`text-[9px] h-5 shrink-0 ${pc.bgColor} ${pc.color}`}>
-                        {pc.emoji} {c.priority.score}
-                      </Badge>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{c.company_name}</p>
-                        <p className="text-[10px] text-muted-foreground truncate">
-                          {c.city || '—'}
-                          {c.revenue > 0 && ` · ${fmtK(c.revenue / 12)}/mois`}
-                        </p>
+        {todayVisits.length === 0 ? (
+          <Card>
+            <CardContent className="py-8 text-center">
+              <Calendar className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">Aucune visite prévue</p>
+              <Link to="/tournees">
+                <Button variant="outline" size="sm" className="mt-3 text-xs">Planifier</Button>
+              </Link>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-1.5">
+            {todayVisits.map((stop, i) => {
+              const isDone = stop.status === 'completed';
+              const isActive = stop.status === 'in_progress';
+              return (
+                <Link key={stop.id} to={`/clients/${stop.customer.id}`} className="block">
+                  <Card className={`transition-colors hover:bg-accent/5 ${isDone ? 'opacity-60' : ''} ${isActive ? 'border-primary/40' : ''}`}>
+                    <CardContent className="p-2.5 flex items-center gap-2.5">
+                      {/* Step indicator */}
+                      <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
+                        isDone ? 'bg-accent/15 text-accent' : isActive ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'
+                      }`}>
+                        {isDone ? <CheckCircle2 className="h-3.5 w-3.5" /> : i + 1}
                       </div>
-                      <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm font-medium truncate ${isDone ? 'line-through' : ''}`}>{stop.customer.company_name}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{stop.customer.city || '—'}</p>
+                      </div>
+                      <Badge variant="outline" className={`text-[9px] shrink-0 ${
+                        isDone ? 'border-accent/30 text-accent' : isActive ? 'border-primary/30 text-primary' : 'border-muted'
+                      }`}>
+                        {isDone ? 'Terminé' : isActive ? 'En cours' : 'À faire'}
+                      </Badge>
+                    </CardContent>
+                  </Card>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       {/* ═══ C. TÂCHES URGENTES ═══ */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between pb-2 px-4 pt-4">
-          <CardTitle className="font-heading text-sm flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-warning" />
+      <section>
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="font-heading text-sm font-semibold flex items-center gap-1.5">
+            <AlertTriangle className="h-3.5 w-3.5 text-warning" />
             Tâches urgentes
-          </CardTitle>
+          </h2>
           <Link to="/taches">
-            <Button variant="ghost" size="sm" className="text-xs h-7">
-              Toutes <ArrowRight className="ml-1 h-3 w-3" />
+            <Button variant="ghost" size="sm" className="text-xs h-7 gap-1">
+              Toutes <ArrowRight className="h-3 w-3" />
             </Button>
           </Link>
-        </CardHeader>
-        <CardContent className="px-4 pb-4">
-          {tasksDisplay.length === 0 ? (
-            <EmptyBlock icon={Inbox} message="Aucune tâche urgente" />
-          ) : (
-            <div className="space-y-1.5">
-              {tasksDisplay.map(t => (
-                <div key={t.id} className="flex items-center gap-3 rounded-lg border p-2.5">
-                  <div className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+        </div>
+
+        {tasksDisplay.length === 0 ? (
+          <Card>
+            <CardContent className="py-6 text-center">
+              <CheckCircle2 className="h-7 w-7 text-accent/40 mx-auto mb-1" />
+              <p className="text-sm text-muted-foreground">Aucune tâche urgente</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-1.5">
+            {tasksDisplay.map(t => (
+              <Card key={t.id} className={t.overdue ? 'border-destructive/30' : ''}>
+                <CardContent className="p-2.5 flex items-center gap-2.5">
+                  <div className={`h-2 w-2 shrink-0 rounded-full ${
                     t.overdue ? 'bg-destructive' : t.priority === 'urgent' ? 'bg-destructive' : 'bg-warning'
                   }`} />
                   <p className="text-sm font-medium truncate flex-1">{t.title}</p>
-                  <Badge variant="secondary"
-                    className={`text-[10px] shrink-0 ${t.overdue ? 'bg-destructive/10 text-destructive' : ''}`}>
-                    {t.label}
+                  <Badge variant="secondary" className={`text-[10px] shrink-0 ${
+                    t.overdue ? 'bg-destructive/10 text-destructive' : ''
+                  }`}>
+                    {t.dateLabel}
                   </Badge>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                </CardContent>
+              </Card>
+            ))}
+            <Link to="/taches" className="block">
+              <Button variant="ghost" size="sm" className="w-full text-xs h-8 gap-1 text-muted-foreground">
+                <Plus className="h-3 w-3" /> Ajouter une tâche
+              </Button>
+            </Link>
+          </div>
+        )}
+      </section>
 
-      {/* ═══ D. PERFORMANCE CA ═══ */}
-      <Card>
-        <CardHeader className="pb-2 px-4 pt-4">
-          <CardTitle className="font-heading text-sm flex items-center gap-2">
-            <DollarSign className="h-4 w-4 text-primary" />
-            Performance CA
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="px-4 pb-4">
-          {caKpis.totalPotential === 0 && caKpis.clientsWithData === 0 ? (
-            <EmptyBlock
-              icon={DollarSign}
-              message="Aucun CA renseigné"
-              action={
-                <Link to="/ca-import">
-                  <Button variant="outline" size="sm" className="text-xs">Importer l'historique CA</Button>
-                </Link>
-              }
-            />
-          ) : (
-            <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-lg bg-muted/50 p-3 text-center">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Potentiel</p>
-                <p className="font-heading text-lg font-bold mt-1">{fmtK(caKpis.totalPotential)}</p>
-                <p className="text-[10px] text-muted-foreground">/mois</p>
-              </div>
-              <div className="rounded-lg bg-muted/50 p-3 text-center">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">CA M-1</p>
-                <p className="font-heading text-lg font-bold mt-1">{fmtK(caKpis.totalRealM1)}</p>
-                <p className="text-[10px] text-muted-foreground">/mois</p>
-              </div>
-              <div className="rounded-lg bg-muted/50 p-3 text-center">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Couverture</p>
-                <p className={`font-heading text-lg font-bold mt-1 ${
-                  caKpis.coverage >= 80 ? 'text-accent' : caKpis.coverage >= 40 ? 'text-warning' : 'text-destructive'
-                }`}>{Math.round(caKpis.coverage)}%</p>
-                <p className="text-[10px] text-muted-foreground">réel / pot.</p>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* ═══ D. ALERTES INTELLIGENTES ═══ */}
+      {alerts.length > 0 && (
+        <section>
+          <h2 className="font-heading text-sm font-semibold mb-2">Alertes</h2>
+          <div className="space-y-1.5">
+            {alerts.map((a, i) => (
+              <Link key={i} to={a.link || '#'} className="block">
+                <Card className="hover:bg-accent/5 transition-colors">
+                  <CardContent className="p-2.5 flex items-center gap-2.5">
+                    <a.icon className={`h-4 w-4 shrink-0 ${a.color}`} />
+                    <p className="text-sm flex-1">{a.text}</p>
+                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 shrink-0" />
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ═══ SECONDARY CTA ═══ */}
+      {totalPlanned > 0 && !session?.active && (
+        <Button variant="outline" className="w-full h-10 text-xs gap-1.5" onClick={() => setOptimizerOpen(true)}>
+          <Zap className="h-3.5 w-3.5" /> Générer une tournée intelligente
+        </Button>
+      )}
 
       <RouteOptimizerSheet open={optimizerOpen} onOpenChange={setOptimizerOpen} />
     </div>
