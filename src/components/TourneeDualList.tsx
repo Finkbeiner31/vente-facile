@@ -397,16 +397,57 @@ export function TourneeDualList({ plannedStops, availableCustomers, onUpdatePlan
           <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
             <Building2 className="h-3.5 w-3.5" />
             Disponibles dans la zone
-            <Badge variant="outline" className="text-[10px] h-4 ml-1">{available.length}</Badge>
+            <Badge variant="outline" className="text-[10px] h-4 ml-1">{filteredAvailable.length}</Badge>
           </h3>
+        </div>
+
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            placeholder="Rechercher un client ou une ville..."
+            value={searchQuery}
+            onChange={e => { setSearchQuery(e.target.value); setShowAllAvailable(false); }}
+            className="h-8 pl-8 text-xs"
+          />
+        </div>
+
+        {/* Filter chips */}
+        <div className="flex flex-wrap gap-1">
+          {([
+            { key: 'clients', label: 'Clients' },
+            { key: 'prospects', label: 'Prospects' },
+            { key: 'en_retard', label: 'En retard', icon: <Flame className="h-3 w-3" /> },
+            { key: 'prioritaires', label: 'Prioritaires', icon: <Star className="h-3 w-3" /> },
+          ] as const).map(f => {
+            const active = activeFilters.has(f.key);
+            return (
+              <button
+                key={f.key}
+                onClick={() => toggleFilter(f.key)}
+                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-medium border transition-colors ${
+                  active
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-muted/50 text-muted-foreground border-border hover:bg-muted'
+                }`}
+              >
+                {'icon' in f && f.icon}
+                {f.label}
+              </button>
+            );
+          })}
         </div>
 
         <DroppableZone id="available-zone" className="min-h-[40px]">
           <SortableContext items={availableItemIds} strategy={verticalListSortingStrategy}>
             <div className="space-y-1">
-              {available.length === 0 ? (
+              {filteredAvailable.length === 0 ? (
                 <div className="py-6 text-center border border-dashed rounded-xl">
-                  <p className="text-sm text-muted-foreground">Aucun autre client ou prospect disponible dans cette zone</p>
+                  <p className="text-sm text-muted-foreground">
+                    {available.length === 0
+                      ? 'Aucun autre client ou prospect disponible dans cette zone'
+                      : 'Aucun résultat avec ces filtres'}
+                  </p>
                 </div>
               ) : (
                 <>
@@ -418,13 +459,13 @@ export function TourneeDualList({ plannedStops, availableCustomers, onUpdatePlan
                       isMobile={isMobile}
                     />
                   ))}
-                  {!showAllAvailable && available.length > 10 && (
+                  {!showAllAvailable && filteredAvailable.length > 10 && (
                     <Button
                       variant="ghost"
                       className="w-full text-xs text-muted-foreground h-8"
                       onClick={() => setShowAllAvailable(true)}
                     >
-                      Afficher les {available.length - 10} restants
+                      Afficher les {filteredAvailable.length - 10} restants
                     </Button>
                   )}
                 </>
