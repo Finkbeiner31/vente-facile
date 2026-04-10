@@ -526,7 +526,6 @@ export default function MapPage() {
       <RouteOptimizerSheet
         open={optimizerOpen}
         onOpenChange={setOptimizerOpen}
-        initialUserPos={userPos}
         onRouteGenerated={(route) => {
           // Draw polyline on map
           if (routePolylineRef.current) {

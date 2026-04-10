@@ -554,7 +554,13 @@ export default function RoutesPage() {
       )}
 
       <QuickReportDialog open={reportOpen} onOpenChange={setReportOpen} clientName={activeClient} />
-      <RouteOptimizerSheet open={optimizerOpen} onOpenChange={setOptimizerOpen} />
+      <RouteOptimizerSheet
+        open={optimizerOpen}
+        onOpenChange={setOptimizerOpen}
+        zone={todayZone ? { id: todayZone.id, system_name: todayZone.system_name, custom_label: todayZone.custom_label, color: todayZone.color } : null}
+        zoneCustomers={zoneCustomers}
+        dayLabel={`${WEEK_LABELS[selectedWeek]} · ${DAY_NAMES[selectedDay - 1]}`}
+      />
       <AddUnplannedVisitSheet
         open={addOpen}
         onOpenChange={setAddOpen}
