@@ -247,6 +247,7 @@ export type Database = {
           postal_code: string | null
           sales_potential: string | null
           updated_at: string
+          visit_duration_minutes: number | null
           visit_frequency: string | null
           website: string | null
           zone: string | null
@@ -283,6 +284,7 @@ export type Database = {
           postal_code?: string | null
           sales_potential?: string | null
           updated_at?: string
+          visit_duration_minutes?: number | null
           visit_frequency?: string | null
           website?: string | null
           zone?: string | null
@@ -319,6 +321,7 @@ export type Database = {
           postal_code?: string | null
           sales_potential?: string | null
           updated_at?: string
+          visit_duration_minutes?: number | null
           visit_frequency?: string | null
           website?: string | null
           zone?: string | null
