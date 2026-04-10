@@ -458,81 +458,32 @@ export default function RoutesPage() {
         <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
       )}
 
-      {/* Stops */}
+      {/* Dual list: Planned + Available */}
       {todayZoneId && !customersLoading && (
         <>
-          {/* Stop list */}
-          <div className="space-y-1.5">
-            {allStops.map((stop, i) => (
-              <div key={stop.customer.id}
-                className="rounded-xl border p-3 transition-all hover:border-primary/20"
-              >
-                <div className="flex items-center gap-2">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground">
-                    {i + 1}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <p className="text-sm font-semibold truncate">{stop.customer.company_name}</p>
-                      {stop.source === 'manual' && (
-                        <Badge className="bg-accent/15 text-accent text-[9px] h-4 shrink-0">Manuel</Badge>
-                      )}
-                      {stop.priority >= 60 && (
-                        <Badge className="bg-primary/15 text-primary text-[9px] h-4 shrink-0">★ Prioritaire</Badge>
-                      )}
-                      {'lastVisitDate' in stop && getOverdueBadge(stop)}
-                      {'customerType' in stop && (stop as any).customerType === 'prospect_qualifie' && (
-                        <Badge className="bg-chart-4/15 text-chart-4 text-[9px] h-4 shrink-0">Prospect</Badge>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-muted-foreground truncate">
-                      {stop.customer.city}{stop.customer.address ? ` · ${stop.customer.address}` : ''}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {stop.customer.phone && (
-                      <a href={`tel:${stop.customer.phone}`}>
-                        <Button variant="ghost" size="icon" className="h-8 w-8"><Phone className="h-3.5 w-3.5" /></Button>
-                      </a>
-                    )}
-                    <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(stop.customer.address || '')}`}
-                      target="_blank" rel="noopener noreferrer">
-                      <Button variant="ghost" size="icon" className="h-8 w-8"><Navigation className="h-3.5 w-3.5" /></Button>
-                    </a>
-                  </div>
-                </div>
-                {stop.customer.annual_revenue_potential > 0 && (
-                  <p className="text-[10px] text-muted-foreground mt-1 ml-9">
-                    {stop.customer.number_of_vehicles} véh. · {(stop.customer.annual_revenue_potential / 1000).toFixed(0)}k€/an
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
+          <TourneeDualList
+            plannedStops={allStops.map(s => ({
+              customer: s.customer,
+              priority: s.priority,
+              customerType: 'customerType' in s ? (s as any).customerType : undefined,
+              lastVisitDate: 'lastVisitDate' in s ? (s as any).lastVisitDate : null,
+            }))}
+            availableCustomers={zoneCustomers}
+            onUpdatePlanned={(newStops) => {
+              setCustomPlanned(prev => ({ ...prev, [dayKey]: newStops }));
+            }}
+          />
 
-          {/* Add buttons */}
-          <div className="flex gap-2">
+          {/* Add client outside zone */}
+          <div className="flex gap-2 mt-2">
             <Button
               variant="outline"
               className="flex-1 h-11 text-sm font-semibold gap-2 border-dashed border-primary/30 text-primary"
               onClick={() => setAddOpen(true)}
             >
-              <Plus className="h-4 w-4" />Ajouter un client
+              <Plus className="h-4 w-4" />Ajouter un client hors zone
             </Button>
           </div>
-
-          {/* Empty state */}
-          {allStops.length === 0 && (
-            <div className="py-10 text-center">
-              <Calendar className="mx-auto h-10 w-10 text-muted-foreground/30" />
-              <p className="mt-3 text-sm text-muted-foreground">Aucun client dans cette zone</p>
-              <div className="flex gap-2 justify-center mt-4">
-                <Button variant="outline" className="gap-1.5" onClick={() => setAddOpen(true)}>
-                  <Plus className="h-4 w-4" />Ajouter un client
-                </Button>
-              </div>
-            </div>
-          )}
         </>
       )}
 
