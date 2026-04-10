@@ -251,22 +251,7 @@ export default function RoutesPage() {
     toast.success(`${data.company_name} ajouté`);
   };
 
-  const handleRemoveStop = (customerId: string) => {
-    setManualStops(prev => ({
-      ...prev,
-      [dayKey]: (prev[dayKey] || []).filter(s => s.customer.id !== customerId),
-    }));
-  };
-
   const sessionCompletedCount = session ? Object.values(session.statuses).filter(s => s === 'completed').length : 0;
-
-  const getOverdueBadge = (stop: any) => {
-    const lastVisitDate = stop.lastVisitDate;
-    if (!lastVisitDate) return <Badge className="bg-primary/15 text-primary text-[9px] h-4 shrink-0">Nouveau</Badge>;
-    const days = Math.floor((Date.now() - new Date(lastVisitDate).getTime()) / 86400000);
-    if (days > 30) return <Badge className="bg-destructive/15 text-destructive text-[9px] h-4 shrink-0">En retard</Badge>;
-    return null;
-  };
 
   const stopIds = new Set(allStops.map(s => s.customer.id));
   const availableForAdd = zoneCustomers
