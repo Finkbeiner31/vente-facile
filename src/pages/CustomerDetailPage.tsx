@@ -28,6 +28,9 @@ import {
   FLEET_KEYS, FLEET_LABELS, CUSTOMER_TYPES, EQUIPMENT_TYPES, EQUIPMENT_SUB_TYPES,
 } from '@/hooks/useVehiclePotentials';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  computeVisitStatus, VISIT_FREQUENCIES, PREFERRED_DAYS, getDefaultFrequency,
+} from '@/lib/visitFrequencyUtils';
 
 import { ConversionRequestSheet } from '@/components/ConversionRequestSheet';
 import {
