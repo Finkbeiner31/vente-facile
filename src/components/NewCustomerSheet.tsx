@@ -26,6 +26,7 @@ export interface NewCustomerFormData {
   number_of_vehicles: number;
   notes: string;
   customer_type: 'prospect' | 'client_actif' | 'client_inactif';
+  visit_frequency: string;
 }
 
 interface NewCustomerSheetProps {
@@ -91,6 +92,7 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
         number_of_vehicles: vehicles,
         notes: form.notes,
         customer_type: form.customer_type as 'prospect' | 'client_actif' | 'client_inactif',
+        visit_frequency: getDefaultFrequency(form.customer_type),
       });
       setForm(getInitialForm());
       setContacts([emptyContact(true)]);
