@@ -245,6 +245,7 @@ export type Database = {
           number_of_vehicles: number | null
           phone: string | null
           postal_code: string | null
+          preferred_visit_day: string | null
           sales_potential: string | null
           updated_at: string
           visit_duration_minutes: number | null
@@ -282,6 +283,7 @@ export type Database = {
           number_of_vehicles?: number | null
           phone?: string | null
           postal_code?: string | null
+          preferred_visit_day?: string | null
           sales_potential?: string | null
           updated_at?: string
           visit_duration_minutes?: number | null
@@ -319,6 +321,7 @@ export type Database = {
           number_of_vehicles?: number | null
           phone?: string | null
           postal_code?: string | null
+          preferred_visit_day?: string | null
           sales_potential?: string | null
           updated_at?: string
           visit_duration_minutes?: number | null

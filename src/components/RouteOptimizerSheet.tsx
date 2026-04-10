@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { formatMonthly } from '@/lib/revenueUtils';
 import { toast } from 'sonner';
+import { computeVisitStatus, getVisitStatusBoost, getDefaultFrequency } from '@/lib/visitFrequencyUtils';
 import { supabase } from '@/integrations/supabase/client';
 
 // ── Types ──
@@ -92,12 +93,12 @@ function calcPriorityScore(c: OptCustomer): number {
   score += Math.min((c.annual_revenue_potential || 0) / 1000, 100);
   if (c.sales_potential === 'A') score += 30;
   else if (c.sales_potential === 'B') score += 15;
-  const days = daysSince(c.last_visit_date);
-  if (days === null) score += 30;
-  else if (days > 60) score += 28;
-  else if (days > 30) score += 22;
-  else if (days > 14) score += 12;
-  else score += 3;
+
+  // Use visit frequency-aware status for scoring
+  const effectiveFreq = c.visit_frequency || getDefaultFrequency(c.customer_type);
+  const visitStatus = computeVisitStatus(effectiveFreq, c.last_visit_date);
+  score += getVisitStatusBoost(visitStatus.status);
+
   if (c.customer_type === 'prospect_qualifie') score += 10;
   return Math.round(score);
 }

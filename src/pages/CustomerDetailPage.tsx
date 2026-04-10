@@ -28,6 +28,9 @@ import {
   FLEET_KEYS, FLEET_LABELS, CUSTOMER_TYPES, EQUIPMENT_TYPES, EQUIPMENT_SUB_TYPES,
 } from '@/hooks/useVehiclePotentials';
 import { Checkbox } from '@/components/ui/checkbox';
+import {
+  computeVisitStatus, VISIT_FREQUENCIES, PREFERRED_DAYS, getDefaultFrequency,
+} from '@/lib/visitFrequencyUtils';
 
 import { ConversionRequestSheet } from '@/components/ConversionRequestSheet';
 import {
@@ -635,6 +638,69 @@ export default function CustomerDetailPage() {
                   <p className="text-sm text-muted-foreground italic">Aucune flotte renseignée</p>
                 )}
               </div>
+
+              {/* Visit frequency & status */}
+              {(() => {
+                const effectiveFreq = cust.visit_frequency || getDefaultFrequency(status);
+                const visitStatusResult = computeVisitStatus(effectiveFreq, customer.last_visit_date);
+                return (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Fréquence de visite</p>
+                        <Select
+                          value={cust.visit_frequency || getDefaultFrequency(status)}
+                          onValueChange={v => updateCustomerMutation.mutate({ visit_frequency: v } as any)}
+                        >
+                          <SelectTrigger className="h-8 text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {VISIT_FREQUENCIES.map(f => (
+                              <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Jour préféré</p>
+                        <Select
+                          value={cust.preferred_visit_day || 'aucun'}
+                          onValueChange={v => updateCustomerMutation.mutate({ preferred_visit_day: v === 'aucun' ? null : v } as any)}
+                        >
+                          <SelectTrigger className="h-8 text-sm">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {PREFERRED_DAYS.map(d => (
+                              <SelectItem key={d.value} value={d.value}>{d.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* Visit status display */}
+                    <div className="rounded-lg border p-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <p className="text-xs font-medium">Statut de visite</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {customer.last_visit_date
+                              ? `Dernière visite : ${new Date(customer.last_visit_date).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}`
+                              : 'Jamais visité'}
+                            {visitStatusResult.daysSinceVisit !== null && ` (il y a ${visitStatusResult.daysSinceVisit}j)`}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge className={`text-xs ${visitStatusResult.bgColor} ${visitStatusResult.color}`}>
+                        {visitStatusResult.label}
+                      </Badge>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Visit duration */}
               <div>

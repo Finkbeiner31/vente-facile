@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/select';
 import { Building2, Save, RotateCcw, MapPin, Users, Briefcase } from 'lucide-react';
 import { formatMonthly, formatAnnual } from '@/lib/revenueUtils';
+import { getDefaultFrequency } from '@/lib/visitFrequencyUtils';
 import { AddressAutocomplete, type AddressSelection } from '@/components/AddressAutocomplete';
 import { BusinessSearchAutocomplete, type BusinessSelection } from '@/components/BusinessSearchAutocomplete';
 import { ContactListEditor, emptyContact, type ContactEntry } from '@/components/ContactListEditor';
@@ -25,6 +26,7 @@ export interface NewCustomerFormData {
   number_of_vehicles: number;
   notes: string;
   customer_type: 'prospect' | 'client_actif' | 'client_inactif';
+  visit_frequency: string;
 }
 
 interface NewCustomerSheetProps {
@@ -90,6 +92,7 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
         number_of_vehicles: vehicles,
         notes: form.notes,
         customer_type: form.customer_type as 'prospect' | 'client_actif' | 'client_inactif',
+        visit_frequency: getDefaultFrequency(form.customer_type),
       });
       setForm(getInitialForm());
       setContacts([emptyContact(true)]);

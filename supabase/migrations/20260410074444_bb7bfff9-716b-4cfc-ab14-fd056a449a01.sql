@@ -1,0 +1,1 @@
+ALTER TABLE public.customers ADD COLUMN preferred_visit_day text DEFAULT NULL;

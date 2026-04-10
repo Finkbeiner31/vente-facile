@@ -21,6 +21,7 @@ import { useAllCustomerRevenues } from '@/hooks/useCustomerPerformance';
 import { useZoneAssignment } from '@/hooks/useZoneAssignment';
 import { analyzeCustomerPerformance, getStatusConfig, formatCompactRevenue, type PerformanceStatus } from '@/lib/performanceUtils';
 import { computeVisitPriority, PRIORITY_CONFIGS, type PriorityLevel } from '@/lib/priorityEngine';
+import { computeVisitStatus, getDefaultFrequency } from '@/lib/visitFrequencyUtils';
 
 type CustomerStatus = 'prospect' | 'prospect_qualifie' | 'client_actif' | 'client_inactif' | 'pending_conversion';
 
@@ -152,6 +153,7 @@ export default function CustomersPage() {
           number_of_vehicles: data.number_of_vehicles,
           assigned_rep_id: user.id,
           sales_potential: getPotential(data.number_of_vehicles * 3500, null),
+          visit_frequency: data.visit_frequency,
         })
         .select('*')
         .single();
@@ -362,6 +364,12 @@ export default function CustomersPage() {
                           </Badge>
                         )}
                         <Badge className={`text-[9px] h-4 ${sc.class}`}>{sc.label}</Badge>
+                        {(() => {
+                          const freq = customer.visitFrequency || getDefaultFrequency(customer.status);
+                          const vs = computeVisitStatus(freq, customer.lastVisitDate);
+                          if (vs.status === 'a_jour') return null;
+                          return <Badge className={`text-[9px] h-4 ${vs.bgColor} ${vs.color}`}>{vs.label}</Badge>;
+                        })()}
                       </div>
                       <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                         <span>{customer.city}</span>
