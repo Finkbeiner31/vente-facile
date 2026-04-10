@@ -285,9 +285,9 @@ export default function DashboardPage() {
           <Card>
             <CardContent className="py-8 text-center">
               <Calendar className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">Aucune visite prévue</p>
+              <p className="text-sm text-muted-foreground">Aucune tournée prévue aujourd'hui</p>
               <Link to="/tournees">
-                <Button variant="outline" size="sm" className="mt-3 text-xs">Planifier</Button>
+                <Button variant="outline" size="sm" className="mt-3 text-xs">Planifier ma tournée</Button>
               </Link>
             </CardContent>
           </Card>
