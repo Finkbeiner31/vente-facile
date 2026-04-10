@@ -281,7 +281,6 @@ export function TourneeDualList({ plannedStops, availableCustomers, onUpdatePlan
 
   const plannedItemIds = plannedStops.map(s => `planned-${s.customer.id}`);
   const availableItemIds = displayedAvailable.map(c => `available-${c.id}`);
-  const allItemIds = [...plannedItemIds, ...availableItemIds];
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     setActiveDragId(event.active.id as string);
