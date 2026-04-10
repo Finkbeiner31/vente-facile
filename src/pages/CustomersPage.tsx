@@ -364,6 +364,12 @@ export default function CustomersPage() {
                           </Badge>
                         )}
                         <Badge className={`text-[9px] h-4 ${sc.class}`}>{sc.label}</Badge>
+                        {(() => {
+                          const freq = customer.visitFrequency || getDefaultFrequency(customer.status);
+                          const vs = computeVisitStatus(freq, customer.lastVisitDate);
+                          if (vs.status === 'a_jour') return null;
+                          return <Badge className={`text-[9px] h-4 ${vs.bgColor} ${vs.color}`}>{vs.label}</Badge>;
+                        })()}
                       </div>
                       <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
                         <span>{customer.city}</span>
