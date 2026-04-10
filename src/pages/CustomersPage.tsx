@@ -21,6 +21,7 @@ import { useAllCustomerRevenues } from '@/hooks/useCustomerPerformance';
 import { useZoneAssignment } from '@/hooks/useZoneAssignment';
 import { analyzeCustomerPerformance, getStatusConfig, formatCompactRevenue, type PerformanceStatus } from '@/lib/performanceUtils';
 import { computeVisitPriority, PRIORITY_CONFIGS, type PriorityLevel } from '@/lib/priorityEngine';
+import { computeVisitStatus, getDefaultFrequency } from '@/lib/visitFrequencyUtils';
 
 type CustomerStatus = 'prospect' | 'prospect_qualifie' | 'client_actif' | 'client_inactif' | 'pending_conversion';
 
