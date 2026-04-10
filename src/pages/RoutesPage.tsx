@@ -6,10 +6,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { QuickReportDialog } from '@/components/QuickReportDialog';
 import { TourMode } from '@/components/TourMode';
 import {
-  MapPin, Play, Phone, Navigation, Sparkles,
+  MapPin, Phone, Navigation, Sparkles, Zap,
   ChevronLeft, ChevronRight, Calendar, Target,
-  Sun, RotateCcw, Loader2, Clock, Star,
-  Plus, UserPlus, Users,
+  RotateCcw, Loader2, Star,
+  Plus, Users,
 } from 'lucide-react';
 import RouteOptimizerSheet from '@/components/RouteOptimizerSheet';
 import { useTourSession } from '@/contexts/TourSessionContext';
@@ -44,7 +44,6 @@ export default function RoutesPage() {
   const { data: zones = [], isLoading: zonesLoading } = useCommercialZones();
   const queryClient = useQueryClient();
 
-  // 4-week state: week 0-3, day 1-5
   const [selectedWeek, setSelectedWeek] = useState(0);
   const [selectedDay, setSelectedDay] = useState(() => {
     const dow = new Date().getDay();
@@ -57,14 +56,12 @@ export default function RoutesPage() {
   const [optimizerOpen, setOptimizerOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
 
-  // Manual additions per day key (week-day)
   const [manualStops, setManualStops] = useState<Record<string, ManualStop[]>>({});
 
   const { session, startSession } = useTourSession();
 
   const dayKey = `${selectedWeek}-${selectedDay}`;
 
-  // Load weekly zone planning for current user
   const { data: planning = [] } = useQuery({
     queryKey: ['weekly-zone-planning', user?.id],
     queryFn: async () => {
@@ -78,7 +75,6 @@ export default function RoutesPage() {
     enabled: !!user,
   });
 
-  // Zone for selected day (same planning repeats each week)
   const todayZoneId = useMemo(() => {
     const p = planning.find(p => p.day_of_week === selectedDay);
     return p?.zone_id || null;
@@ -86,7 +82,6 @@ export default function RoutesPage() {
 
   const todayZone = zones.find(z => z.id === todayZoneId);
 
-  // Load customers for the selected zone (include prospects)
   const { data: zoneCustomers = [], isLoading: customersLoading } = useQuery({
     queryKey: ['zone-customers', todayZoneId],
     queryFn: async () => {
@@ -115,7 +110,6 @@ export default function RoutesPage() {
     enabled: !!todayZoneId && zones.length > 0,
   });
 
-  // Auto-selected stops (8-12), prioritized
   const autoStops = useMemo(() => {
     const now = new Date();
     return zoneCustomers
@@ -125,7 +119,6 @@ export default function RoutesPage() {
         priority += Math.min(rev / 1000, 100);
         if (c.sales_potential === 'A') priority += 30;
         else if (c.sales_potential === 'B') priority += 15;
-        // Overdue boost
         if (c.last_visit_date) {
           const daysSince = Math.floor((now.getTime() - new Date(c.last_visit_date).getTime()) / 86400000);
           if (daysSince > 30) priority += 25;
@@ -133,7 +126,6 @@ export default function RoutesPage() {
         } else {
           priority += 20;
         }
-        // Prospect qualifié boost
         if (c.customer_type === 'prospect_qualifie') priority += 10;
         return {
           customer: {
@@ -159,7 +151,6 @@ export default function RoutesPage() {
       .slice(0, MAX_VISITS);
   }, [zoneCustomers]);
 
-  // Combine auto + manual stops
   const currentManual = manualStops[dayKey] || [];
   const allStops = useMemo(() => {
     const autoIds = new Set(autoStops.map(s => s.customer.id));
@@ -175,7 +166,6 @@ export default function RoutesPage() {
   const isAtTarget = totalPlanned >= MIN_VISITS && totalPlanned <= MAX_VISITS;
   const isOverTarget = totalPlanned > MAX_VISITS;
 
-  // Save zone assignment per day
   const assignZoneMutation = useMutation({
     mutationFn: async ({ dayOfWeek, zoneId }: { dayOfWeek: number; zoneId: string | null }) => {
       if (!user) throw new Error('Non connecté');
@@ -201,7 +191,6 @@ export default function RoutesPage() {
     return zones.find(z => z.id === zoneId)?.color;
   };
 
-  // Tour mode
   const handleStartTour = () => {
     const stops = allStops.map(s => ({ customer: s.customer, priority: s.priority }));
     startSession(selectedDay, stops);
@@ -219,7 +208,6 @@ export default function RoutesPage() {
     );
   }
 
-  // Manual add handlers
   const handleAddExistingCustomer = (customer: CustomerForRouting, position: 'next' | 'end' | 'manual') => {
     const priority = customer.annual_revenue_potential >= 50000 ? 60 : customer.annual_revenue_potential >= 20000 ? 30 : 10;
     setManualStops(prev => ({
@@ -267,7 +255,6 @@ export default function RoutesPage() {
     return null;
   };
 
-  // Available customers for manual add (not already in stops)
   const stopIds = new Set(allStops.map(s => s.customer.id));
   const availableForAdd = zoneCustomers
     .filter(c => !stopIds.has(c.id))
@@ -404,12 +391,21 @@ export default function RoutesPage() {
         </CardContent>
       </Card>
 
-      {/* Zone info + target bar */}
+      {/* Zone info + target bar + Optimize button */}
       {todayZone && (
         <div className="rounded-xl border p-3 space-y-2" style={{ borderColor: `${todayZone.color}40` }}>
           <div className="flex items-center gap-2">
             <div className="h-3.5 w-3.5 rounded-full" style={{ backgroundColor: todayZone.color }} />
             <span className="text-sm font-bold" style={{ color: todayZone.color }}>{formatZoneName(todayZone)}</span>
+            {/* Optimize button - prominent placement */}
+            <Button
+              size="sm"
+              className="ml-auto h-9 px-4 font-bold text-xs gap-1.5 shadow-sm"
+              onClick={() => setOptimizerOpen(true)}
+            >
+              <Zap className="h-4 w-4" />
+              Optimiser ma tournée
+            </Button>
           </div>
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" />{zoneCustomers.length} clients dans la zone</span>
@@ -462,22 +458,6 @@ export default function RoutesPage() {
       {/* Stops */}
       {todayZoneId && !customersLoading && (
         <>
-          {/* Actions */}
-          <div className="flex gap-2">
-            {!session?.active ? (
-              <Button className="flex-1 h-12 font-semibold" onClick={handleStartTour} disabled={allStops.length === 0}>
-                <Sun className="h-4 w-4 mr-2" />Démarrer la journée
-              </Button>
-            ) : (
-              <Button className="flex-1 h-12 font-semibold gap-1.5" onClick={handleResumeTour}>
-                <RotateCcw className="h-4 w-4" />Reprendre la tournée
-              </Button>
-            )}
-            <Button variant="outline" size="icon" className="h-12 w-12 shrink-0" onClick={() => setOptimizerOpen(true)}>
-              <Sparkles className="h-5 w-5" />
-            </Button>
-          </div>
-
           {/* Stop list */}
           <div className="space-y-1.5">
             {allStops.map((stop, i) => (
