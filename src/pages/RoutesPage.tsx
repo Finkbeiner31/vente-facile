@@ -6,9 +6,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { QuickReportDialog } from '@/components/QuickReportDialog';
 import { TourMode } from '@/components/TourMode';
 import {
-  MapPin, Phone, Navigation, Sparkles, Zap,
+  MapPin, Zap,
   ChevronLeft, ChevronRight, Calendar, Target,
-  RotateCcw, Loader2, Star,
+  RotateCcw, Loader2,
   Plus, Users,
 } from 'lucide-react';
 import RouteOptimizerSheet from '@/components/RouteOptimizerSheet';
@@ -20,6 +20,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import type { CustomerForRouting } from '@/lib/routeCycleEngine';
 import { AddUnplannedVisitSheet } from '@/components/AddUnplannedVisitSheet';
+import { TourneeDualList } from '@/components/TourneeDualList';
 
 const DAY_NAMES = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
 const WEEK_LABELS = ['S1', 'S2', 'S3', 'S4'];
@@ -57,6 +58,8 @@ export default function RoutesPage() {
   const [addOpen, setAddOpen] = useState(false);
 
   const [manualStops, setManualStops] = useState<Record<string, ManualStop[]>>({});
+  // Tracks user-customized planned stops per day key
+  const [customPlanned, setCustomPlanned] = useState<Record<string, { customer: CustomerForRouting; priority: number; customerType?: string; lastVisitDate?: string | null }[]>>({});
 
   const { session, startSession } = useTourSession();
 
@@ -153,13 +156,23 @@ export default function RoutesPage() {
 
   const currentManual = manualStops[dayKey] || [];
   const allStops = useMemo(() => {
+    // If user has customized the planned list (via dual list drag-and-drop), use that
+    if (customPlanned[dayKey]) {
+      const customIds = new Set(customPlanned[dayKey].map(s => s.customer.id));
+      const filteredManual = currentManual.filter(m => !customIds.has(m.customer.id));
+      return [
+        ...customPlanned[dayKey].map(s => ({ ...s, source: 'custom' as const })),
+        ...filteredManual.map(s => ({ ...s, source: 'manual' as const })),
+      ];
+    }
+    // Otherwise use auto-generated stops
     const autoIds = new Set(autoStops.map(s => s.customer.id));
     const filteredManual = currentManual.filter(m => !autoIds.has(m.customer.id));
     return [
       ...autoStops.map(s => ({ ...s, source: 'auto' as const })),
       ...filteredManual.map(s => ({ ...s, source: 'manual' as const })),
     ];
-  }, [autoStops, currentManual]);
+  }, [autoStops, currentManual, customPlanned, dayKey]);
 
   const totalPlanned = allStops.length;
   const isUnderTarget = totalPlanned < MIN_VISITS;
@@ -238,22 +251,7 @@ export default function RoutesPage() {
     toast.success(`${data.company_name} ajouté`);
   };
 
-  const handleRemoveStop = (customerId: string) => {
-    setManualStops(prev => ({
-      ...prev,
-      [dayKey]: (prev[dayKey] || []).filter(s => s.customer.id !== customerId),
-    }));
-  };
-
   const sessionCompletedCount = session ? Object.values(session.statuses).filter(s => s === 'completed').length : 0;
-
-  const getOverdueBadge = (stop: any) => {
-    const lastVisitDate = stop.lastVisitDate;
-    if (!lastVisitDate) return <Badge className="bg-primary/15 text-primary text-[9px] h-4 shrink-0">Nouveau</Badge>;
-    const days = Math.floor((Date.now() - new Date(lastVisitDate).getTime()) / 86400000);
-    if (days > 30) return <Badge className="bg-destructive/15 text-destructive text-[9px] h-4 shrink-0">En retard</Badge>;
-    return null;
-  };
 
   const stopIds = new Set(allStops.map(s => s.customer.id));
   const availableForAdd = zoneCustomers
@@ -455,81 +453,32 @@ export default function RoutesPage() {
         <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>
       )}
 
-      {/* Stops */}
+      {/* Dual list: Planned + Available */}
       {todayZoneId && !customersLoading && (
         <>
-          {/* Stop list */}
-          <div className="space-y-1.5">
-            {allStops.map((stop, i) => (
-              <div key={stop.customer.id}
-                className="rounded-xl border p-3 transition-all hover:border-primary/20"
-              >
-                <div className="flex items-center gap-2">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground">
-                    {i + 1}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <p className="text-sm font-semibold truncate">{stop.customer.company_name}</p>
-                      {stop.source === 'manual' && (
-                        <Badge className="bg-accent/15 text-accent text-[9px] h-4 shrink-0">Manuel</Badge>
-                      )}
-                      {stop.priority >= 60 && (
-                        <Badge className="bg-primary/15 text-primary text-[9px] h-4 shrink-0">★ Prioritaire</Badge>
-                      )}
-                      {'lastVisitDate' in stop && getOverdueBadge(stop)}
-                      {'customerType' in stop && (stop as any).customerType === 'prospect_qualifie' && (
-                        <Badge className="bg-chart-4/15 text-chart-4 text-[9px] h-4 shrink-0">Prospect</Badge>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-muted-foreground truncate">
-                      {stop.customer.city}{stop.customer.address ? ` · ${stop.customer.address}` : ''}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {stop.customer.phone && (
-                      <a href={`tel:${stop.customer.phone}`}>
-                        <Button variant="ghost" size="icon" className="h-8 w-8"><Phone className="h-3.5 w-3.5" /></Button>
-                      </a>
-                    )}
-                    <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(stop.customer.address || '')}`}
-                      target="_blank" rel="noopener noreferrer">
-                      <Button variant="ghost" size="icon" className="h-8 w-8"><Navigation className="h-3.5 w-3.5" /></Button>
-                    </a>
-                  </div>
-                </div>
-                {stop.customer.annual_revenue_potential > 0 && (
-                  <p className="text-[10px] text-muted-foreground mt-1 ml-9">
-                    {stop.customer.number_of_vehicles} véh. · {(stop.customer.annual_revenue_potential / 1000).toFixed(0)}k€/an
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
+          <TourneeDualList
+            plannedStops={allStops.map(s => ({
+              customer: s.customer,
+              priority: s.priority,
+              customerType: 'customerType' in s ? (s as any).customerType : undefined,
+              lastVisitDate: 'lastVisitDate' in s ? (s as any).lastVisitDate : null,
+            }))}
+            availableCustomers={zoneCustomers}
+            onUpdatePlanned={(newStops) => {
+              setCustomPlanned(prev => ({ ...prev, [dayKey]: newStops }));
+            }}
+          />
 
-          {/* Add buttons */}
-          <div className="flex gap-2">
+          {/* Add client outside zone */}
+          <div className="flex gap-2 mt-2">
             <Button
               variant="outline"
               className="flex-1 h-11 text-sm font-semibold gap-2 border-dashed border-primary/30 text-primary"
               onClick={() => setAddOpen(true)}
             >
-              <Plus className="h-4 w-4" />Ajouter un client
+              <Plus className="h-4 w-4" />Ajouter un client hors zone
             </Button>
           </div>
-
-          {/* Empty state */}
-          {allStops.length === 0 && (
-            <div className="py-10 text-center">
-              <Calendar className="mx-auto h-10 w-10 text-muted-foreground/30" />
-              <p className="mt-3 text-sm text-muted-foreground">Aucun client dans cette zone</p>
-              <div className="flex gap-2 justify-center mt-4">
-                <Button variant="outline" className="gap-1.5" onClick={() => setAddOpen(true)}>
-                  <Plus className="h-4 w-4" />Ajouter un client
-                </Button>
-              </div>
-            </div>
-          )}
         </>
       )}
 
