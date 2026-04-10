@@ -641,8 +641,8 @@ export default function CustomerDetailPage() {
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Durée de visite</p>
                 <div className="flex items-center gap-2">
                   <Select
-                    value={String(cust.visit_duration_minutes || '')}
-                    onValueChange={v => updateCustomerMutation.mutate({ visit_duration_minutes: v === '' ? null : parseInt(v) } as any)}
+                    value={cust.visit_duration_minutes ? String(cust.visit_duration_minutes) : 'default'}
+                    onValueChange={v => updateCustomerMutation.mutate({ visit_duration_minutes: v === 'default' ? null : parseInt(v) } as any)}
                   >
                     <SelectTrigger className="h-8 w-[140px] text-sm">
                       <SelectValue placeholder="Par défaut" />
