@@ -130,6 +130,7 @@ export default function CustomersPage() {
           zone: (customer as any).zone || null,
           relationshipType: (customer as any).relationship_type || null,
         };
+      });
     },
     enabled: !loading && !!user,
   });
