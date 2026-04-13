@@ -43,6 +43,9 @@ const demoLastReports: Record<string, any> = {
 
 export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
   const { session, updateSession, endSession } = useTourSession();
+  const { user } = useAuth();
+  const { effectiveUserId } = useImpersonation();
+  const activeUserId = effectiveUserId || user?.id;
 
   // Local UI sheet states only
   const [reportOpen, setReportOpen] = useState(false);
