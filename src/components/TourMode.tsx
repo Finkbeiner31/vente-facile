@@ -14,6 +14,7 @@ import { SortableRouteList } from './SortableRouteList';
 import { DayListDrawer } from './DayListDrawer';
 import { AddUnplannedVisitSheet } from './AddUnplannedVisitSheet';
 import { PromotionPickerSheet } from './PromotionPickerSheet';
+import { ReportHistorySheet } from './ReportHistorySheet';
 import { formatMonthly, formatAnnual, getRevenueTier, getRevenueTierColor, getRevenueTierBg } from '@/lib/revenueUtils';
 import { useTourSession } from '@/contexts/TourSessionContext';
 import type { CustomerForRouting } from '@/lib/routeCycleEngine';
@@ -49,6 +50,7 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
   const [dayListOpen, setDayListOpen] = useState(false);
   const [addUnplannedOpen, setAddUnplannedOpen] = useState(false);
   const [promotionsOpen, setPromotionsOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   if (!session) return null;
 
@@ -349,6 +351,7 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
         <div className="flex justify-around items-start gap-2 py-2.5 max-w-md mx-auto">
         {[
             { icon: FileText, label: 'Dernier\nrapport', color: 'text-primary', bg: 'bg-primary/10', onClick: () => setLastReportOpen(true) },
+            { icon: List, label: 'Historique\nrapports', color: 'text-chart-2', bg: 'bg-chart-2/10', onClick: () => setHistoryOpen(true) },
             ...(!isVisitActive ? [{ icon: Plus, label: 'Visite\nimprévue', color: 'text-accent', bg: 'bg-accent/10', onClick: () => setAddUnplannedOpen(true) }] : []),
             { icon: Tag, label: 'Promos', color: 'text-chart-4', bg: 'bg-chart-4/10', onClick: () => setPromotionsOpen(true) },
             { icon: Bell, label: 'Rappel', color: 'text-warning', bg: 'bg-warning/10', onClick: () => setReminderOpen(true) },
@@ -455,6 +458,13 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
       <PromotionPickerSheet
         open={promotionsOpen}
         onOpenChange={setPromotionsOpen}
+      />
+
+      <ReportHistorySheet
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        customerId={current.customer.id}
+        clientName={current.customer.company_name}
       />
     </div>
   );
