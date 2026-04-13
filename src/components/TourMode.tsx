@@ -14,6 +14,7 @@ import { SortableRouteList } from './SortableRouteList';
 import { DayListDrawer } from './DayListDrawer';
 import { AddUnplannedVisitSheet } from './AddUnplannedVisitSheet';
 import { PromotionPickerSheet } from './PromotionPickerSheet';
+import { ReportHistorySheet } from './ReportHistorySheet';
 import { formatMonthly, formatAnnual, getRevenueTier, getRevenueTierColor, getRevenueTierBg } from '@/lib/revenueUtils';
 import { useTourSession } from '@/contexts/TourSessionContext';
 import type { CustomerForRouting } from '@/lib/routeCycleEngine';
