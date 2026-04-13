@@ -89,9 +89,9 @@ export default function RoutesPage() {
   const todayZone = zones.find(z => z.id === todayZoneId);
 
   const { data: zoneCustomers = [], isLoading: customersLoading } = useQuery({
-    queryKey: ['zone-customers', todayZoneId],
+    queryKey: ['zone-customers', todayZoneId, activeUserId],
     queryFn: async () => {
-      if (!todayZoneId) return [];
+      if (!todayZoneId || !activeUserId) return [];
       const zone = zones.find(z => z.id === todayZoneId);
       if (!zone) return [];
 
@@ -111,9 +111,19 @@ export default function RoutesPage() {
         .or(filters.join(','))
         .order('annual_revenue_potential', { ascending: false, nullsFirst: false });
       if (error) throw error;
-      return (data || []) as any[];
+
+      // Filter by operational owner: include only clients where this user is the operational commercial
+      return ((data || []) as any[]).filter(c => {
+        const isExceptional = c.management_mode === 'exceptional';
+        if (isExceptional) {
+          // Exceptional: only the exceptional commercial sees this client
+          return c.exceptional_commercial_id === activeUserId;
+        }
+        // Standard: only the principal commercial sees this client
+        return c.assigned_rep_id === activeUserId;
+      });
     },
-    enabled: !!todayZoneId && zones.length > 0,
+    enabled: !!todayZoneId && zones.length > 0 && !!activeUserId,
   });
 
   const autoStops = useMemo(() => {
