@@ -30,14 +30,16 @@ export function useZoneAssignment() {
     ) => {
       const result = computeZoneAssignment(client, zones);
       
+      let currentRepMode = 'automatic';
       if (!options?.force) {
         // Check current assignment mode — skip if manual
         const { data: current } = await (supabase as any)
           .from('customers')
-          .select('assignment_mode')
+          .select('assignment_mode, rep_assignment_mode')
           .eq('id', customerId)
           .single();
         if (current?.assignment_mode === 'manual') return result;
+        currentRepMode = current?.rep_assignment_mode || 'automatic';
       }
 
       const update: Record<string, any> = {
@@ -48,16 +50,7 @@ export function useZoneAssignment() {
       };
 
       // Auto-assign commercial from zone owner if rep_assignment_mode is automatic
-      if (!options?.force) {
-        const repMode = current?.rep_assignment_mode;
-        if (repMode !== 'manual' && result.zone_id) {
-          const matchedZone = zones.find(z => z.id === result.zone_id);
-          if (matchedZone?.user_id) {
-            update.assigned_rep_id = matchedZone.user_id;
-            update.rep_assignment_mode = 'automatic';
-          }
-        }
-      } else if (result.zone_id) {
+      if (currentRepMode !== 'manual' && result.zone_id) {
         const matchedZone = zones.find(z => z.id === result.zone_id);
         if (matchedZone?.user_id) {
           update.assigned_rep_id = matchedZone.user_id;
