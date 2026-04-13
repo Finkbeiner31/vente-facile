@@ -346,6 +346,7 @@ export default function CustomersPage() {
           <TabsTrigger value="qualifies" className="flex-1 text-xs">Qualifiés ({counts.qualifies})</TabsTrigger>
           <TabsTrigger value="prospects" className="flex-1 text-xs">Prospects ({counts.prospects})</TabsTrigger>
           {counts.en_attente > 0 && <TabsTrigger value="en_attente" className="flex-1 text-xs">En attente ({counts.en_attente})</TabsTrigger>}
+          {isAdmin && archivedCount > 0 && <TabsTrigger value="archives" className="flex-1 text-xs">Archivés ({archivedCount})</TabsTrigger>}
         </TabsList>
       </Tabs>
 
