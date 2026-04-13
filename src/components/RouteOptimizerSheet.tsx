@@ -410,27 +410,38 @@ export default function RouteOptimizerSheet({
                     Logique de zone
                   </label>
                   <div className="space-y-1.5">
-                    <button onClick={() => setZoneLogic('strict')}
-                      className={`w-full rounded-lg border p-2.5 text-left transition-all ${
-                        zoneLogic === 'strict' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-primary/30'
-                      }`}>
-                      <p className="text-xs font-semibold">Respect strict de la zone</p>
-                      <p className="text-[10px] text-muted-foreground">Uniquement les clients dans la zone</p>
-                    </button>
-                    <button onClick={() => setZoneLogic('tolerance')}
-                      className={`w-full rounded-lg border p-2.5 text-left transition-all ${
-                        zoneLogic === 'tolerance' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-primary/30'
-                      }`}>
-                      <p className="text-xs font-semibold">Tolérance zone (15 km)</p>
-                      <p className="text-[10px] text-muted-foreground">Inclut les clients proches de la zone</p>
-                    </button>
-                    <button onClick={() => setZoneLogic('route')}
-                      className={`w-full rounded-lg border p-2.5 text-left transition-all ${
-                        zoneLogic === 'route' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-primary/30'
-                      }`}>
-                      <p className="text-xs font-semibold">Clients sur le trajet aller/retour</p>
-                      <p className="text-[10px] text-muted-foreground">Accepte les clients sur votre route</p>
-                    </button>
+                    <label className={`flex items-start gap-2.5 w-full rounded-lg border p-2.5 cursor-pointer transition-all ${
+                      zoneLogicFlags.strict ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-primary/30'
+                    }`}>
+                      <Checkbox checked={zoneLogicFlags.strict} disabled
+                        className="mt-0.5" />
+                      <div>
+                        <p className="text-xs font-semibold">Respect strict de la zone</p>
+                        <p className="text-[10px] text-muted-foreground">Toujours actif — base de la tournée</p>
+                      </div>
+                    </label>
+                    <label className={`flex items-start gap-2.5 w-full rounded-lg border p-2.5 cursor-pointer transition-all ${
+                      zoneLogicFlags.tolerance ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-primary/30'
+                    }`}
+                      onClick={() => setZoneLogicFlags(f => ({ ...f, tolerance: !f.tolerance }))}>
+                      <Checkbox checked={zoneLogicFlags.tolerance} className="mt-0.5"
+                        onCheckedChange={v => setZoneLogicFlags(f => ({ ...f, tolerance: !!v }))} />
+                      <div>
+                        <p className="text-xs font-semibold">Tolérance zone (15 km)</p>
+                        <p className="text-[10px] text-muted-foreground">Inclut les clients proches de la zone</p>
+                      </div>
+                    </label>
+                    <label className={`flex items-start gap-2.5 w-full rounded-lg border p-2.5 cursor-pointer transition-all ${
+                      zoneLogicFlags.route ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-primary/30'
+                    }`}
+                      onClick={() => setZoneLogicFlags(f => ({ ...f, route: !f.route }))}>
+                      <Checkbox checked={zoneLogicFlags.route} className="mt-0.5"
+                        onCheckedChange={v => setZoneLogicFlags(f => ({ ...f, route: !!v }))} />
+                      <div>
+                        <p className="text-xs font-semibold">Clients sur le trajet aller/retour</p>
+                        <p className="text-[10px] text-muted-foreground">Accepte les clients sur votre route</p>
+                      </div>
+                    </label>
                   </div>
                 </div>
               )}
