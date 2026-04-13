@@ -46,6 +46,7 @@ interface CustomerListItem {
   relationshipType: string | null;
   managementMode: string;
   exceptionalCommercialId: string | null;
+  repAssignmentMode: string;
 }
 
 const statusConfig: Record<CustomerStatus, { label: string; class: string }> = {
@@ -164,6 +165,7 @@ export default function CustomersPage() {
           relationshipType: customer.relationship_type || null,
           managementMode: customer.management_mode || 'standard',
           exceptionalCommercialId: customer.exceptional_commercial_id || null,
+          repAssignmentMode: customer.rep_assignment_mode || 'automatic',
         };
       });
     },
