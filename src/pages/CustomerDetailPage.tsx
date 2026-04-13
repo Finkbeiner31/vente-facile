@@ -563,11 +563,46 @@ export default function CustomerDetailPage() {
                 <p className="font-medium mt-0.5">{cust.zone || 'Non assignée'}</p>
               </div>
               <div>
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Commercial principal</p>
-                <p className="font-medium mt-0.5">
-                  {allProfiles.find(p => p.id === cust.assigned_rep_id)?.full_name || '—'}
-                </p>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Commercial assigné</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <Select
+                    value={cust.assigned_rep_id || 'none'}
+                    onValueChange={v => {
+                      updateCustomerMutation.mutate({
+                        assigned_rep_id: v === 'none' ? null : v,
+                        rep_assignment_mode: 'manual',
+                      } as any);
+                    }}
+                  >
+                    <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="Sélectionner..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Aucun</SelectItem>
+                      {allProfiles.map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className={`text-[9px] ${cust.rep_assignment_mode === 'manual' ? 'bg-warning/15 text-warning' : 'bg-accent/15 text-accent'}`}>
+                {cust.rep_assignment_mode === 'manual' ? '✋ Affectation manuelle' : '⚡ Affectation auto'}
+              </Badge>
+              {cust.rep_assignment_mode === 'manual' && (
+                <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5 text-primary"
+                  onClick={() => {
+                    // Find zone owner to restore automatic
+                    const matchedZone = zones.find(z => z.system_name === cust.zone);
+                    const updates: Record<string, any> = { rep_assignment_mode: 'automatic' };
+                    if (matchedZone?.user_id) {
+                      updates.assigned_rep_id = matchedZone.user_id;
+                    }
+                    updateCustomerMutation.mutate(updates);
+                  }}>
+                  ↻ Restaurer auto
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
