@@ -70,7 +70,7 @@ export default function RouteOptimizerSheet({
   const [arrivalType, setArrivalType] = useState<ArrivalType>('same');
   const [customArrivalAddress, setCustomArrivalAddress] = useState('');
   const [arrivalPos, setArrivalPos] = useState<{ lat: number; lng: number } | null>(null);
-  const [zoneLogic, setZoneLogic] = useState<ZoneLogic>('strict');
+  const [zoneLogicFlags, setZoneLogicFlags] = useState<ZoneLogicFlags>({ strict: true, tolerance: false, route: false });
 
   // Process state
   const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
