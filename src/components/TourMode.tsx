@@ -111,6 +111,8 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
     notes: string;
     nextActionDate: string;
     followUpAction: any;
+    promotionPresented?: boolean;
+    promotionId?: string | null;
   }) => {
     const customerId = current.customer.id;
 
@@ -127,6 +129,8 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
         visit_status: 'completed' as const,
         started_at: visitStartTime || new Date().toISOString(),
         ended_at: new Date().toISOString(),
+        promotion_presented: data.promotionPresented || false,
+        promotion_id: data.promotionId || null,
       };
 
       console.log('[TourMode] Saving report:', { customerId, activeUserId, reportPayload });

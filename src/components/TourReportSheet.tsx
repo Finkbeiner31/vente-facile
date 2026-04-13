@@ -29,7 +29,9 @@ interface TourReportSheetProps {
     notes: string;
     nextActionDate: string;
     followUpAction: FollowUpAction | null;
-  }) => void;
+    promotionPresented: boolean;
+    promotionId: string | null;
+  }) => Promise<void> | void;
   onAddProspect?: () => void;
 }
 
@@ -65,15 +67,29 @@ export function TourReportSheet({ open, onOpenChange, clientName, onSubmit, onAd
     setNextActionDate(d.toISOString().split('T')[0]);
   };
 
-  const handleSubmit = () => {
-    onSubmit({ outcome, notes, nextActionDate, followUpAction });
-    setOutcome('');
-    setNotes('');
-    setNextActionDate('');
-    setFollowUpAction(null);
-    setPromotionPresented(false);
-    setSelectedPromotion(null);
-    setPromoComment('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    try {
+      await onSubmit({
+        outcome,
+        notes,
+        nextActionDate,
+        followUpAction,
+        promotionPresented,
+        promotionId: selectedPromotion?.id || null,
+      });
+      setOutcome('');
+      setNotes('');
+      setNextActionDate('');
+      setFollowUpAction(null);
+      setPromotionPresented(false);
+      setSelectedPromotion(null);
+      setPromoComment('');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -181,10 +197,10 @@ export function TourReportSheet({ open, onOpenChange, clientName, onSubmit, onAd
           )}
 
           {/* Submit */}
-          <Button onClick={handleSubmit} disabled={!outcome}
+          <Button onClick={handleSubmit} disabled={!outcome || submitting}
             className="w-full h-14 text-base font-bold">
-            Enregistrer & Suivant
-            <ArrowRight className="h-5 w-5 ml-2" />
+            {submitting ? 'Enregistrement…' : 'Enregistrer & Suivant'}
+            {!submitting && <ArrowRight className="h-5 w-5 ml-2" />}
           </Button>
         </div>
       </SheetContent>
