@@ -395,6 +395,9 @@ export default function CustomerDetailPage() {
             {cust.account_status === 'archived' && (
               <Badge className="text-[10px] bg-muted text-muted-foreground">Archivé</Badge>
             )}
+            {cust.account_status === 'merged' && (
+              <Badge className="text-[10px] bg-muted text-muted-foreground">Fusionné</Badge>
+            )}
           </div>
           {cust.activity_type && (
             <p className="text-xs text-primary font-medium mt-0.5">{cust.activity_type}</p>
