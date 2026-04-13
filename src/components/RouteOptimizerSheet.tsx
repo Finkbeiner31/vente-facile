@@ -23,7 +23,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import {
   type OptCustomer, type ScoredCustomer, type OptimizedRoute,
-  type RouteStrategy, type ZoneLogic, type TypeFilter,
+  type RouteStrategy, type ZoneLogic, type ZoneLogicFlags, type TypeFilter,
   type OptimizationConfig,
   filterCandidates, buildOptimizedRoute,
   haversineKm, estimateDriveMin, formatDuration, getReasonBadgeStyle,
