@@ -82,9 +82,9 @@ export default function RoutesPage() {
   });
 
   const todayZoneId = useMemo(() => {
-    const p = planning.find(p => p.day_of_week === selectedDay);
+    const p = planning.find(p => p.day_of_week === selectedDay && (p as any).week_number === selectedWeek);
     return p?.zone_id || null;
-  }, [planning, selectedDay]);
+  }, [planning, selectedDay, selectedWeek]);
 
   const todayZone = zones.find(z => z.id === todayZoneId);
 
