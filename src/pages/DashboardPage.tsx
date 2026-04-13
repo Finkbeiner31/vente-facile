@@ -52,7 +52,9 @@ export default function DashboardPage() {
   /* ── Fallback: read directly from weekly_zone_planning if no daily_tour ── */
   const currentWeek = useMemo(() => getCurrentWeekNumber(), []);
   const currentDow = useMemo(() => getTodayDow(), []);
-  const isWeekday = currentDow <= 5;
+  /* ── Zones (must be before fallback queries) ── */
+  const { data: zones = [] } = useCommercialZones();
+
 
   const { data: planningFallback } = useQuery({
     queryKey: ['dashboard-planning-fallback', activeUserId, currentWeek, currentDow],
@@ -121,8 +123,6 @@ export default function DashboardPage() {
     enabled: !!planningFallback && zones.length > 0 && !!activeUserId && !dailyTour,
   });
 
-  /* ── Zones ── */
-  const { data: zones = [] } = useCommercialZones();
 
   const todayZone = useMemo(() => {
     // Daily tour zone takes priority
