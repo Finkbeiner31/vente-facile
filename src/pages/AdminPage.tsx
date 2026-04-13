@@ -46,6 +46,67 @@ interface UserWithRole {
   is_active: boolean;
 }
 
+function BulkReassignmentCard() {
+  const { bulkRecalculate } = useZoneAssignment();
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState<{ assigned: number; conflicts: number; outside: number; skippedManual: number } | null>(null);
+
+  const run = async () => {
+    setRunning(true);
+    setResult(null);
+    try {
+      const r = await bulkRecalculate();
+      setResult(r);
+      toast.success(`Recalcul terminé : ${r.assigned} assignés, ${r.skippedManual} manuels conservés`);
+    } catch (e: any) {
+      toast.error(e.message || 'Erreur lors du recalcul');
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="font-heading text-base flex items-center gap-2">
+          <RefreshCw className="h-5 w-5 text-primary" />
+          Recalculer les affectations clients
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Réassigne automatiquement chaque client au commercial propriétaire de sa zone.
+          Les affectations manuelles sont préservées.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <Button onClick={run} disabled={running}>
+          {running ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+          Lancer le recalcul
+        </Button>
+        {result && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+            <div className="rounded-lg border p-2">
+              <p className="text-lg font-bold text-primary">{result.assigned}</p>
+              <p className="text-[10px] text-muted-foreground">Assignés</p>
+            </div>
+            <div className="rounded-lg border p-2">
+              <p className="text-lg font-bold text-amber-600">{result.conflicts}</p>
+              <p className="text-[10px] text-muted-foreground">À confirmer</p>
+            </div>
+            <div className="rounded-lg border p-2">
+              <p className="text-lg font-bold text-muted-foreground">{result.outside}</p>
+              <p className="text-[10px] text-muted-foreground">Hors zone</p>
+            </div>
+            <div className="rounded-lg border p-2">
+              <p className="text-lg font-bold">{result.skippedManual}</p>
+              <p className="text-[10px] text-muted-foreground">Manuels conservés</p>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function AdminPage() {
   const { user: currentUser, role: currentRole, loading: authLoading } = useAuth();
   const { startImpersonation } = useImpersonation();
