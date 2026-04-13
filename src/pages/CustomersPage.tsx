@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Search, Plus, Phone, Navigation, Building2, Car, Loader2, TrendingUp, TrendingDown, Minus, MapPin,
@@ -88,6 +89,8 @@ const splitContactName = (fullName: string) => {
 
 export default function CustomersPage() {
   const { user, loading } = useAuth();
+  const { effectiveUserId } = useImpersonation();
+  const activeUserId = effectiveUserId || user?.id;
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<FilterTab>('tous');
   const [perfFilter, setPerfFilter] = useState<PerfFilter>('tous');
@@ -101,13 +104,20 @@ export default function CustomersPage() {
   const { data: revenueMap } = useAllCustomerRevenues();
 
   const { data: customers = [], isLoading, isError } = useQuery({
-    queryKey: ['customers', user?.id],
+    queryKey: ['customers', activeUserId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('customers')
         .select('*')
         .order('annual_revenue_potential', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false });
+      
+      // When impersonating, filter by the effective user
+      if (activeUserId) {
+        query = query.eq('assigned_rep_id', activeUserId);
+      }
+      
+      const { data, error } = await query;
       if (error) throw error;
       return (data || []).map((customer): CustomerListItem => {
         const revenue = Number(customer.annual_revenue_potential || 0);
@@ -132,7 +142,7 @@ export default function CustomersPage() {
         };
       });
     },
-    enabled: !loading && !!user,
+    enabled: !loading && !!activeUserId,
   });
 
   const createCustomerMutation = useMutation({

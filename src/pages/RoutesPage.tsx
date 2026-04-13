@@ -14,6 +14,7 @@ import {
 import RouteOptimizerSheet from '@/components/RouteOptimizerSheet';
 import { useTourSession } from '@/contexts/TourSessionContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { useCommercialZones, formatZoneName } from '@/hooks/useCommercialZones';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -42,6 +43,8 @@ interface ManualStop {
 
 export default function RoutesPage() {
   const { user } = useAuth();
+  const { effectiveUserId } = useImpersonation();
+  const activeUserId = effectiveUserId || user?.id;
   const { data: zones = [], isLoading: zonesLoading } = useCommercialZones();
   const queryClient = useQueryClient();
 
@@ -66,16 +69,16 @@ export default function RoutesPage() {
   const dayKey = `${selectedWeek}-${selectedDay}`;
 
   const { data: planning = [] } = useQuery({
-    queryKey: ['weekly-zone-planning', user?.id],
+    queryKey: ['weekly-zone-planning', activeUserId],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('weekly_zone_planning')
         .select('*')
-        .eq('user_id', user!.id);
+        .eq('user_id', activeUserId!);
       if (error) throw error;
       return (data || []) as ZonePlanning[];
     },
-    enabled: !!user,
+    enabled: !!activeUserId,
   });
 
   const todayZoneId = useMemo(() => {

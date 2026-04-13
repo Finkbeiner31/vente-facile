@@ -31,7 +31,7 @@ const todayDow = () => { const d = new Date().getDay(); return d === 0 ? 6 : d -
    ═══════════════════════════════════════════════════════════════ */
 export default function DashboardPage() {
   const { profile, user, loading: authLoading } = useAuth();
-  const { effectiveUserId, isImpersonating } = useImpersonation();
+  const { effectiveUserId, isImpersonating, impersonatedUser } = useImpersonation();
   const { session, startSession } = useTourSession();
   const [tourMode, setTourMode] = useState(false);
   
@@ -215,7 +215,8 @@ export default function DashboardPage() {
     return <TourMode onExit={() => setTourMode(false)} allCustomers={tourCustomers} />;
   }
 
-  const firstName = profile?.full_name?.split(' ')[0] || 'Commercial';
+  const effectiveName = isImpersonating ? impersonatedUser?.full_name : profile?.full_name;
+  const firstName = effectiveName?.split(' ')[0] || 'Commercial';
   const sessionCompletedCount = session ? Object.values(session.statuses).filter(s => s === 'completed').length : 0;
 
   return (

@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, FileText, Calendar, User } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { NewReportSheet } from '@/components/NewReportSheet';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -21,23 +22,26 @@ const OUTCOME_LABELS: Record<string, string> = {
 
 export default function ReportsPage() {
   const { user } = useAuth();
+  const { effectiveUserId } = useImpersonation();
+  const activeUserId = effectiveUserId || user?.id;
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
 
   const loadReports = async () => {
-    if (!user) return;
+    if (!activeUserId) return;
     setLoading(true);
     const { data } = await supabase
       .from('visit_reports')
       .select('*, customers(company_name, city)')
+      .eq('rep_id', activeUserId)
       .order('visit_date', { ascending: false })
       .limit(50);
     setReports(data || []);
     setLoading(false);
   };
 
-  useEffect(() => { loadReports(); }, [user]);
+  useEffect(() => { loadReports(); }, [activeUserId]);
 
   return (
     <div className="space-y-6 animate-fade-in">

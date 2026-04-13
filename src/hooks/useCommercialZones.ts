@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useImpersonation } from '@/contexts/ImpersonationContext';
 
 export interface CommercialZone {
   id: string;
@@ -22,10 +23,18 @@ export function formatZoneName(zone: CommercialZone): string {
 
 export function useCommercialZones() {
   const { user } = useAuth();
+  const { effectiveUserId } = useImpersonation();
+  const activeUserId = effectiveUserId || user?.id;
+  
   return useQuery({
-    queryKey: ['commercial-zones', user?.id],
+    queryKey: ['commercial-zones', activeUserId],
     queryFn: async () => {
-      const { data, error } = await (supabase as any).from('commercial_zones').select('*').order('system_name');
+      let query = (supabase as any).from('commercial_zones').select('*').order('system_name');
+      // When we have an effective user, filter zones by that user
+      if (activeUserId) {
+        query = query.eq('user_id', activeUserId);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return (data || []).map((z: any) => ({
         ...z,
@@ -34,7 +43,7 @@ export function useCommercialZones() {
         polygon_coordinates: z.polygon_coordinates || null,
       })) as CommercialZone[];
     },
-    enabled: !!user,
+    enabled: !!activeUserId,
   });
 }
 

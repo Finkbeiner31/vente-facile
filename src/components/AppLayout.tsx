@@ -5,13 +5,16 @@ import { MobileBottomBar } from '@/components/MobileBottomBar';
 
 import { useAuth } from '@/contexts/AuthContext';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
+const ADMIN_ROUTES = ['/admin', '/admin/import', '/admin/import-ca', '/admin/historique-ca'];
+
 export default function AppLayout() {
   const { session, loading } = useAuth();
-  const { isImpersonating, impersonatedUser, stopImpersonation } = useImpersonation();
+  const { isImpersonating, impersonatedUser, stopImpersonation, effectiveRole } = useImpersonation();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -22,6 +25,12 @@ export default function AppLayout() {
   }
 
   if (!session) return <Navigate to="/login" replace />;
+
+  // Block admin routes when impersonating a non-admin user
+  const isAdminRoute = ADMIN_ROUTES.some(r => location.pathname === r || location.pathname.startsWith(r + '/'));
+  if (isAdminRoute && isImpersonating && effectiveRole !== 'admin' && effectiveRole !== 'manager') {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <SidebarProvider>

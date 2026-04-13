@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -149,6 +150,8 @@ function getPotential(c: MapCustomer): string {
 
 export default function MapPage() {
   const { user, loading } = useAuth();
+  const { effectiveUserId } = useImpersonation();
+  const activeUserId = effectiveUserId || user?.id;
   const isMobile = useIsMobile();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
@@ -170,17 +173,21 @@ export default function MapPage() {
 
   // Fetch customers with coordinates
   const { data: customers = [], isLoading } = useQuery({
-    queryKey: ['customers-map', user?.id],
+    queryKey: ['customers-map', activeUserId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('customers')
         .select('id, company_name, customer_type, city, latitude, longitude, number_of_vehicles, annual_revenue_potential, last_visit_date, phone, sales_potential, visit_frequency')
         .not('latitude', 'is', null)
         .not('longitude', 'is', null);
+      if (activeUserId) {
+        query = query.eq('assigned_rep_id', activeUserId);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return (data || []) as MapCustomer[];
     },
-    enabled: !loading && !!user,
+    enabled: !loading && !!activeUserId,
   });
 
   // Compute performance status per customer for marker colors
