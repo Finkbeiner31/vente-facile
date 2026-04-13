@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { useTourSession } from '@/contexts/TourSessionContext';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -30,22 +31,25 @@ const todayDow = () => { const d = new Date().getDay(); return d === 0 ? 6 : d -
    ═══════════════════════════════════════════════════════════════ */
 export default function DashboardPage() {
   const { profile, user, loading: authLoading } = useAuth();
+  const { effectiveUserId, isImpersonating } = useImpersonation();
   const { session, startSession } = useTourSession();
   const [tourMode, setTourMode] = useState(false);
+  
+  const activeUserId = effectiveUserId || user?.id;
   
 
   /* ── Zone du jour ── */
   const { data: zones = [] } = useCommercialZones();
   const { data: planning = [] } = useQuery({
-    queryKey: ['dashboard-zone-planning', user?.id],
+    queryKey: ['dashboard-zone-planning', activeUserId],
     queryFn: async () => {
       const { data } = await supabase
         .from('weekly_zone_planning')
         .select('day_of_week, zone_id')
-        .eq('user_id', user!.id);
+        .eq('user_id', activeUserId!);
       return data || [];
     },
-    enabled: !!user,
+    enabled: !!activeUserId,
   });
 
   const todayZone = useMemo(() => {
@@ -57,24 +61,25 @@ export default function DashboardPage() {
 
   /* ── Customers ── */
   const { data: allCustomers = [] } = useQuery({
-    queryKey: ['dashboard-customers', user?.id],
+    queryKey: ['dashboard-customers', activeUserId],
     queryFn: async () => {
       const { data } = await supabase
         .from('customers')
-        .select('id, company_name, customer_type, last_visit_date, visit_frequency, latitude, longitude, city, phone, address, number_of_vehicles, annual_revenue_potential, sales_potential, zone');
+        .select('id, company_name, customer_type, last_visit_date, visit_frequency, latitude, longitude, city, phone, address, number_of_vehicles, annual_revenue_potential, sales_potential, zone')
+        .eq('assigned_rep_id', activeUserId!);
       return data || [];
     },
-    enabled: !!user,
+    enabled: !!activeUserId,
   });
 
   /* ── Today's route stops ── */
   const { data: todayStops = [] } = useQuery({
-    queryKey: ['dashboard-today-route', user?.id, todayStr()],
+    queryKey: ['dashboard-today-route', activeUserId, todayStr()],
     queryFn: async () => {
       const { data: routes } = await supabase
         .from('routes')
         .select('id')
-        .eq('rep_id', user!.id)
+        .eq('rep_id', activeUserId!)
         .eq('route_date', todayStr())
         .eq('status', 'planned')
         .limit(1);
@@ -86,7 +91,7 @@ export default function DashboardPage() {
         .order('stop_order', { ascending: true });
       return stops || [];
     },
-    enabled: !!user,
+    enabled: !!activeUserId,
   });
 
   const todayVisits = useMemo(() => {
@@ -103,18 +108,19 @@ export default function DashboardPage() {
 
   /* ── Urgent tasks ── */
   const { data: urgentTasks = [] } = useQuery({
-    queryKey: ['dashboard-urgent-tasks', user?.id],
+    queryKey: ['dashboard-urgent-tasks', activeUserId],
     queryFn: async () => {
       const { data } = await supabase
         .from('tasks')
         .select('id, title, due_date, priority, status, customer_id')
+        .eq('assigned_to', activeUserId!)
         .in('status', ['todo', 'in_progress'])
         .lte('due_date', format(new Date(Date.now() + 86400000), 'yyyy-MM-dd'))
         .order('due_date', { ascending: true })
         .limit(6);
       return data || [];
     },
-    enabled: !!user,
+    enabled: !!activeUserId,
   });
 
   const tasksDisplay = useMemo(() => {

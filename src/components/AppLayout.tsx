@@ -4,11 +4,14 @@ import { AppSidebar } from '@/components/AppSidebar';
 import { MobileBottomBar } from '@/components/MobileBottomBar';
 
 import { useAuth } from '@/contexts/AuthContext';
+import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { Navigate } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
+import { Loader2, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 export default function AppLayout() {
   const { session, loading } = useAuth();
+  const { isImpersonating, impersonatedUser, stopImpersonation } = useImpersonation();
 
   if (loading) {
     return (
@@ -22,7 +25,16 @@ export default function AppLayout() {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
+      <div className="min-h-screen flex w-full flex-col">
+        {isImpersonating && impersonatedUser && (
+          <div className="sticky top-0 z-50 flex items-center justify-center gap-3 bg-amber-500 px-4 py-2 text-sm font-medium text-white">
+            <span>Vous êtes connecté en tant que <strong>{impersonatedUser.full_name}</strong> (Mode admin)</span>
+            <Button size="sm" variant="secondary" className="h-6 text-xs" onClick={stopImpersonation}>
+              <X className="h-3 w-3 mr-1" />Revenir à mon compte
+            </Button>
+          </div>
+        )}
+        <div className="flex flex-1">
         <div className="hidden md:block">
           <AppSidebar />
         </div>
@@ -37,7 +49,7 @@ export default function AppLayout() {
           </main>
         </div>
         <MobileBottomBar />
-        
+        </div>
       </div>
     </SidebarProvider>
   );
