@@ -374,6 +374,12 @@ export function TourneeDualList({ plannedStops, availableCustomers, onUpdatePlan
             Tournée du jour
             <Badge variant="secondary" className="text-[10px] h-4 ml-1">{plannedStops.length}</Badge>
           </h3>
+          {plannedStops.length > 0 && totalVisitMin > 0 && (
+            <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              ≈ {formatDuration(totalVisitMin)} de rendez-vous
+            </span>
+          )}
         </div>
 
         <DroppableZone id="planned-zone" className="min-h-[60px]">
