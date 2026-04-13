@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Search, Plus, Phone, Navigation, Building2, Car, Loader2, TrendingUp, TrendingDown, Minus, MapPin,
