@@ -535,9 +535,9 @@ export default function RouteOptimizerSheet({
                       <span>Visites : {visitTarget}</span>
                     </div>
                     {zone && (
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-3 w-3 text-primary shrink-0" />
-                        <span>Zone : {getZoneLogicLabel()}</span>
+                      <div className="flex items-start gap-2">
+                        <MapPin className="h-3 w-3 text-primary shrink-0 mt-0.5" />
+                        <span>Zone : {getZoneLogicLabels().join(' + ')}</span>
                       </div>
                     )}
                   </div>
