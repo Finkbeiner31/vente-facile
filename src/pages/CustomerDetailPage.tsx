@@ -89,6 +89,16 @@ export default function CustomerDetailPage() {
   const { data: zones = [] } = useCommercialZones();
   const { autoAssignCustomer } = useZoneAssignment();
 
+  // Fetch all profiles for exceptional commercial dropdown
+  const { data: allProfiles = [] } = useQuery({
+    queryKey: ['profiles-all'],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from('profiles').select('id, full_name');
+      return (data || []) as { id: string; full_name: string }[];
+    },
+    enabled: !authLoading && !!user && (role === 'admin' || role === 'manager'),
+  });
+
   const { data: contacts = [] } = useQuery({
     queryKey: ['contacts', id, user?.id],
     queryFn: async () => {
