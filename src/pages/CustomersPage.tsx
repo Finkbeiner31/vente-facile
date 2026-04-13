@@ -227,14 +227,36 @@ export default function CustomersPage() {
     onSuccess: async (createdCustomer) => {
       // Auto-assign zone
       try {
-        await autoAssignCustomer(createdCustomer.id, {
+        const result = await autoAssignCustomer(createdCustomer.id, {
           latitude: createdCustomer.latitude,
           longitude: createdCustomer.longitude,
           postal_code: createdCustomer.postal_code,
           city: createdCustomer.city,
         }, { force: true });
+        
+        // If no zone was assigned and user is not admin, mark as pending_admin
+        if (!isAdmin) {
+          const { data: updatedCustomer } = await supabase
+            .from('customers')
+            .select('zone_status')
+            .eq('id', createdCustomer.id)
+            .single();
+          
+          if (updatedCustomer?.zone_status === 'outside' || updatedCustomer?.zone_status === null) {
+            await supabase
+              .from('customers')
+              .update({ zone_status: 'pending_admin' })
+              .eq('id', createdCustomer.id);
+          }
+        }
       } catch (e) {
-        // Non-blocking — zone assignment is best-effort
+        // If zone assignment fails for non-admin, mark as pending
+        if (!isAdmin) {
+          await supabase
+            .from('customers')
+            .update({ zone_status: 'pending_admin' })
+            .eq('id', createdCustomer.id);
+        }
       }
       await queryClient.invalidateQueries({ queryKey: ['customers'] });
       toast.success(`${createdCustomer.company_name} enregistré avec succès.`);
