@@ -148,8 +148,11 @@ export default function AdminPage() {
   const { startImpersonation } = useImpersonation();
   const navigate = useNavigate();
   const { data: potentials = [], isLoading: potentialsLoading } = useVehiclePotentials();
+  const { data: visitDurations, isLoading: durationsLoading } = useVisitDurationDefaults();
   const [editingPotentials, setEditingPotentials] = useState(false);
   const [potentialForm, setPotentialForm] = useState<Record<string, number>>({});
+  const [editingDurations, setEditingDurations] = useState(false);
+  const [durationForm, setDurationForm] = useState<Record<string, number>>({});
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
