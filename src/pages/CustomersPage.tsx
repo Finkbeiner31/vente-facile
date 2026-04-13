@@ -281,12 +281,12 @@ export default function CustomersPage() {
   const filtered = useMemo(() => enriched
     .filter(c => {
       // Hide archived by default unless admin is filtering for them
-      if (c.accountStatus === 'archived' && tab !== 'archives') return false;
+      if ((c.accountStatus === 'archived' || c.accountStatus === 'merged') && tab !== 'archives') return false;
       if (tab === 'clients') return c.status === 'client_actif' || c.status === 'client_inactif';
       if (tab === 'prospects') return c.status === 'prospect';
       if (tab === 'qualifies') return c.status === 'prospect_qualifie';
       if (tab === 'en_attente') return c.status === 'pending_conversion';
-      if (tab === 'archives') return c.accountStatus === 'archived';
+      if (tab === 'archives') return c.accountStatus === 'archived' || c.accountStatus === 'merged';
       return true;
     })
     .filter(c => {
@@ -305,8 +305,8 @@ export default function CustomersPage() {
       return b.revenue - a.revenue; // potential
     }), [enriched, search, tab, perfFilter, trendFilter, priorityFilter, sortMode]);
 
-  const activeCustomers = customers.filter(c => c.accountStatus !== 'archived');
-  const archivedCount = customers.filter(c => c.accountStatus === 'archived').length;
+  const activeCustomers = customers.filter(c => c.accountStatus !== 'archived' && c.accountStatus !== 'merged');
+  const archivedCount = customers.filter(c => c.accountStatus === 'archived' || c.accountStatus === 'merged').length;
   const counts = {
     tous: activeCustomers.length,
     clients: activeCustomers.filter(c => c.status === 'client_actif' || c.status === 'client_inactif').length,

@@ -16,7 +16,7 @@ import {
   User, Clock, MapPin, ExternalLink, Car, Target, Store, Hammer,
   Loader2, AlertTriangle, ArrowRightCircle, Plus, Pencil, Trash2,
   Star, Mail, MessageCircle, Truck, Wrench, Building2, ShieldAlert, UserCheck,
-  Archive, Shield,
+  Archive, Shield, Merge,
 } from 'lucide-react';
 import { RevenueHistoryCard } from '@/components/RevenueHistoryCard';
 import { useCommercialZones, findMatchingZone, formatZoneName } from '@/hooks/useCommercialZones';
@@ -34,6 +34,7 @@ import {
 } from '@/lib/visitFrequencyUtils';
 
 import { ConversionRequestSheet } from '@/components/ConversionRequestSheet';
+import { MergeAccountSheet } from '@/components/MergeAccountSheet';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
@@ -70,6 +71,7 @@ export default function CustomerDetailPage() {
   const [deleteReason, setDeleteReason] = useState('doublon');
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
   const [archiveReason, setArchiveReason] = useState('doublon');
+  const [mergeSheetOpen, setMergeSheetOpen] = useState(false);
   const queryClient = useQueryClient();
   const isValidId = Boolean(id && UUID_REGEX.test(id));
 
@@ -393,6 +395,9 @@ export default function CustomerDetailPage() {
             {cust.account_status === 'archived' && (
               <Badge className="text-[10px] bg-muted text-muted-foreground">Archivé</Badge>
             )}
+            {cust.account_status === 'merged' && (
+              <Badge className="text-[10px] bg-muted text-muted-foreground">Fusionné</Badge>
+            )}
           </div>
           {cust.activity_type && (
             <p className="text-xs text-primary font-medium mt-0.5">{cust.activity_type}</p>
@@ -410,6 +415,11 @@ export default function CustomerDetailPage() {
             {canDelete && (
               <Button variant="ghost" size="sm" className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleteDialogOpen(true)}>
                 <Trash2 className="h-3.5 w-3.5 mr-1" /> Supprimer
+              </Button>
+            )}
+            {cust.account_status !== 'archived' && cust.account_status !== 'merged' && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs text-primary hover:bg-primary/10" onClick={() => setMergeSheetOpen(true)}>
+                <Merge className="h-3.5 w-3.5 mr-1" /> Fusionner
               </Button>
             )}
             {canArchive && cust.account_status !== 'archived' && (
@@ -1371,6 +1381,15 @@ export default function CustomerDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Merge sheet */}
+      {role === 'admin' && (
+        <MergeAccountSheet
+          open={mergeSheetOpen}
+          onOpenChange={setMergeSheetOpen}
+          sourceCustomer={customer}
+        />
+      )}
     </div>
   );
 }
