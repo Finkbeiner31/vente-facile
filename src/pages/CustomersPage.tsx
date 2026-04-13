@@ -48,6 +48,7 @@ interface CustomerListItem {
   managementMode: string;
   exceptionalCommercialId: string | null;
   repAssignmentMode: string;
+  accountStatus: string;
 }
 
 const statusConfig: Record<CustomerStatus, { label: string; class: string }> = {
@@ -169,6 +170,7 @@ export default function CustomersPage() {
           managementMode: customer.management_mode || 'standard',
           exceptionalCommercialId: customer.exceptional_commercial_id || null,
           repAssignmentMode: customer.rep_assignment_mode || 'automatic',
+          accountStatus: customer.account_status || 'active',
         };
       });
     },
@@ -278,10 +280,13 @@ export default function CustomersPage() {
 
   const filtered = useMemo(() => enriched
     .filter(c => {
+      // Hide archived by default unless admin is filtering for them
+      if (c.accountStatus === 'archived' && tab !== 'archives') return false;
       if (tab === 'clients') return c.status === 'client_actif' || c.status === 'client_inactif';
       if (tab === 'prospects') return c.status === 'prospect';
       if (tab === 'qualifies') return c.status === 'prospect_qualifie';
       if (tab === 'en_attente') return c.status === 'pending_conversion';
+      if (tab === 'archives') return c.accountStatus === 'archived';
       return true;
     })
     .filter(c => {
