@@ -15,7 +15,7 @@ import {
   ArrowLeft, Phone, Navigation, FileText, CheckSquare,
   User, Clock, MapPin, ExternalLink, Car, Target, Store, Hammer,
   Loader2, AlertTriangle, ArrowRightCircle, Plus, Pencil, Trash2,
-  Star, Mail, MessageCircle, Truck, Wrench, Building2,
+  Star, Mail, MessageCircle, Truck, Wrench, Building2, ShieldAlert, UserCheck,
 } from 'lucide-react';
 import { RevenueHistoryCard } from '@/components/RevenueHistoryCard';
 import { useCommercialZones, findMatchingZone, formatZoneName } from '@/hooks/useCommercialZones';
