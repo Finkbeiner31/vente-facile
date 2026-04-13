@@ -13,7 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Phone, Navigation, FileText, CheckSquare,
-  User, Clock, MapPin, ExternalLink, Car, Target,
+  User, Clock, MapPin, ExternalLink, Car, Target, Store, Hammer,
   Loader2, AlertTriangle, ArrowRightCircle, Plus, Pencil, Trash2,
   Star, Mail, MessageCircle, Truck, Wrench, Building2,
 } from 'lucide-react';
@@ -60,7 +60,7 @@ export default function CustomerDetailPage() {
   const [newContact, setNewContact] = useState({ first_name: '', last_name: '', role: '', phone: '', email: '' });
   const [editContactData, setEditContactData] = useState({ first_name: '', last_name: '', role: '', phone: '', email: '' });
   const [editingBusiness, setEditingBusiness] = useState(false);
-  const [fleetForm, setFleetForm] = useState({ fleet_pl: 0, fleet_vu: 0, fleet_remorque: 0, fleet_car_bus: 0, activity_type: '', equipment_type: '', equipment_types: [] as string[] });
+  const [fleetForm, setFleetForm] = useState({ fleet_pl: 0, fleet_vu: 0, fleet_remorque: 0, fleet_car_bus: 0, activity_type: '', equipment_type: '', equipment_types: [] as string[], relationship_type: '' });
   const [conversionSheetOpen, setConversionSheetOpen] = useState(false);
   const [rollbackDialogOpen, setRollbackDialogOpen] = useState(false);
   const [rollbackReason, setRollbackReason] = useState('');
@@ -277,6 +277,7 @@ export default function CustomerDetailPage() {
       activity_type: cust.activity_type || '',
       equipment_type: cust.equipment_type || '',
       equipment_types: Array.isArray(eqTypes) ? eqTypes : [],
+      relationship_type: cust.relationship_type || '',
     });
     setEditingBusiness(true);
   };
@@ -299,6 +300,7 @@ export default function CustomerDetailPage() {
       activity_type: fleetForm.activity_type || null,
       equipment_type: fleetForm.equipment_type || null,
       equipment_types: eqTypes,
+      relationship_type: fleetForm.relationship_type || null,
     } as any);
   };
 
@@ -347,6 +349,18 @@ export default function CustomerDetailPage() {
             </div>
           ) : null;
         })()}
+        {/* Relationship type badge */}
+        {cust.relationship_type && (
+          <Badge className={`text-[10px] h-5 ${
+            cust.relationship_type === 'magasin' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+            cust.relationship_type === 'atelier' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
+            'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+          }`}>
+            {cust.relationship_type === 'magasin' ? <><Store className="h-3 w-3 mr-1" />Magasin</> :
+             cust.relationship_type === 'atelier' ? <><Hammer className="h-3 w-3 mr-1" />Atelier</> :
+             <><Store className="h-3 w-3 mr-1" />Mixte</>}
+          </Badge>
+        )}
         {customer.last_visit_date && (
           <div className="flex items-center gap-1.5 rounded-lg bg-muted px-3 py-1.5">
             <Clock className="h-3.5 w-3.5 text-muted-foreground" />
@@ -541,6 +555,18 @@ export default function CustomerDetailPage() {
                 </Select>
               </div>
               <div>
+                <label className="text-xs font-medium text-muted-foreground">Type de relation commerciale</label>
+                <Select value={fleetForm.relationship_type || 'none'} onValueChange={v => setFleetForm(f => ({ ...f, relationship_type: v === 'none' ? '' : v }))}>
+                  <SelectTrigger className="h-10 mt-1"><SelectValue placeholder="Non renseigné" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Non renseigné</SelectItem>
+                    <SelectItem value="magasin">Magasin (achat de pièces)</SelectItem>
+                    <SelectItem value="atelier">Atelier (prestations de service)</SelectItem>
+                    <SelectItem value="mixte">Mixte (les deux)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
                 <label className="text-xs font-medium text-muted-foreground">Équipement principal</label>
                 <Select value={fleetForm.equipment_type} onValueChange={v => setFleetForm(f => ({ ...f, equipment_type: v, equipment_types: v === 'Multi-équipement' ? f.equipment_types : [] }))}>
                   <SelectTrigger className="h-10 mt-1"><SelectValue placeholder="Sélectionner..." /></SelectTrigger>
@@ -601,10 +627,19 @@ export default function CustomerDetailPage() {
           ) : (
             <div className="space-y-3">
               {/* Customer type & equipment */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Type de client</p>
                   <p className="text-sm font-medium mt-0.5">{cust.activity_type || <span className="text-muted-foreground italic">Non renseigné</span>}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Relation commerciale</p>
+                  <p className="text-sm font-medium mt-0.5">
+                    {cust.relationship_type === 'magasin' ? 'Magasin' :
+                     cust.relationship_type === 'atelier' ? 'Atelier' :
+                     cust.relationship_type === 'mixte' ? 'Mixte' :
+                     <span className="text-muted-foreground italic">Non renseigné</span>}
+                  </p>
                 </div>
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground">

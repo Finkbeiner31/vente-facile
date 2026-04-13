@@ -246,6 +246,7 @@ export type Database = {
           phone: string | null
           postal_code: string | null
           preferred_visit_day: string | null
+          relationship_type: string | null
           sales_potential: string | null
           updated_at: string
           visit_duration_minutes: number | null
@@ -284,6 +285,7 @@ export type Database = {
           phone?: string | null
           postal_code?: string | null
           preferred_visit_day?: string | null
+          relationship_type?: string | null
           sales_potential?: string | null
           updated_at?: string
           visit_duration_minutes?: number | null
@@ -322,6 +324,7 @@ export type Database = {
           phone?: string | null
           postal_code?: string | null
           preferred_visit_day?: string | null
+          relationship_type?: string | null
           sales_potential?: string | null
           updated_at?: string
           visit_duration_minutes?: number | null
