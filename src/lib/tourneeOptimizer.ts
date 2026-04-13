@@ -64,6 +64,7 @@ export interface OptimizationConfig {
   visitTarget: number;
   strategy: RouteStrategy;
   zoneLogic: ZoneLogic;
+  zoneLogicFlags?: ZoneLogicFlags;
   typeFilter: TypeFilter;
   excludeRecentDays: number | null; // null = don't exclude
   departureLat: number;
