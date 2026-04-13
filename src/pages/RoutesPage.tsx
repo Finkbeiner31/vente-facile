@@ -82,9 +82,9 @@ export default function RoutesPage() {
   });
 
   const todayZoneId = useMemo(() => {
-    const p = planning.find(p => p.day_of_week === selectedDay);
+    const p = planning.find(p => p.day_of_week === selectedDay && (p as any).week_number === selectedWeek);
     return p?.zone_id || null;
-  }, [planning, selectedDay]);
+  }, [planning, selectedDay, selectedWeek]);
 
   const todayZone = zones.find(z => z.id === todayZoneId);
 
@@ -183,22 +183,25 @@ export default function RoutesPage() {
   const isOverTarget = totalPlanned > MAX_VISITS;
 
   const assignZoneMutation = useMutation({
-    mutationFn: async ({ dayOfWeek, zoneId }: { dayOfWeek: number; zoneId: string | null }) => {
-      if (!user) throw new Error('Non connecté');
+    mutationFn: async ({ dayOfWeek, zoneId, weekNumber }: { dayOfWeek: number; zoneId: string | null; weekNumber: number }) => {
+      if (!activeUserId) throw new Error('Non connecté');
       const { error } = await (supabase as any)
         .from('weekly_zone_planning')
-        .upsert({ user_id: user.id, day_of_week: dayOfWeek, zone_id: zoneId }, { onConflict: 'user_id,day_of_week' });
+        .upsert(
+          { user_id: activeUserId, week_number: weekNumber, day_of_week: dayOfWeek, zone_id: zoneId },
+          { onConflict: 'user_id,week_number,day_of_week' }
+        );
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['weekly-zone-planning'] });
+      queryClient.invalidateQueries({ queryKey: ['weekly-zone-planning', activeUserId] });
       toast.success('Planning mis à jour');
     },
-    onError: () => toast.error('Erreur de mise à jour'),
+    onError: () => toast.error('Impossible d\'enregistrer la zone pour ce jour'),
   });
 
   const getZoneForDay = (day: number) => {
-    const p = planning.find(p => p.day_of_week === day);
+    const p = planning.find(p => p.day_of_week === day && (p as any).week_number === selectedWeek);
     return p?.zone_id || undefined;
   };
 
@@ -371,7 +374,7 @@ export default function RoutesPage() {
             </div>
             <Select
               value={todayZoneId || 'none'}
-              onValueChange={v => assignZoneMutation.mutate({ dayOfWeek: selectedDay, zoneId: v === 'none' ? null : v })}
+              onValueChange={v => assignZoneMutation.mutate({ dayOfWeek: selectedDay, zoneId: v === 'none' ? null : v, weekNumber: selectedWeek })}
             >
               <SelectTrigger className="h-9 w-[200px]">
                 <SelectValue placeholder="Choisir une zone" />
