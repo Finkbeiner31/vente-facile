@@ -48,6 +48,7 @@ interface CustomerListItem {
   managementMode: string;
   exceptionalCommercialId: string | null;
   repAssignmentMode: string;
+  accountStatus: string;
 }
 
 const statusConfig: Record<CustomerStatus, { label: string; class: string }> = {
@@ -64,7 +65,7 @@ const potentialColors: Record<string, string> = {
   C: 'bg-muted text-muted-foreground',
 };
 
-type FilterTab = 'tous' | 'clients' | 'prospects' | 'qualifies' | 'en_attente';
+type FilterTab = 'tous' | 'clients' | 'prospects' | 'qualifies' | 'en_attente' | 'archives';
 type PerfFilter = 'tous' | 'optimise' | 'a_developper' | 'sous_exploite';
 type TrendFilter = 'tous' | 'up' | 'down' | 'stable';
 type PriorityFilter = 'tous' | 'high' | 'medium' | 'low';
@@ -169,6 +170,7 @@ export default function CustomersPage() {
           managementMode: customer.management_mode || 'standard',
           exceptionalCommercialId: customer.exceptional_commercial_id || null,
           repAssignmentMode: customer.rep_assignment_mode || 'automatic',
+          accountStatus: customer.account_status || 'active',
         };
       });
     },
@@ -278,10 +280,13 @@ export default function CustomersPage() {
 
   const filtered = useMemo(() => enriched
     .filter(c => {
+      // Hide archived by default unless admin is filtering for them
+      if (c.accountStatus === 'archived' && tab !== 'archives') return false;
       if (tab === 'clients') return c.status === 'client_actif' || c.status === 'client_inactif';
       if (tab === 'prospects') return c.status === 'prospect';
       if (tab === 'qualifies') return c.status === 'prospect_qualifie';
       if (tab === 'en_attente') return c.status === 'pending_conversion';
+      if (tab === 'archives') return c.accountStatus === 'archived';
       return true;
     })
     .filter(c => {
@@ -300,12 +305,14 @@ export default function CustomersPage() {
       return b.revenue - a.revenue; // potential
     }), [enriched, search, tab, perfFilter, trendFilter, priorityFilter, sortMode]);
 
+  const activeCustomers = customers.filter(c => c.accountStatus !== 'archived');
+  const archivedCount = customers.filter(c => c.accountStatus === 'archived').length;
   const counts = {
-    tous: customers.length,
-    clients: customers.filter(c => c.status === 'client_actif' || c.status === 'client_inactif').length,
-    prospects: customers.filter(c => c.status === 'prospect').length,
-    qualifies: customers.filter(c => c.status === 'prospect_qualifie').length,
-    en_attente: customers.filter(c => c.status === 'pending_conversion').length,
+    tous: activeCustomers.length,
+    clients: activeCustomers.filter(c => c.status === 'client_actif' || c.status === 'client_inactif').length,
+    prospects: activeCustomers.filter(c => c.status === 'prospect').length,
+    qualifies: activeCustomers.filter(c => c.status === 'prospect_qualifie').length,
+    en_attente: activeCustomers.filter(c => c.status === 'pending_conversion').length,
   };
 
   const handleCreate = async (data: NewCustomerFormData) => {
@@ -339,6 +346,7 @@ export default function CustomersPage() {
           <TabsTrigger value="qualifies" className="flex-1 text-xs">Qualifiés ({counts.qualifies})</TabsTrigger>
           <TabsTrigger value="prospects" className="flex-1 text-xs">Prospects ({counts.prospects})</TabsTrigger>
           {counts.en_attente > 0 && <TabsTrigger value="en_attente" className="flex-1 text-xs">En attente ({counts.en_attente})</TabsTrigger>}
+          {isAdmin && archivedCount > 0 && <TabsTrigger value="archives" className="flex-1 text-xs">Archivés ({archivedCount})</TabsTrigger>}
         </TabsList>
       </Tabs>
 

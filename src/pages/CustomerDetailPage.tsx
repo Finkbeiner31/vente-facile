@@ -16,6 +16,7 @@ import {
   User, Clock, MapPin, ExternalLink, Car, Target, Store, Hammer,
   Loader2, AlertTriangle, ArrowRightCircle, Plus, Pencil, Trash2,
   Star, Mail, MessageCircle, Truck, Wrench, Building2, ShieldAlert, UserCheck,
+  Archive, Shield,
 } from 'lucide-react';
 import { RevenueHistoryCard } from '@/components/RevenueHistoryCard';
 import { useCommercialZones, findMatchingZone, formatZoneName } from '@/hooks/useCommercialZones';
@@ -65,6 +66,10 @@ export default function CustomerDetailPage() {
   const [rollbackDialogOpen, setRollbackDialogOpen] = useState(false);
   const [rollbackReason, setRollbackReason] = useState('');
   const [rollbackTarget, setRollbackTarget] = useState<'prospect' | 'prospect_qualifie'>('prospect_qualifie');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteReason, setDeleteReason] = useState('doublon');
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [archiveReason, setArchiveReason] = useState('doublon');
   const queryClient = useQueryClient();
   const isValidId = Boolean(id && UUID_REGEX.test(id));
 
@@ -242,6 +247,66 @@ export default function CustomerDetailPage() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['contacts', id] }); toast.success('Contact principal défini'); },
   });
 
+  // Usage detection for delete vs archive
+  const { data: opportunities = [] } = useQuery({
+    queryKey: ['customer-opportunities', id],
+    queryFn: async () => {
+      const { data } = await supabase.from('opportunities').select('id').eq('customer_id', id!).limit(1);
+      return data || [];
+    },
+    enabled: !authLoading && !!user && isValidId && role === 'admin',
+  });
+
+  const { data: revenues = [] } = useQuery({
+    queryKey: ['customer-revenues-check', id],
+    queryFn: async () => {
+      const { data } = await supabase.from('monthly_revenues').select('id').eq('customer_id', id!).limit(1);
+      return data || [];
+    },
+    enabled: !authLoading && !!user && isValidId && role === 'admin',
+  });
+
+  const hasOperationalHistory = visitReports.length > 0 || tasks.length > 0 || opportunities.length > 0 || revenues.length > 0;
+  const canDelete = role === 'admin' && !hasOperationalHistory;
+  const canArchive = role === 'admin' && hasOperationalHistory;
+
+  const deleteCustomerMutation = useMutation({
+    mutationFn: async () => {
+      // Delete contacts first
+      await supabase.from('contacts').delete().eq('customer_id', id!);
+      const { error } = await supabase.from('customers').delete().eq('id', id!);
+      if (error) throw error;
+      await (supabase as any).from('activity_logs').insert({
+        user_id: user!.id, entity_type: 'customer', entity_id: id,
+        action: 'deleted', details: { company_name: customer?.company_name, reason: deleteReason },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast.success('Compte supprimé définitivement');
+      window.location.href = '/clients';
+    },
+    onError: () => toast.error('Erreur lors de la suppression'),
+  });
+
+  const archiveCustomerMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from('customers').update({ account_status: 'archived' } as any).eq('id', id!);
+      if (error) throw error;
+      await (supabase as any).from('activity_logs').insert({
+        user_id: user!.id, entity_type: 'customer', entity_id: id,
+        action: 'archived', details: { company_name: customer?.company_name, reason: archiveReason },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customer', id] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      setArchiveDialogOpen(false);
+      toast.success('Compte archivé');
+    },
+    onError: () => toast.error('Erreur lors de l\'archivage'),
+  });
+
   if (isLoading) {
     return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
@@ -325,6 +390,9 @@ export default function CustomerDetailPage() {
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="font-heading text-xl md:text-2xl font-bold truncate">{customer.company_name}</h1>
             <Badge className={`text-[10px] shrink-0 ${sc.class}`}>{sc.label}</Badge>
+            {cust.account_status === 'archived' && (
+              <Badge className="text-[10px] bg-muted text-muted-foreground">Archivé</Badge>
+            )}
           </div>
           {cust.activity_type && (
             <p className="text-xs text-primary font-medium mt-0.5">{cust.activity_type}</p>
@@ -336,6 +404,34 @@ export default function CustomerDetailPage() {
             </p>
           )}
         </div>
+        {/* Admin delete/archive actions */}
+        {role === 'admin' && (
+          <div className="flex gap-1 shrink-0">
+            {canDelete && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleteDialogOpen(true)}>
+                <Trash2 className="h-3.5 w-3.5 mr-1" /> Supprimer
+              </Button>
+            )}
+            {canArchive && cust.account_status !== 'archived' && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground hover:bg-muted" onClick={() => setArchiveDialogOpen(true)}>
+                <Archive className="h-3.5 w-3.5 mr-1" /> Archiver
+              </Button>
+            )}
+            {cust.account_status === 'archived' && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs text-primary" onClick={() => {
+                updateCustomerMutation.mutate({ account_status: 'active' } as any);
+                toast.success('Compte restauré');
+              }}>
+                <Archive className="h-3.5 w-3.5 mr-1" /> Restaurer
+              </Button>
+            )}
+            {hasOperationalHistory && (
+              <p className="text-[10px] text-muted-foreground self-center ml-1 hidden md:block">
+                Suppression impossible (historique existant)
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Key metrics */}
@@ -1206,6 +1302,71 @@ export default function CustomerDetailPage() {
             <Button variant="ghost" onClick={() => setRollbackDialogOpen(false)}>Annuler</Button>
             <Button variant="destructive" onClick={() => rollbackMutation.mutate({ reason: rollbackReason, target: rollbackTarget })} disabled={rollbackMutation.isPending}>
               {rollbackMutation.isPending ? 'En cours...' : 'Confirmer'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation dialog (admin only, unused accounts) */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" /> Supprimer définitivement
+            </DialogTitle>
+            <DialogDescription>
+              Cette action est irréversible. Le compte <strong>{customer.company_name}</strong> et ses contacts seront supprimés définitivement.
+            </DialogDescription>
+          </DialogHeader>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Motif de suppression</label>
+            <Select value={deleteReason} onValueChange={setDeleteReason}>
+              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="doublon">Doublon</SelectItem>
+                <SelectItem value="erreur_creation">Erreur de création</SelectItem>
+                <SelectItem value="prospect_abandonne">Prospect abandonné</SelectItem>
+                <SelectItem value="test">Compte de test</SelectItem>
+                <SelectItem value="autre">Autre</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDeleteDialogOpen(false)}>Annuler</Button>
+            <Button variant="destructive" onClick={() => deleteCustomerMutation.mutate()} disabled={deleteCustomerMutation.isPending}>
+              {deleteCustomerMutation.isPending ? 'Suppression...' : 'Supprimer définitivement'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Archive dialog (admin only, accounts with history) */}
+      <Dialog open={archiveDialogOpen} onOpenChange={setArchiveDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Archive className="h-5 w-5 text-muted-foreground" /> Archiver le compte
+            </DialogTitle>
+            <DialogDescription>
+              Le compte sera retiré des listes actives et des suggestions de tournée, mais tout l'historique sera conservé.
+            </DialogDescription>
+          </DialogHeader>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Motif d'archivage</label>
+            <Select value={archiveReason} onValueChange={setArchiveReason}>
+              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="doublon">Doublon</SelectItem>
+                <SelectItem value="inactif">Client définitivement inactif</SelectItem>
+                <SelectItem value="prospect_abandonne">Prospect abandonné</SelectItem>
+                <SelectItem value="autre">Autre</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setArchiveDialogOpen(false)}>Annuler</Button>
+            <Button onClick={() => archiveCustomerMutation.mutate()} disabled={archiveCustomerMutation.isPending}>
+              {archiveCustomerMutation.isPending ? 'Archivage...' : 'Archiver'}
             </Button>
           </DialogFooter>
         </DialogContent>
