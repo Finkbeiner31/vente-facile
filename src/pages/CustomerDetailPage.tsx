@@ -66,6 +66,10 @@ export default function CustomerDetailPage() {
   const [rollbackDialogOpen, setRollbackDialogOpen] = useState(false);
   const [rollbackReason, setRollbackReason] = useState('');
   const [rollbackTarget, setRollbackTarget] = useState<'prospect' | 'prospect_qualifie'>('prospect_qualifie');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteReason, setDeleteReason] = useState('doublon');
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [archiveReason, setArchiveReason] = useState('doublon');
   const queryClient = useQueryClient();
   const isValidId = Boolean(id && UUID_REGEX.test(id));
 
