@@ -300,6 +300,7 @@ export default function CustomerDetailPage() {
       activity_type: fleetForm.activity_type || null,
       equipment_type: fleetForm.equipment_type || null,
       equipment_types: eqTypes,
+      relationship_type: fleetForm.relationship_type || null,
     } as any);
   };
 
