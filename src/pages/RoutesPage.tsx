@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import type { CustomerForRouting } from '@/lib/routeCycleEngine';
 import { AddUnplannedVisitSheet } from '@/components/AddUnplannedVisitSheet';
 import { TourneeDualList } from '@/components/TourneeDualList';
+import { getCurrentWeekNumber } from '@/lib/weekCycleUtils';
 
 const DAY_NAMES = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
 const WEEK_LABELS = ['S1', 'S2', 'S3', 'S4'];
@@ -48,7 +49,7 @@ export default function RoutesPage() {
   const { data: zones = [], isLoading: zonesLoading } = useCommercialZones();
   const queryClient = useQueryClient();
 
-  const [selectedWeek, setSelectedWeek] = useState(0);
+  const [selectedWeek, setSelectedWeek] = useState(() => getCurrentWeekNumber());
   const [selectedDay, setSelectedDay] = useState(() => {
     const dow = new Date().getDay();
     return dow >= 1 && dow <= 5 ? dow : 1;
