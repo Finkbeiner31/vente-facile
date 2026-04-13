@@ -829,6 +829,70 @@ export default function AdminPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Visit Duration Defaults */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="font-heading text-base flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-primary" />
+                  Configuration des temps de visite
+                </span>
+                {!editingDurations && (
+                  <Button variant="outline" size="sm" onClick={startEditDurations}>
+                    <Edit className="h-3.5 w-3.5 mr-1" />Modifier
+                  </Button>
+                )}
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                Durées par défaut utilisées pour la préparation des tournées et les fiches client.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {durationsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : editingDurations ? (
+                <div className="space-y-3">
+                  {durationItems.map(item => (
+                    <div key={item.key} className="flex items-center gap-3 rounded-lg border p-3">
+                      <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="text-sm font-medium flex-1">{item.label}</span>
+                      <div className="flex items-center gap-1.5">
+                        <Input
+                          type="number"
+                          min={5}
+                          max={120}
+                          value={durationForm[item.key] || 0}
+                          onChange={e => setDurationForm(f => ({ ...f, [item.key]: parseInt(e.target.value) || 0 }))}
+                          className="h-9 w-20 text-sm text-right"
+                        />
+                        <span className="text-xs text-muted-foreground">min</span>
+                      </div>
+                    </div>
+                  ))}
+                  <div className="flex gap-2 pt-2">
+                    <Button onClick={saveDurations} disabled={updateDurationMutation.isPending}>
+                      <Save className="h-4 w-4 mr-1" />
+                      {updateDurationMutation.isPending ? 'Enregistrement...' : 'Enregistrer'}
+                    </Button>
+                    <Button variant="ghost" onClick={() => setEditingDurations(false)}>Annuler</Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {visitDurations && durationItems.map(item => (
+                    <div key={item.key} className="flex items-center gap-3 rounded-lg bg-muted p-3">
+                      <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+                      <span className="text-sm font-medium flex-1">{item.label}</span>
+                      <span className="text-sm font-bold text-primary">{visitDurations[item.settingKey]} min</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Settings tab */}
