@@ -68,8 +68,9 @@ export interface OptimizationConfig {
 
 // ── Constants ──
 
-const DEFAULT_VISIT_DURATION_CLIENT = 30;
-const DEFAULT_VISIT_DURATION_PROSPECT = 20;
+export const DEFAULT_VISIT_DURATION_CLIENT = 30;
+export const DEFAULT_VISIT_DURATION_PROSPECT = 20;
+export const DEFAULT_VISIT_DURATION_PROSPECT_QUALIFIE = 30;
 const ZONE_TOLERANCE_KM = 15;
 const ROUTE_CORRIDOR_KM = 10;
 
@@ -89,10 +90,19 @@ export function estimateDriveMin(km: number): number {
   return Math.round(km / 50 * 60);
 }
 
-function getVisitDuration(c: OptCustomer): number {
+export function getVisitDuration(
+  c: OptCustomer,
+  overrides?: { client: number; prospect: number; prospect_qualifie: number },
+): number {
   if (c.visit_duration_minutes && c.visit_duration_minutes > 0) return c.visit_duration_minutes;
-  const isProspect = c.customer_type === 'prospect' || c.customer_type === 'prospect_qualifie';
-  return isProspect ? DEFAULT_VISIT_DURATION_PROSPECT : DEFAULT_VISIT_DURATION_CLIENT;
+  const defs = overrides || {
+    client: DEFAULT_VISIT_DURATION_CLIENT,
+    prospect: DEFAULT_VISIT_DURATION_PROSPECT,
+    prospect_qualifie: DEFAULT_VISIT_DURATION_PROSPECT_QUALIFIE,
+  };
+  if (c.customer_type === 'prospect_qualifie') return defs.prospect_qualifie;
+  if (c.customer_type === 'prospect') return defs.prospect;
+  return defs.client;
 }
 
 function daysSince(dateStr: string | null): number | null {
