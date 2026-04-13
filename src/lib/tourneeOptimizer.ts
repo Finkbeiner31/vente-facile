@@ -242,30 +242,40 @@ export function filterCandidates(
       if (days !== null && days <= config.excludeRecentDays) continue;
     }
 
-    // Zone logic
+    // Zone logic — support combined flags
+    const flags: ZoneLogicFlags = config.zoneLogicFlags || {
+      strict: config.zoneLogic === 'strict',
+      tolerance: config.zoneLogic === 'tolerance',
+      route: config.zoneLogic === 'route',
+    };
+
     const inZone = zoneCustomerIds.has(c.id);
     let isOutsideZone = false;
 
     if (!inZone) {
-      if (config.zoneLogic === 'strict') continue;
+      // If only strict is active, skip non-zone accounts
+      const hasExtension = flags.tolerance || flags.route;
+      if (!hasExtension) continue;
 
-      if (config.zoneLogic === 'tolerance') {
-        // Check distance to zone center (approximate via departure as zone proxy)
+      let accepted = false;
+
+      if (flags.tolerance) {
         const dist = haversineKm(config.departureLat, config.departureLng, c.latitude, c.longitude);
-        if (dist > ZONE_TOLERANCE_KM * 3) continue; // rough filter — real check is vs zone boundary
-        isOutsideZone = true;
+        if (dist <= ZONE_TOLERANCE_KM * 3) accepted = true;
       }
 
-      if (config.zoneLogic === 'route') {
+      if (!accepted && flags.route) {
         const onRoute = isOnRoute(
           c.latitude, c.longitude,
           config.departureLat, config.departureLng,
           config.arrivalLat, config.arrivalLng,
           ROUTE_CORRIDOR_KM,
         );
-        if (!onRoute) continue;
-        isOutsideZone = true;
+        if (onRoute) accepted = true;
       }
+
+      if (!accepted) continue;
+      isOutsideZone = true;
     }
 
     const distanceFromUser = haversineKm(config.departureLat, config.departureLng, c.latitude, c.longitude);
