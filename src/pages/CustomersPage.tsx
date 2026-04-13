@@ -44,6 +44,8 @@ interface CustomerListItem {
   longitude: number | null;
   zone: string | null;
   relationshipType: string | null;
+  managementMode: string;
+  exceptionalCommercialId: string | null;
 }
 
 const statusConfig: Record<CustomerStatus, { label: string; class: string }> = {
@@ -106,20 +108,41 @@ export default function CustomersPage() {
   const { data: customers = [], isLoading, isError } = useQuery({
     queryKey: ['customers', activeUserId],
     queryFn: async () => {
-      let query = supabase
+      if (!activeUserId) return [];
+      
+      // Fetch clients where user is principal OR exceptional commercial
+      const { data: principalClients, error: e1 } = await supabase
         .from('customers')
         .select('*')
-        .order('annual_revenue_potential', { ascending: false, nullsFirst: false })
-        .order('created_at', { ascending: false });
-      
-      // When impersonating, filter by the effective user
-      if (activeUserId) {
-        query = query.eq('assigned_rep_id', activeUserId);
-      }
-      
-      const { data, error } = await query;
-      if (error) throw error;
-      return (data || []).map((customer): CustomerListItem => {
+        .eq('assigned_rep_id', activeUserId)
+        .order('annual_revenue_potential', { ascending: false, nullsFirst: false });
+      if (e1) throw e1;
+
+      const { data: exceptionalClients, error: e2 } = await (supabase as any)
+        .from('customers')
+        .select('*')
+        .eq('exceptional_commercial_id', activeUserId)
+        .eq('management_mode', 'exceptional');
+      if (e2) throw e2;
+
+      // Merge, deduplicate, and exclude principal clients in exceptional mode (they go to the exceptional commercial)
+      const allData = [...(principalClients || []), ...(exceptionalClients || [])];
+      const seen = new Set<string>();
+      const deduped = allData.filter(c => {
+        if (seen.has(c.id)) return false;
+        seen.add(c.id);
+        return true;
+      });
+
+      // For operational visibility: if a client is exceptional and this user is the principal (not exceptional), hide it
+      const filtered = deduped.filter(c => {
+        if ((c as any).management_mode === 'exceptional' && (c as any).exceptional_commercial_id && (c as any).exceptional_commercial_id !== activeUserId) {
+          return false; // principal commercial should not see exceptional clients operationally
+        }
+        return true;
+      });
+
+      return filtered.map((customer: any): CustomerListItem => {
         const revenue = Number(customer.annual_revenue_potential || 0);
         return {
           id: customer.id,
@@ -137,8 +160,10 @@ export default function CustomersPage() {
           revenue,
           latitude: customer.latitude,
           longitude: customer.longitude,
-          zone: (customer as any).zone || null,
-          relationshipType: (customer as any).relationship_type || null,
+          zone: customer.zone || null,
+          relationshipType: customer.relationship_type || null,
+          managementMode: customer.management_mode || 'standard',
+          exceptionalCommercialId: customer.exceptional_commercial_id || null,
         };
       });
     },
@@ -384,6 +409,11 @@ export default function CustomersPage() {
                           }`}>
                             {customer.relationshipType === 'magasin' ? 'Magasin' :
                              customer.relationshipType === 'atelier' ? 'Atelier' : 'Mixte'}
+                          </Badge>
+                        )}
+                        {customer.managementMode === 'exceptional' && (
+                          <Badge className="text-[9px] h-4 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                            ⚡ Gestion except.
                           </Badge>
                         )}
                         {(() => {

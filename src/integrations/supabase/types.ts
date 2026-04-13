@@ -231,6 +231,8 @@ export type Database = {
           email: string | null
           equipment_type: string | null
           equipment_types: string[] | null
+          exceptional_commercial_id: string | null
+          exceptional_reason: string | null
           fleet_car_bus: number
           fleet_pl: number
           fleet_remorque: number
@@ -239,6 +241,7 @@ export type Database = {
           last_visit_date: string | null
           latitude: number | null
           longitude: number | null
+          management_mode: string
           next_action_date: string | null
           next_action_description: string | null
           notes: string | null
@@ -270,6 +273,8 @@ export type Database = {
           email?: string | null
           equipment_type?: string | null
           equipment_types?: string[] | null
+          exceptional_commercial_id?: string | null
+          exceptional_reason?: string | null
           fleet_car_bus?: number
           fleet_pl?: number
           fleet_remorque?: number
@@ -278,6 +283,7 @@ export type Database = {
           last_visit_date?: string | null
           latitude?: number | null
           longitude?: number | null
+          management_mode?: string
           next_action_date?: string | null
           next_action_description?: string | null
           notes?: string | null
@@ -309,6 +315,8 @@ export type Database = {
           email?: string | null
           equipment_type?: string | null
           equipment_types?: string[] | null
+          exceptional_commercial_id?: string | null
+          exceptional_reason?: string | null
           fleet_car_bus?: number
           fleet_pl?: number
           fleet_remorque?: number
@@ -317,6 +325,7 @@ export type Database = {
           last_visit_date?: string | null
           latitude?: number | null
           longitude?: number | null
+          management_mode?: string
           next_action_date?: string | null
           next_action_description?: string | null
           notes?: string | null

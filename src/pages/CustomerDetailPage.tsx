@@ -15,7 +15,7 @@ import {
   ArrowLeft, Phone, Navigation, FileText, CheckSquare,
   User, Clock, MapPin, ExternalLink, Car, Target, Store, Hammer,
   Loader2, AlertTriangle, ArrowRightCircle, Plus, Pencil, Trash2,
-  Star, Mail, MessageCircle, Truck, Wrench, Building2,
+  Star, Mail, MessageCircle, Truck, Wrench, Building2, ShieldAlert, UserCheck,
 } from 'lucide-react';
 import { RevenueHistoryCard } from '@/components/RevenueHistoryCard';
 import { useCommercialZones, findMatchingZone, formatZoneName } from '@/hooks/useCommercialZones';
@@ -88,6 +88,16 @@ export default function CustomerDetailPage() {
   const { data: potentials = [] } = useVehiclePotentials();
   const { data: zones = [] } = useCommercialZones();
   const { autoAssignCustomer } = useZoneAssignment();
+
+  // Fetch all profiles for exceptional commercial dropdown
+  const { data: allProfiles = [] } = useQuery({
+    queryKey: ['profiles-all'],
+    queryFn: async () => {
+      const { data } = await (supabase as any).from('profiles').select('id, full_name');
+      return (data || []) as { id: string; full_name: string }[];
+    },
+    enabled: !authLoading && !!user && (role === 'admin' || role === 'manager'),
+  });
 
   const { data: contacts = [] } = useQuery({
     queryKey: ['contacts', id, user?.id],
@@ -445,6 +455,116 @@ export default function CustomerDetailPage() {
           )}
         </div>
       </div>
+
+      {/* ─── EXCEPTIONAL MANAGEMENT ─── */}
+      {cust.management_mode === 'exceptional' && (
+        <Card className="border-purple-200 bg-purple-50 dark:border-purple-800 dark:bg-purple-950/30">
+          <CardContent className="p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+              <span className="text-sm font-semibold text-purple-700 dark:text-purple-300">Gestion exceptionnelle</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Commercial principal</p>
+                <p className="font-medium mt-0.5">
+                  {allProfiles.find(p => p.id === cust.assigned_rep_id)?.full_name || '—'}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Commercial exceptionnel</p>
+                <p className="font-medium mt-0.5">
+                  {allProfiles.find(p => p.id === cust.exceptional_commercial_id)?.full_name || '—'}
+                </p>
+              </div>
+            </div>
+            {cust.exceptional_reason && (
+              <p className="text-xs text-muted-foreground">
+                <span className="font-medium">Motif :</span> {cust.exceptional_reason}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Exceptional management editor (admin/manager only) */}
+      {(role === 'admin' || role === 'manager') && (
+        <Card>
+          <CardHeader className="pb-2 px-4 pt-4">
+            <CardTitle className="font-heading text-sm flex items-center gap-2">
+              <UserCheck className="h-4 w-4 text-primary" />Gestion opérationnelle
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="px-4 pb-4 space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Mode de gestion</label>
+                <Select
+                  value={cust.management_mode || 'standard'}
+                  onValueChange={v => {
+                    const updates: Record<string, any> = { management_mode: v };
+                    if (v === 'standard') {
+                      updates.exceptional_commercial_id = null;
+                      updates.exceptional_reason = null;
+                    }
+                    updateCustomerMutation.mutate(updates);
+                  }}
+                >
+                  <SelectTrigger className="h-9 mt-1"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="standard">Standard</SelectItem>
+                    <SelectItem value="exceptional">Exceptionnel</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {cust.management_mode === 'exceptional' && (
+                <div>
+                  <label className="text-xs font-medium text-muted-foreground">Commercial exceptionnel</label>
+                  <Select
+                    value={cust.exceptional_commercial_id || 'none'}
+                    onValueChange={v => updateCustomerMutation.mutate({ exceptional_commercial_id: v === 'none' ? null : v } as any)}
+                  >
+                    <SelectTrigger className="h-9 mt-1"><SelectValue placeholder="Sélectionner..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Aucun</SelectItem>
+                      {allProfiles.filter(p => p.id !== cust.assigned_rep_id).map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.full_name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+            </div>
+            {cust.management_mode === 'exceptional' && (
+              <div>
+                <label className="text-xs font-medium text-muted-foreground">Motif</label>
+                <Input
+                  className="h-9 mt-1"
+                  placeholder="Grand compte / suivi spécifique..."
+                  defaultValue={cust.exceptional_reason || ''}
+                  onBlur={e => {
+                    if (e.target.value !== (cust.exceptional_reason || '')) {
+                      updateCustomerMutation.mutate({ exceptional_reason: e.target.value || null } as any);
+                    }
+                  }}
+                />
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Zone principale</p>
+                <p className="font-medium mt-0.5">{cust.zone || 'Non assignée'}</p>
+              </div>
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Commercial principal</p>
+                <p className="font-medium mt-0.5">
+                  {allProfiles.find(p => p.id === cust.assigned_rep_id)?.full_name || '—'}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Convert / status banners */}
       {status === 'prospect' && (
