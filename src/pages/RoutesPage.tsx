@@ -478,6 +478,7 @@ export default function RoutesPage() {
               priority: s.priority,
               customerType: 'customerType' in s ? (s as any).customerType : undefined,
               lastVisitDate: 'lastVisitDate' in s ? (s as any).lastVisitDate : null,
+              visitDurationMinutes: 'visitDurationMinutes' in s ? (s as any).visitDurationMinutes : null,
             }))}
             availableCustomers={zoneCustomers}
             onUpdatePlanned={(newStops) => {
