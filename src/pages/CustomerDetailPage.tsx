@@ -384,12 +384,19 @@ export default function CustomerDetailPage() {
             value={(customer as any).zone || 'none'}
             onValueChange={v => {
               const isManual = v !== 'none';
-              updateCustomerMutation.mutate({
+              const selectedZone = zones.find(z => z.system_name === v);
+              const updates: Record<string, any> = {
                 zone: v === 'none' ? null : v,
                 assignment_mode: isManual ? 'manual' : 'automatic',
                 assignment_source: isManual ? null : (customer as any).assignment_source,
                 zone_status: isManual ? 'assigned' : 'outside',
-              } as any);
+              };
+              // Auto-assign commercial from zone owner if rep not manually assigned
+              if (isManual && selectedZone?.user_id && cust.rep_assignment_mode !== 'manual') {
+                updates.assigned_rep_id = selectedZone.user_id;
+                updates.rep_assignment_mode = 'automatic';
+              }
+              updateCustomerMutation.mutate(updates);
             }}
           >
             <SelectTrigger className="h-7 border-0 bg-transparent p-0 text-xs font-medium w-auto min-w-[100px]">
