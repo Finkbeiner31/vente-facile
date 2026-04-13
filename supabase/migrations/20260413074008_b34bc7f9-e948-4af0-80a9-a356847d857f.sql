@@ -1,0 +1,1 @@
+ALTER TABLE public.customers ADD COLUMN relationship_type text DEFAULT NULL;
