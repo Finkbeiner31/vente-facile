@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useZoneAssignment } from '@/hooks/useZoneAssignment';
 import { RefreshCw } from 'lucide-react';
+import { AssignmentIssuesSheet } from '@/components/AssignmentIssuesSheet';
 
 const roleLabels: Record<string, string> = {
   admin: 'Administrateur',
