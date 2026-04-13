@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
-import { Search, Flame, Star } from 'lucide-react';
+import { Search, Flame, Star, Clock } from 'lucide-react';
+import { useVisitDurationDefaults, getVisitDurationWithDefaults } from '@/hooks/useVisitDurationDefaults';
+import { formatDuration } from '@/lib/tourneeOptimizer';
 import {
   DndContext,
   closestCenter,
@@ -36,6 +38,7 @@ interface TourStop {
   priority: number;
   customerType?: string;
   lastVisitDate?: string | null;
+  visitDurationMinutes?: number | null;
 }
 
 interface TourneeDualListProps {
@@ -79,6 +82,7 @@ function customerToStop(c: any): TourStop {
     priority: calcPriority(c),
     customerType: c.customer_type,
     lastVisitDate: c.last_visit_date,
+    visitDurationMinutes: c.visit_duration_minutes ?? null,
   };
 }
 
@@ -227,6 +231,16 @@ export function TourneeDualList({ plannedStops, availableCustomers, onUpdatePlan
   const [showAllAvailable, setShowAllAvailable] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
+  const { data: durationDefaults } = useVisitDurationDefaults();
+
+  const totalVisitMin = useMemo(() => {
+    if (!durationDefaults) return 0;
+    return plannedStops.reduce((sum, stop) => {
+      const type = stop.customerType || 'client_actif';
+      const duration = getVisitDurationWithDefaults(type, stop.visitDurationMinutes ?? null, durationDefaults);
+      return sum + duration;
+    }, 0);
+  }, [plannedStops, durationDefaults]);
 
   const toggleFilter = useCallback((filter: string) => {
     setActiveFilters(prev => {
@@ -361,6 +375,12 @@ export function TourneeDualList({ plannedStops, availableCustomers, onUpdatePlan
             Tournée du jour
             <Badge variant="secondary" className="text-[10px] h-4 ml-1">{plannedStops.length}</Badge>
           </h3>
+          {plannedStops.length > 0 && totalVisitMin > 0 && (
+            <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              ≈ {formatDuration(totalVisitMin)} de rendez-vous
+            </span>
+          )}
         </div>
 
         <DroppableZone id="planned-zone" className="min-h-[60px]">

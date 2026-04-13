@@ -161,6 +161,7 @@ export default function RoutesPage() {
           source: 'auto' as const,
           customerType: c.customer_type,
           lastVisitDate: c.last_visit_date,
+          visitDurationMinutes: c.visit_duration_minutes ?? null,
         };
       })
       .sort((a, b) => b.priority - a.priority)
@@ -478,6 +479,7 @@ export default function RoutesPage() {
               priority: s.priority,
               customerType: 'customerType' in s ? (s as any).customerType : undefined,
               lastVisitDate: 'lastVisitDate' in s ? (s as any).lastVisitDate : null,
+              visitDurationMinutes: 'visitDurationMinutes' in s ? (s as any).visitDurationMinutes : null,
             }))}
             availableCustomers={zoneCustomers}
             onUpdatePlanned={(newStops) => {
