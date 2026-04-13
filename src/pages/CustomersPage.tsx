@@ -92,7 +92,7 @@ const splitContactName = (fullName: string) => {
 };
 
 export default function CustomersPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, role } = useAuth();
   const { effectiveUserId } = useImpersonation();
   const activeUserId = effectiveUserId || user?.id;
   const [search, setSearch] = useState('');
@@ -104,6 +104,7 @@ export default function CustomersPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const queryClient = useQueryClient();
   const { autoAssignCustomer } = useZoneAssignment();
+  const isAdmin = role === 'admin' || role === 'manager';
 
   const { data: revenueMap } = useAllCustomerRevenues();
 
