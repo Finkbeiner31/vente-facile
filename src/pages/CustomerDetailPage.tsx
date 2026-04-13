@@ -247,6 +247,66 @@ export default function CustomerDetailPage() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['contacts', id] }); toast.success('Contact principal défini'); },
   });
 
+  // Usage detection for delete vs archive
+  const { data: opportunities = [] } = useQuery({
+    queryKey: ['customer-opportunities', id],
+    queryFn: async () => {
+      const { data } = await supabase.from('opportunities').select('id').eq('customer_id', id!).limit(1);
+      return data || [];
+    },
+    enabled: !authLoading && !!user && isValidId && role === 'admin',
+  });
+
+  const { data: revenues = [] } = useQuery({
+    queryKey: ['customer-revenues-check', id],
+    queryFn: async () => {
+      const { data } = await supabase.from('monthly_revenues').select('id').eq('customer_id', id!).limit(1);
+      return data || [];
+    },
+    enabled: !authLoading && !!user && isValidId && role === 'admin',
+  });
+
+  const hasOperationalHistory = visitReports.length > 0 || tasks.length > 0 || opportunities.length > 0 || revenues.length > 0;
+  const canDelete = role === 'admin' && !hasOperationalHistory;
+  const canArchive = role === 'admin' && hasOperationalHistory;
+
+  const deleteCustomerMutation = useMutation({
+    mutationFn: async () => {
+      // Delete contacts first
+      await supabase.from('contacts').delete().eq('customer_id', id!);
+      const { error } = await supabase.from('customers').delete().eq('id', id!);
+      if (error) throw error;
+      await (supabase as any).from('activity_logs').insert({
+        user_id: user!.id, entity_type: 'customer', entity_id: id,
+        action: 'deleted', details: { company_name: customer?.company_name, reason: deleteReason },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      toast.success('Compte supprimé définitivement');
+      window.location.href = '/clients';
+    },
+    onError: () => toast.error('Erreur lors de la suppression'),
+  });
+
+  const archiveCustomerMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from('customers').update({ account_status: 'archived' } as any).eq('id', id!);
+      if (error) throw error;
+      await (supabase as any).from('activity_logs').insert({
+        user_id: user!.id, entity_type: 'customer', entity_id: id,
+        action: 'archived', details: { company_name: customer?.company_name, reason: archiveReason },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['customer', id] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      setArchiveDialogOpen(false);
+      toast.success('Compte archivé');
+    },
+    onError: () => toast.error('Erreur lors de l\'archivage'),
+  });
+
   if (isLoading) {
     return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
   }
