@@ -1306,6 +1306,71 @@ export default function CustomerDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete confirmation dialog (admin only, unused accounts) */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" /> Supprimer définitivement
+            </DialogTitle>
+            <DialogDescription>
+              Cette action est irréversible. Le compte <strong>{customer.company_name}</strong> et ses contacts seront supprimés définitivement.
+            </DialogDescription>
+          </DialogHeader>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Motif de suppression</label>
+            <Select value={deleteReason} onValueChange={setDeleteReason}>
+              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="doublon">Doublon</SelectItem>
+                <SelectItem value="erreur_creation">Erreur de création</SelectItem>
+                <SelectItem value="prospect_abandonne">Prospect abandonné</SelectItem>
+                <SelectItem value="test">Compte de test</SelectItem>
+                <SelectItem value="autre">Autre</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDeleteDialogOpen(false)}>Annuler</Button>
+            <Button variant="destructive" onClick={() => deleteCustomerMutation.mutate()} disabled={deleteCustomerMutation.isPending}>
+              {deleteCustomerMutation.isPending ? 'Suppression...' : 'Supprimer définitivement'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Archive dialog (admin only, accounts with history) */}
+      <Dialog open={archiveDialogOpen} onOpenChange={setArchiveDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Archive className="h-5 w-5 text-muted-foreground" /> Archiver le compte
+            </DialogTitle>
+            <DialogDescription>
+              Le compte sera retiré des listes actives et des suggestions de tournée, mais tout l'historique sera conservé.
+            </DialogDescription>
+          </DialogHeader>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Motif d'archivage</label>
+            <Select value={archiveReason} onValueChange={setArchiveReason}>
+              <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="doublon">Doublon</SelectItem>
+                <SelectItem value="inactif">Client définitivement inactif</SelectItem>
+                <SelectItem value="prospect_abandonne">Prospect abandonné</SelectItem>
+                <SelectItem value="autre">Autre</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setArchiveDialogOpen(false)}>Annuler</Button>
+            <Button onClick={() => archiveCustomerMutation.mutate()} disabled={archiveCustomerMutation.isPending}>
+              {archiveCustomerMutation.isPending ? 'Archivage...' : 'Archiver'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
