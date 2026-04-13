@@ -254,12 +254,12 @@ export default function RouteOptimizerSheet({
     }
   };
 
-  const getZoneLogicLabel = () => {
-    switch (zoneLogic) {
-      case 'strict': return 'Strict';
-      case 'tolerance': return 'Tolérance 15 km';
-      case 'route': return 'Clients sur trajet';
-    }
+  const getZoneLogicLabels = (): string[] => {
+    const labels: string[] = [];
+    if (zoneLogicFlags.strict) labels.push('Zone stricte');
+    if (zoneLogicFlags.tolerance) labels.push('Tolérance 15 km');
+    if (zoneLogicFlags.route) labels.push('Trajet A/R');
+    return labels.length > 0 ? labels : ['Zone stricte'];
   };
 
   const departureLabel = getDepartureLabel();
