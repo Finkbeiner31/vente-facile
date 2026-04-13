@@ -1378,6 +1378,15 @@ export default function CustomerDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Merge sheet */}
+      {role === 'admin' && (
+        <MergeAccountSheet
+          open={mergeSheetOpen}
+          onOpenChange={setMergeSheetOpen}
+          sourceCustomer={customer}
+        />
+      )}
     </div>
   );
 }
