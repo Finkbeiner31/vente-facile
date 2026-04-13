@@ -16,176 +16,23 @@ import {
   Loader2, Navigation, MapPin, Play, Route, Sparkles, Zap,
   LocateFixed, AlertTriangle, Users, Target, ArrowDown, ArrowUp,
   Building2, MapPinned, Flag, CircleDot, Clock, Home, MoreHorizontal,
+  Info,
 } from 'lucide-react';
 import { formatMonthly } from '@/lib/revenueUtils';
 import { toast } from 'sonner';
-import { computeVisitStatus, getVisitStatusBoost, getDefaultFrequency } from '@/lib/visitFrequencyUtils';
 import { supabase } from '@/integrations/supabase/client';
+import {
+  type OptCustomer, type ScoredCustomer, type OptimizedRoute,
+  type RouteStrategy, type ZoneLogic, type TypeFilter,
+  type OptimizationConfig,
+  filterCandidates, buildOptimizedRoute,
+  haversineKm, estimateDriveMin, formatDuration, getReasonBadgeStyle,
+} from '@/lib/tourneeOptimizer';
 
 // ── Types ──
 
-export interface OptCustomer {
-  id: string;
-  company_name: string;
-  customer_type: string;
-  city: string;
-  latitude: number | null;
-  longitude: number | null;
-  number_of_vehicles: number;
-  annual_revenue_potential: number;
-  last_visit_date: string | null;
-  phone: string | null;
-  sales_potential: string | null;
-  visit_frequency: string | null;
-  address: string | null;
-  visit_duration_minutes?: number | null;
-}
-
-export interface OptimizedRoute {
-  customers: OptCustomer[];
-  totalDistanceKm: number;
-  estimatedDurationMin: number;
-  totalTravelMin: number;
-  totalVisitMin: number;
-}
-
-type TypeFilter = 'tous' | 'clients' | 'prospects';
 type DepartureType = 'company' | 'home' | 'custom';
 type ArrivalType = 'same' | 'company' | 'home' | 'custom';
-type RouteStrategy = 'nearest' | 'farthest';
-type ZoneLogic = 'strict' | 'tolerance' | 'route';
-
-// ── Constants ──
-
-const DEFAULT_VISIT_DURATION_CLIENT = 30;
-const DEFAULT_VISIT_DURATION_PROSPECT = 20;
-const ZONE_TOLERANCE_KM = 15;
-
-// ── Helpers ──
-
-function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function estimateDriveMin(km: number): number {
-  return Math.round(km / 50 * 60);
-}
-
-function getVisitDuration(c: OptCustomer): number {
-  if (c.visit_duration_minutes && c.visit_duration_minutes > 0) return c.visit_duration_minutes;
-  const isProspect = c.customer_type === 'prospect' || c.customer_type === 'prospect_qualifie';
-  return isProspect ? DEFAULT_VISIT_DURATION_PROSPECT : DEFAULT_VISIT_DURATION_CLIENT;
-}
-
-function daysSince(dateStr: string | null): number | null {
-  if (!dateStr) return null;
-  return Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
-}
-
-function calcPriorityScore(c: OptCustomer): number {
-  let score = 0;
-  score += Math.min((c.annual_revenue_potential || 0) / 1000, 100);
-  if (c.sales_potential === 'A') score += 30;
-  else if (c.sales_potential === 'B') score += 15;
-
-  // Use visit frequency-aware status for scoring
-  const effectiveFreq = c.visit_frequency || getDefaultFrequency(c.customer_type);
-  const visitStatus = computeVisitStatus(effectiveFreq, c.last_visit_date);
-  score += getVisitStatusBoost(visitStatus.status);
-
-  if (c.customer_type === 'prospect_qualifie') score += 10;
-  return Math.round(score);
-}
-
-/**
- * Nearest-neighbor with visit count limit.
- * Last stops are biased toward arrival point.
- */
-function buildRouteByCount(
-  candidates: OptCustomer[],
-  startLat: number, startLng: number,
-  endLat: number, endLng: number,
-  strategy: RouteStrategy,
-  maxVisits: number,
-): { ordered: OptCustomer[]; totalKm: number; totalDriveMin: number; totalVisitMin: number } {
-  if (candidates.length === 0) return { ordered: [], totalKm: 0, totalDriveMin: 0, totalVisitMin: 0 };
-
-  const remaining = [...candidates];
-  const ordered: OptCustomer[] = [];
-  let currentLat = startLat;
-  let currentLng = startLng;
-  let totalKm = 0;
-  let totalDriveMin = 0;
-  let totalVisitMin = 0;
-
-  // For farthest strategy, first stop is farthest from departure
-  if (strategy === 'farthest' && remaining.length > 0) {
-    let maxDist = 0;
-    let maxIdx = 0;
-    for (let i = 0; i < remaining.length; i++) {
-      const d = haversineKm(startLat, startLng, remaining[i].latitude!, remaining[i].longitude!);
-      if (d > maxDist) { maxDist = d; maxIdx = i; }
-    }
-    const first = remaining.splice(maxIdx, 1)[0];
-    ordered.push(first);
-    totalKm += maxDist;
-    totalDriveMin += estimateDriveMin(maxDist);
-    totalVisitMin += getVisitDuration(first);
-    currentLat = first.latitude!;
-    currentLng = first.longitude!;
-  }
-
-  // Nearest-neighbor with count limit
-  while (remaining.length > 0 && ordered.length < maxVisits) {
-    const biasToEnd = remaining.length <= 3 ? 0.3 : 0;
-    let bestScore = Infinity;
-    let bestIdx = -1;
-
-    for (let i = 0; i < remaining.length; i++) {
-      const c = remaining[i];
-      const distFromCurrent = haversineKm(currentLat, currentLng, c.latitude!, c.longitude!);
-      const distToEnd = haversineKm(c.latitude!, c.longitude!, endLat, endLng);
-      const score = distFromCurrent * (1 - biasToEnd) + distToEnd * biasToEnd;
-
-      if (score < bestScore) {
-        bestScore = score;
-        bestIdx = i;
-      }
-    }
-
-    if (bestIdx === -1) break;
-
-    const next = remaining.splice(bestIdx, 1)[0];
-    const legKm = haversineKm(currentLat, currentLng, next.latitude!, next.longitude!);
-    totalKm += legKm;
-    totalDriveMin += estimateDriveMin(legKm);
-    totalVisitMin += getVisitDuration(next);
-    ordered.push(next);
-    currentLat = next.latitude!;
-    currentLng = next.longitude!;
-  }
-
-  // Add return leg
-  if (ordered.length > 0) {
-    const last = ordered[ordered.length - 1];
-    const returnKm = haversineKm(last.latitude!, last.longitude!, endLat, endLng);
-    totalKm += returnKm;
-    totalDriveMin += estimateDriveMin(returnKm);
-  }
-
-  return {
-    ordered,
-    totalKm: Math.round(totalKm * 10) / 10,
-    totalDriveMin,
-    totalVisitMin,
-  };
-}
 
 // ── Component ──
 
@@ -202,12 +49,14 @@ interface Props {
   onRouteGenerated?: (route: OptimizedRoute) => void;
   zone?: ZoneInfo | null;
   zoneCustomers?: any[];
+  /** All customers for tolerance/route mode */
+  allCustomers?: any[];
   dayLabel?: string;
 }
 
 export default function RouteOptimizerSheet({
   open, onOpenChange, onRouteGenerated,
-  zone, zoneCustomers = [], dayLabel,
+  zone, zoneCustomers = [], allCustomers, dayLabel,
 }: Props) {
   const { user } = useAuth();
 
@@ -233,7 +82,6 @@ export default function RouteOptimizerSheet({
 
   const effectiveArrival = useMemo(() => {
     if (arrivalType === 'custom' && arrivalPos) return arrivalPos;
-    // For company/home types we'd use saved addresses — for now fall back to userPos
     return userPos;
   }, [arrivalType, arrivalPos, userPos]);
 
@@ -245,41 +93,57 @@ export default function RouteOptimizerSheet({
     }
   }, [open]);
 
-  // Build candidates
+  // Build scored candidates using new engine
   const candidates = useMemo(() => {
-    return zoneCustomers
-      .filter((c: any) => c.latitude != null && c.longitude != null)
-      .filter((c: any) => {
-        if (typeFilter === 'clients' && (c.customer_type === 'prospect' || c.customer_type === 'prospect_qualifie')) return false;
-        if (typeFilter === 'prospects' && c.customer_type !== 'prospect' && c.customer_type !== 'prospect_qualifie') return false;
-        if (excludeRecent) {
-          const days = daysSince(c.last_visit_date);
-          if (days !== null && days <= 7) return false;
-        }
-        return true;
-      })
-      .map((c: any) => {
-        const cust: OptCustomer = {
-          id: c.id, company_name: c.company_name, customer_type: c.customer_type,
-          city: c.city || '', latitude: c.latitude, longitude: c.longitude,
-          number_of_vehicles: c.number_of_vehicles || 0,
-          annual_revenue_potential: Number(c.annual_revenue_potential || 0),
-          last_visit_date: c.last_visit_date, phone: c.phone,
-          sales_potential: c.sales_potential, visit_frequency: c.visit_frequency,
-          address: c.address, visit_duration_minutes: c.visit_duration_minutes,
-        };
-        const score = calcPriorityScore(cust);
-        const distance = userPos ? haversineKm(userPos.lat, userPos.lng, c.latitude, c.longitude) : 0;
-        const visitDur = getVisitDuration(cust);
-        return { ...cust, score, distance, visitDur };
-      })
-      .sort((a: any, b: any) => b.score - a.score);
-  }, [zoneCustomers, typeFilter, excludeRecent, userPos]);
+    if (!userPos) return [];
+
+    const arrival = effectiveArrival || userPos;
+    const zoneCustomerIds = new Set(zoneCustomers.map((c: any) => c.id));
+    
+    // Source pool: for strict mode use zone customers, otherwise use all available
+    const sourcePool: OptCustomer[] = (
+      zoneLogic === 'strict' ? zoneCustomers : (allCustomers || zoneCustomers)
+    ).map((c: any) => ({
+      id: c.id,
+      company_name: c.company_name,
+      customer_type: c.customer_type,
+      city: c.city || '',
+      latitude: c.latitude,
+      longitude: c.longitude,
+      number_of_vehicles: c.number_of_vehicles || 0,
+      annual_revenue_potential: Number(c.annual_revenue_potential || 0),
+      last_visit_date: c.last_visit_date,
+      phone: c.phone,
+      sales_potential: c.sales_potential,
+      visit_frequency: c.visit_frequency,
+      address: c.address,
+      visit_duration_minutes: c.visit_duration_minutes,
+      relationship_type: c.relationship_type,
+      zone: c.zone,
+    }));
+
+    const config: OptimizationConfig = {
+      visitTarget,
+      strategy,
+      zoneLogic,
+      typeFilter,
+      excludeRecentDays: excludeRecent ? 7 : null,
+      departureLat: userPos.lat,
+      departureLng: userPos.lng,
+      arrivalLat: arrival.lat,
+      arrivalLng: arrival.lng,
+    };
+
+    return filterCandidates(sourcePool, zoneCustomerIds, config);
+  }, [zoneCustomers, allCustomers, typeFilter, excludeRecent, userPos, effectiveArrival, zoneLogic, visitTarget, strategy]);
 
   const eligibleClients = zoneCustomers.filter((c: any) =>
     c.customer_type !== 'prospect' && c.customer_type !== 'prospect_qualifie').length;
   const eligibleProspects = zoneCustomers.filter((c: any) =>
     c.customer_type === 'prospect' || c.customer_type === 'prospect_qualifie').length;
+
+  const overdueCount = candidates.filter(c => c.reasons.includes('En retard')).length;
+  const highPriorityCount = candidates.filter(c => c.reasons.includes('Fort potentiel') || c.reasons.includes('Priorité A')).length;
 
   const handleLocate = () => {
     if (!navigator.geolocation) { toast.error('Géolocalisation non disponible'); return; }
@@ -297,7 +161,7 @@ export default function RouteOptimizerSheet({
 
   const handleGeneratePreview = () => {
     const top = candidates.slice(0, Math.min(visitTarget + 2, candidates.length));
-    setSelectedIds(new Set(top.map((c: any) => c.id)));
+    setSelectedIds(new Set(top.map(c => c.id)));
     setStep('preview');
   };
 
@@ -311,20 +175,23 @@ export default function RouteOptimizerSheet({
 
   const handleOptimize = () => {
     if (!userPos) { toast.error('Veuillez définir votre point de départ'); return; }
-    const endPoint = effectiveArrival || userPos;
-    const selected = candidates.filter((c: any) => selectedIds.has(c.id));
+    const arrival = effectiveArrival || userPos;
+    const selected = candidates.filter(c => selectedIds.has(c.id));
 
-    const { ordered, totalKm, totalDriveMin, totalVisitMin } = buildRouteByCount(
-      selected, userPos.lat, userPos.lng, endPoint.lat, endPoint.lng, strategy, visitTarget
-    );
+    const config: OptimizationConfig = {
+      visitTarget,
+      strategy,
+      zoneLogic,
+      typeFilter,
+      excludeRecentDays: excludeRecent ? 7 : null,
+      departureLat: userPos.lat,
+      departureLng: userPos.lng,
+      arrivalLat: arrival.lat,
+      arrivalLng: arrival.lng,
+    };
 
-    setOptimizedRoute({
-      customers: ordered,
-      totalDistanceKm: totalKm,
-      estimatedDurationMin: totalDriveMin + totalVisitMin,
-      totalTravelMin: totalDriveMin,
-      totalVisitMin,
-    });
+    const route = buildOptimizedRoute(selected, config);
+    setOptimizedRoute(route);
     setStep('result');
   };
 
@@ -361,12 +228,6 @@ export default function RouteOptimizerSheet({
     } finally {
       setSaving(false);
     }
-  };
-
-  const formatDuration = (min: number) => {
-    const h = Math.floor(min / 60);
-    const m = min % 60;
-    return h > 0 ? `${h}h${m > 0 ? m.toString().padStart(2, '0') : ''}` : `${m}min`;
   };
 
   const zoneName = zone ? (zone.custom_label || zone.system_name) : null;
@@ -602,21 +463,45 @@ export default function RouteOptimizerSheet({
                 </div>
               </div>
 
-              {/* Summary */}
+              {/* Summary with priority insights */}
               <div className="rounded-lg bg-muted/50 p-3 space-y-2">
                 <div className="text-center">
                   <span className="font-bold text-primary text-sm">{candidates.length}</span>
                   <span className="text-sm text-muted-foreground"> comptes éligibles</span>
                 </div>
+                {candidates.length > 0 && (
+                  <div className="flex justify-center gap-3 text-[11px]">
+                    {overdueCount > 0 && (
+                      <span className="text-destructive font-medium">🔴 {overdueCount} en retard</span>
+                    )}
+                    {highPriorityCount > 0 && (
+                      <span className="text-primary font-medium">⭐ {highPriorityCount} prioritaires</span>
+                    )}
+                  </div>
+                )}
                 {!hasEnough && candidates.length > 0 && (
                   <p className="text-xs text-warning font-medium text-center">
                     ⚠ Pas assez de visites pour l'objectif (8 min.)
                   </p>
                 )}
-                {candidates.length === 0 && (
-                  <p className="text-xs text-muted-foreground text-center">Aucun compte géolocalisé</p>
+                {candidates.length === 0 && !userPos && (
+                  <p className="text-xs text-muted-foreground text-center">
+                    <LocateFixed className="h-3.5 w-3.5 inline mr-1" />
+                    Définissez votre position pour voir les comptes éligibles
+                  </p>
                 )}
-                {userPos && (
+                {candidates.length === 0 && userPos && (
+                  <div className="text-center space-y-1">
+                    <AlertTriangle className="h-5 w-5 text-warning mx-auto" />
+                    <p className="text-xs text-muted-foreground">
+                      Aucun compte éligible dans cette zone
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      Vérifiez la zone assignée et les filtres actifs
+                    </p>
+                  </div>
+                )}
+                {userPos && candidates.length > 0 && (
                   <div className="border-t pt-2 mt-2 space-y-1 text-[11px] text-muted-foreground">
                     <div className="flex items-center gap-2">
                       <CircleDot className="h-3 w-3 text-primary shrink-0" />
@@ -654,7 +539,7 @@ export default function RouteOptimizerSheet({
           </div>
         )}
 
-        {/* ── Preview ── */}
+        {/* ── Preview with explainability ── */}
         {step === 'preview' && (
           <div className="flex-1 flex flex-col overflow-hidden">
             <div className="px-4 py-3 border-b bg-muted/30 shrink-0">
@@ -667,9 +552,8 @@ export default function RouteOptimizerSheet({
             </div>
             <ScrollArea className="flex-1">
               <div className="divide-y">
-                {candidates.map((c: any) => {
+                {candidates.map((c) => {
                   const isSelected = selectedIds.has(c.id);
-                  const days = daysSince(c.last_visit_date);
                   return (
                     <button key={c.id} onClick={() => toggleSelection(c.id)}
                       className={`w-full text-left px-4 py-3 transition-colors ${isSelected ? 'bg-primary/5' : 'opacity-50'}`}>
@@ -679,9 +563,6 @@ export default function RouteOptimizerSheet({
                           <div className="flex items-center gap-2">
                             <span className="text-sm font-medium truncate">{c.company_name}</span>
                             <Badge variant="outline" className="text-[9px] h-4 shrink-0">{c.score}pts</Badge>
-                            {c.sales_potential === 'A' && (
-                              <Badge className="bg-primary/15 text-primary text-[9px] h-4 shrink-0">★ A</Badge>
-                            )}
                           </div>
                           <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
                             <span>{c.city}</span>
@@ -689,26 +570,28 @@ export default function RouteOptimizerSheet({
                             <span className="font-medium">{formatMonthly(c.annual_revenue_potential)}</span>
                             <span>·</span>
                             <span className="flex items-center gap-0.5">
-                              <Clock className="h-3 w-3" />{c.visitDur}min
+                              <Clock className="h-3 w-3" />{c.visitDuration}min
                             </span>
                             {userPos && (
                               <>
                                 <span>·</span>
-                                <span>{c.distance.toFixed(1)} km</span>
+                                <span>{c.distanceFromUser.toFixed(1)} km</span>
                               </>
-                            )}
-                            {days === null && (
-                              <>
-                                <span>·</span>
-                                <span className="text-destructive flex items-center gap-0.5">
-                                  <AlertTriangle className="h-3 w-3" /> Jamais visité
-                                </span>
-                              </>
-                            )}
-                            {days !== null && days > 30 && (
-                              <><span>·</span><span className="text-warning">+{days}j</span></>
                             )}
                           </div>
+                          {/* Explainability badges */}
+                          {c.reasons.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {c.reasons.slice(0, 3).map((reason) => {
+                                const style = getReasonBadgeStyle(reason);
+                                return (
+                                  <span key={reason} className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium ${style.className}`}>
+                                    {reason}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </button>
@@ -730,7 +613,7 @@ export default function RouteOptimizerSheet({
           </div>
         )}
 
-        {/* ── Result ── */}
+        {/* ── Result with explainability ── */}
         {step === 'result' && optimizedRoute && (
           <div className="flex-1 flex flex-col overflow-hidden">
             {/* Time breakdown header */}
@@ -785,11 +668,10 @@ export default function RouteOptimizerSheet({
                     ? haversineKm(c.latitude!, c.longitude!, nextC.latitude!, nextC.longitude!)
                     : (effectiveArrival ? haversineKm(c.latitude!, c.longitude!, effectiveArrival.lat, effectiveArrival.lng) : 0);
                   const isLast = i === optimizedRoute.customers.length - 1;
-                  const visitDur = getVisitDuration(c);
                   return (
                     <div key={c.id}>
-                      <div className="rounded-xl border p-3 flex items-center gap-3">
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">
+                      <div className="rounded-xl border p-3 flex items-start gap-3">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold mt-0.5">
                           {i + 1}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -800,11 +682,24 @@ export default function RouteOptimizerSheet({
                             <span>{formatMonthly(c.annual_revenue_potential)}</span>
                             <span>·</span>
                             <span className="flex items-center gap-0.5">
-                              <Clock className="h-3 w-3" />{visitDur}min
+                              <Clock className="h-3 w-3" />{c.visitDuration}min
                             </span>
                           </div>
+                          {/* Reason badges in result */}
+                          {c.reasons.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {c.reasons.slice(0, 3).map((reason) => {
+                                const style = getReasonBadgeStyle(reason);
+                                return (
+                                  <span key={reason} className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium ${style.className}`}>
+                                    {reason}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
-                        <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+                        <MapPin className="h-4 w-4 text-muted-foreground shrink-0 mt-1" />
                       </div>
                       {legKm > 0.1 && (
                         <div className="flex items-center gap-2 text-[10px] text-muted-foreground ml-10 my-1">
@@ -845,3 +740,6 @@ export default function RouteOptimizerSheet({
     </Sheet>
   );
 }
+
+// Re-export types for consumers
+export type { OptCustomer, OptimizedRoute };
