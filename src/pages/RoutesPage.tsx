@@ -161,6 +161,7 @@ export default function RoutesPage() {
           source: 'auto' as const,
           customerType: c.customer_type,
           lastVisitDate: c.last_visit_date,
+          visitDurationMinutes: c.visit_duration_minutes ?? null,
         };
       })
       .sort((a, b) => b.priority - a.priority)
