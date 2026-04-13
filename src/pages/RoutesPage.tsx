@@ -201,7 +201,7 @@ export default function RoutesPage() {
   });
 
   const getZoneForDay = (day: number) => {
-    const p = planning.find(p => p.day_of_week === day);
+    const p = planning.find(p => p.day_of_week === day && (p as any).week_number === selectedWeek);
     return p?.zone_id || undefined;
   };
 
