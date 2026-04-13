@@ -67,15 +67,29 @@ export function TourReportSheet({ open, onOpenChange, clientName, onSubmit, onAd
     setNextActionDate(d.toISOString().split('T')[0]);
   };
 
-  const handleSubmit = () => {
-    onSubmit({ outcome, notes, nextActionDate, followUpAction });
-    setOutcome('');
-    setNotes('');
-    setNextActionDate('');
-    setFollowUpAction(null);
-    setPromotionPresented(false);
-    setSelectedPromotion(null);
-    setPromoComment('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    try {
+      await onSubmit({
+        outcome,
+        notes,
+        nextActionDate,
+        followUpAction,
+        promotionPresented,
+        promotionId: selectedPromotion?.id || null,
+      });
+      setOutcome('');
+      setNotes('');
+      setNextActionDate('');
+      setFollowUpAction(null);
+      setPromotionPresented(false);
+      setSelectedPromotion(null);
+      setPromoComment('');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
