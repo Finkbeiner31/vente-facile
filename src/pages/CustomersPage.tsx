@@ -305,12 +305,14 @@ export default function CustomersPage() {
       return b.revenue - a.revenue; // potential
     }), [enriched, search, tab, perfFilter, trendFilter, priorityFilter, sortMode]);
 
+  const activeCustomers = customers.filter(c => c.accountStatus !== 'archived');
+  const archivedCount = customers.filter(c => c.accountStatus === 'archived').length;
   const counts = {
-    tous: customers.length,
-    clients: customers.filter(c => c.status === 'client_actif' || c.status === 'client_inactif').length,
-    prospects: customers.filter(c => c.status === 'prospect').length,
-    qualifies: customers.filter(c => c.status === 'prospect_qualifie').length,
-    en_attente: customers.filter(c => c.status === 'pending_conversion').length,
+    tous: activeCustomers.length,
+    clients: activeCustomers.filter(c => c.status === 'client_actif' || c.status === 'client_inactif').length,
+    prospects: activeCustomers.filter(c => c.status === 'prospect').length,
+    qualifies: activeCustomers.filter(c => c.status === 'prospect_qualifie').length,
+    en_attente: activeCustomers.filter(c => c.status === 'pending_conversion').length,
   };
 
   const handleCreate = async (data: NewCustomerFormData) => {
