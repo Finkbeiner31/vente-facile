@@ -374,7 +374,7 @@ export default function RoutesPage() {
             </div>
             <Select
               value={todayZoneId || 'none'}
-              onValueChange={v => assignZoneMutation.mutate({ dayOfWeek: selectedDay, zoneId: v === 'none' ? null : v })}
+              onValueChange={v => assignZoneMutation.mutate({ dayOfWeek: selectedDay, zoneId: v === 'none' ? null : v, weekNumber: selectedWeek })}
             >
               <SelectTrigger className="h-9 w-[200px]">
                 <SelectValue placeholder="Choisir une zone" />
