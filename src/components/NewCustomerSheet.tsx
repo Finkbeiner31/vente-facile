@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -8,12 +8,18 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Building2, Save, RotateCcw, MapPin, Users, Briefcase } from 'lucide-react';
+import { Building2, Save, RotateCcw, MapPin, Users, Briefcase, Search, Loader2 } from 'lucide-react';
 import { formatMonthly, formatAnnual } from '@/lib/revenueUtils';
 import { getDefaultFrequency } from '@/lib/visitFrequencyUtils';
 import { AddressAutocomplete, type AddressSelection } from '@/components/AddressAutocomplete';
 import { BusinessSearchAutocomplete, type BusinessSelection } from '@/components/BusinessSearchAutocomplete';
 import { ContactListEditor, emptyContact, type ContactEntry } from '@/components/ContactListEditor';
+import { DuplicateWarning } from '@/components/DuplicateWarning';
+import { detectDuplicates, fetchExistingCustomersForDuplicateCheck, type DuplicateCandidate } from '@/lib/duplicateDetection';
+import { useCommercialZones, findMatchingZone } from '@/hooks/useCommercialZones';
+import { useAuth } from '@/contexts/AuthContext';
+import { Badge } from '@/components/ui/badge';
+import { AlertTriangle, MapPinOff } from 'lucide-react';
 
 export interface NewCustomerFormData {
   company_name: string;
@@ -47,6 +53,9 @@ function SectionHeader({ icon: Icon, label }: { icon: React.ElementType; label: 
 }
 
 export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = 'prospect' }: NewCustomerSheetProps) {
+  const { role } = useAuth();
+  const { data: zones = [] } = useCommercialZones();
+
   const getInitialForm = () => ({
     company_name: '',
     city: '',
@@ -63,22 +72,86 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
   const [contacts, setContacts] = useState<ContactEntry[]>([emptyContact(true)]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [addressLocked, setAddressLocked] = useState(false);
+  
+  // Duplicate detection state
+  const [existingCustomers, setExistingCustomers] = useState<any[]>([]);
+  const [duplicates, setDuplicates] = useState<DuplicateCandidate[]>([]);
+  const [duplicateChecked, setDuplicateChecked] = useState(false);
+  const [checkingDuplicates, setCheckingDuplicates] = useState(false);
+  const [forceCreate, setForceCreate] = useState(false);
 
   useEffect(() => {
     setForm(getInitialForm());
     setContacts([emptyContact(true)]);
     setAddressLocked(false);
+    setDuplicates([]);
+    setDuplicateChecked(false);
+    setForceCreate(false);
   }, [defaultType, open]);
 
-  const set = (key: string, value: string) => setForm(prev => ({ ...prev, [key]: value }));
+  // Load existing customers when sheet opens
+  useEffect(() => {
+    if (open) {
+      fetchExistingCustomersForDuplicateCheck().then(setExistingCustomers).catch(() => {});
+    }
+  }, [open]);
+
+  const set = (key: string, value: string) => {
+    setForm(prev => ({ ...prev, [key]: value }));
+    setDuplicateChecked(false);
+    setForceCreate(false);
+  };
 
   const vehicles = parseInt(form.number_of_vehicles) || 0;
   const annualRevenue = vehicles * 3500;
-
   const isValid = form.company_name.trim() && form.city.trim();
+
+  // Out-of-zone detection
+  const zoneMatch = useMemo(() => {
+    if (!form.city && !form.postal_code) return null;
+    return findMatchingZone(zones, form.city, form.postal_code);
+  }, [zones, form.city, form.postal_code]);
+
+  const isOutOfZone = isValid && !zoneMatch && (form.city.trim() || form.postal_code.trim());
+  const isAdmin = role === 'admin' || role === 'manager';
+
+  const handleCheckDuplicates = async () => {
+    if (!form.company_name.trim()) return;
+    setCheckingDuplicates(true);
+    try {
+      const primaryContact = contacts.find(c => c.isPrimary) || contacts[0];
+      const found = detectDuplicates(
+        {
+          company_name: form.company_name,
+          city: form.city,
+          address: form.address,
+          phone: primaryContact?.phone,
+          email: primaryContact?.email,
+          postal_code: form.postal_code,
+        },
+        existingCustomers
+      );
+      setDuplicates(found);
+      setDuplicateChecked(true);
+    } finally {
+      setCheckingDuplicates(false);
+    }
+  };
+
+  const hasExactDuplicate = duplicates.some(d => d.confidence === 'exact');
 
   const handleSubmit = async () => {
     if (!isValid || isSubmitting) return;
+    
+    // Run duplicate check if not done yet
+    if (!duplicateChecked) {
+      await handleCheckDuplicates();
+      return;
+    }
+
+    // Block if duplicates found and not force-creating
+    if (duplicates.length > 0 && !forceCreate) return;
+
     setIsSubmitting(true);
     try {
       await onSubmit({
@@ -101,6 +174,16 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
       setIsSubmitting(false);
     }
   };
+
+  const submitLabel = !duplicateChecked
+    ? 'Vérifier et créer'
+    : duplicates.length > 0 && !forceCreate
+    ? 'Doublons détectés'
+    : isSubmitting
+    ? 'Enregistrement...'
+    : 'Créer le compte';
+
+  const submitDisabled = !isValid || isSubmitting || (duplicateChecked && duplicates.length > 0 && !forceCreate);
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -145,7 +228,8 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
                   latitude: sel.latitude,
                   longitude: sel.longitude,
                 }));
-                // Auto-fill phone into first contact if available
+                setDuplicateChecked(false);
+                setForceCreate(false);
                 if (sel.phone) {
                   setContacts(prev => {
                     const next = [...prev];
@@ -192,6 +276,8 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
                   latitude: sel.latitude,
                   longitude: sel.longitude,
                 }));
+                setDuplicateChecked(false);
+                setForceCreate(false);
               }}
               placeholder="Adresse..."
               className="mt-1"
@@ -212,9 +298,30 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
             </div>
           </div>
 
+          {/* Out-of-zone warning */}
+          {isOutOfZone && !isAdmin && (
+            <div className="rounded-lg border border-warning/50 bg-warning/5 p-3 flex items-start gap-2">
+              <MapPinOff className="h-4 w-4 text-warning mt-0.5 shrink-0" />
+              <div>
+                <p className="text-xs font-medium text-warning">Hors zone détecté</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Ce compte ne correspond à aucune de vos zones. Il sera créé avec le statut « Validation admin requise ».
+                </p>
+              </div>
+            </div>
+          )}
+
+          {isOutOfZone && isAdmin && (
+            <div className="rounded-lg border border-muted bg-muted/30 p-3 flex items-start gap-2">
+              <MapPinOff className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+              <p className="text-xs text-muted-foreground">
+                Ce compte est hors zone. L'affectation sera gérée manuellement.
+              </p>
+            </div>
+          )}
+
           {/* ── Section 3: Contacts ── */}
           <SectionHeader icon={Users} label="Contacts" />
-
           <ContactListEditor contacts={contacts} onChange={setContacts} />
 
           {/* ── Section 4: Business ── */}
@@ -242,11 +349,26 @@ export function NewCustomerSheet({ open, onOpenChange, onSubmit, defaultType = '
               placeholder="Notes..." rows={2} className="mt-1" />
           </div>
 
+          {/* ── Duplicate Warning ── */}
+          {duplicateChecked && duplicates.length > 0 && (
+            <DuplicateWarning
+              duplicates={duplicates}
+              isExact={hasExactDuplicate}
+              onForceCreate={() => setForceCreate(true)}
+            />
+          )}
+
           {/* ── Submit ── */}
-          <Button onClick={handleSubmit} disabled={!isValid || isSubmitting}
-            className="w-full h-14 text-base font-bold mt-2">
-            <Save className="h-5 w-5 mr-2" />
-            {isSubmitting ? 'Enregistrement...' : 'Créer le compte'}
+          <Button
+            onClick={handleSubmit}
+            disabled={submitDisabled}
+            className="w-full h-14 text-base font-bold mt-2"
+          >
+            {checkingDuplicates ? (
+              <><Loader2 className="h-5 w-5 mr-2 animate-spin" /> Vérification...</>
+            ) : (
+              <><Save className="h-5 w-5 mr-2" /> {submitLabel}</>
+            )}
           </Button>
         </div>
       </SheetContent>

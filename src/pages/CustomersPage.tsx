@@ -43,6 +43,7 @@ interface CustomerListItem {
   latitude: number | null;
   longitude: number | null;
   zone: string | null;
+  zoneStatus: string | null;
   relationshipType: string | null;
   managementMode: string;
   exceptionalCommercialId: string | null;
@@ -91,7 +92,7 @@ const splitContactName = (fullName: string) => {
 };
 
 export default function CustomersPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, role } = useAuth();
   const { effectiveUserId } = useImpersonation();
   const activeUserId = effectiveUserId || user?.id;
   const [search, setSearch] = useState('');
@@ -103,6 +104,7 @@ export default function CustomersPage() {
   const [sheetOpen, setSheetOpen] = useState(false);
   const queryClient = useQueryClient();
   const { autoAssignCustomer } = useZoneAssignment();
+  const isAdmin = role === 'admin' || role === 'manager';
 
   const { data: revenueMap } = useAllCustomerRevenues();
 
@@ -162,6 +164,7 @@ export default function CustomersPage() {
           latitude: customer.latitude,
           longitude: customer.longitude,
           zone: customer.zone || null,
+          zoneStatus: customer.zone_status || null,
           relationshipType: customer.relationship_type || null,
           managementMode: customer.management_mode || 'standard',
           exceptionalCommercialId: customer.exceptional_commercial_id || null,
@@ -224,14 +227,36 @@ export default function CustomersPage() {
     onSuccess: async (createdCustomer) => {
       // Auto-assign zone
       try {
-        await autoAssignCustomer(createdCustomer.id, {
+        const result = await autoAssignCustomer(createdCustomer.id, {
           latitude: createdCustomer.latitude,
           longitude: createdCustomer.longitude,
           postal_code: createdCustomer.postal_code,
           city: createdCustomer.city,
         }, { force: true });
+        
+        // If no zone was assigned and user is not admin, mark as pending_admin
+        if (!isAdmin) {
+          const { data: updatedCustomer } = await supabase
+            .from('customers')
+            .select('zone_status')
+            .eq('id', createdCustomer.id)
+            .single();
+          
+          if (updatedCustomer?.zone_status === 'outside' || updatedCustomer?.zone_status === null) {
+            await supabase
+              .from('customers')
+              .update({ zone_status: 'pending_admin' })
+              .eq('id', createdCustomer.id);
+          }
+        }
       } catch (e) {
-        // Non-blocking — zone assignment is best-effort
+        // If zone assignment fails for non-admin, mark as pending
+        if (!isAdmin) {
+          await supabase
+            .from('customers')
+            .update({ zone_status: 'pending_admin' })
+            .eq('id', createdCustomer.id);
+        }
       }
       await queryClient.invalidateQueries({ queryKey: ['customers'] });
       toast.success(`${createdCustomer.company_name} enregistré avec succès.`);
@@ -421,6 +446,21 @@ export default function CustomersPage() {
                         {customer.repAssignmentMode === 'manual' && (
                           <Badge className="text-[9px] h-4 bg-warning/15 text-warning">
                             ✋ Affectation manuelle
+                          </Badge>
+                        )}
+                        {customer.zoneStatus === 'outside' && (
+                          <Badge className="text-[9px] h-4 bg-destructive/15 text-destructive">
+                            Hors zone
+                          </Badge>
+                        )}
+                        {customer.zoneStatus === 'to_confirm' && (
+                          <Badge className="text-[9px] h-4 bg-warning/15 text-warning">
+                            Zone à confirmer
+                          </Badge>
+                        )}
+                        {customer.zoneStatus === 'pending_admin' && (
+                          <Badge className="text-[9px] h-4 bg-primary/15 text-primary">
+                            Validation admin
                           </Badge>
                         )}
                         {(() => {
