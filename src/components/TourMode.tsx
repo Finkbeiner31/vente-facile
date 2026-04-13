@@ -111,6 +111,8 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
     notes: string;
     nextActionDate: string;
     followUpAction: any;
+    promotionPresented?: boolean;
+    promotionId?: string | null;
   }) => {
     const customerId = current.customer.id;
 

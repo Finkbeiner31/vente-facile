@@ -197,10 +197,10 @@ export function TourReportSheet({ open, onOpenChange, clientName, onSubmit, onAd
           )}
 
           {/* Submit */}
-          <Button onClick={handleSubmit} disabled={!outcome}
+          <Button onClick={handleSubmit} disabled={!outcome || submitting}
             className="w-full h-14 text-base font-bold">
-            Enregistrer & Suivant
-            <ArrowRight className="h-5 w-5 ml-2" />
+            {submitting ? 'Enregistrement…' : 'Enregistrer & Suivant'}
+            {!submitting && <ArrowRight className="h-5 w-5 ml-2" />}
           </Button>
         </div>
       </SheetContent>
