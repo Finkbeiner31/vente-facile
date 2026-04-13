@@ -60,13 +60,13 @@ export const FLEET_LABELS: Record<string, string> = {
 };
 
 export const CUSTOMER_TYPES = [
-  'Transport', 'Travaux publics', 'Collectivité', 'BTP', 'Industrie', 'Location', 'Autre',
+  'Transport', 'Transport de personne', 'Travaux publics', 'Collectivité', 'BTP', 'Industrie', 'Location', 'Autre',
 ];
 
 export const EQUIPMENT_TYPES = [
-  'Hydrocureur', 'BOM', 'Grue', 'Benne', 'Plateau', 'Frigorifique', 'Citerne', 'Porte-engins', 'Multi-équipement', 'Autre',
+  'Hydrocureur', 'BOM', 'Grue', 'Benne', 'Plateau', 'Frigorifique', 'Citerne', 'Porte-engins', 'Caisse', 'Polybenne', 'Tautliner', 'Multi-équipement', 'Autre',
 ];
 
 export const EQUIPMENT_SUB_TYPES = [
-  'Hydrocureur', 'BOM', 'Grue', 'Benne', 'Plateau', 'Frigorifique', 'Citerne', 'Porte-engins', 'Autre',
+  'Hydrocureur', 'BOM', 'Grue', 'Benne', 'Plateau', 'Frigorifique', 'Citerne', 'Porte-engins', 'Caisse', 'Polybenne', 'Tautliner', 'Autre',
 ];
