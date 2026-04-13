@@ -3,8 +3,9 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { TourSessionProvider } from "@/contexts/TourSessionContext";
+import { ImpersonationProvider } from "@/contexts/ImpersonationContext";
 import AppLayout from "@/components/AppLayout";
 import LoginPage from "@/pages/LoginPage";
 import DashboardPage from "@/pages/DashboardPage";
@@ -31,6 +32,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <ImpersonationWrapper>
           <TourSessionProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
@@ -52,6 +54,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
           </TourSessionProvider>
+          </ImpersonationWrapper>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
