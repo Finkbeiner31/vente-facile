@@ -117,8 +117,9 @@ export default function BulkImportPage() {
     const res: ImportResult = { created: 0, updated: 0, skipped: 0, errors: 0 };
 
     for (const row of rows) {
-      // Skip rows with errors
+      // Skip rows with errors or excluded by user
       if (row.errors.length > 0) { res.errors++; continue; }
+      if (excludedRows.has(row.rowIndex)) { res.skipped++; continue; }
 
       const d = row.data;
       const isExisting = row.isDuplicate && row.duplicateOf?.includes('existant en base');
