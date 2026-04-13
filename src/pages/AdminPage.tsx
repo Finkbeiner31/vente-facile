@@ -67,6 +67,21 @@ function BulkReassignmentCard() {
     }
   };
 
+  // Refresh counters after issues are resolved
+  const refreshCounters = async () => {
+    const { count: toConfirm } = await (supabase as any)
+      .from('customers')
+      .select('id', { count: 'exact', head: true })
+      .eq('zone_status', 'to_confirm');
+    const { count: outside } = await (supabase as any)
+      .from('customers')
+      .select('id', { count: 'exact', head: true })
+      .eq('zone_status', 'outside');
+    if (result) {
+      setResult(prev => prev ? { ...prev, conflicts: toConfirm ?? 0, outside: outside ?? 0 } : prev);
+    }
+  };
+
   return (
     <>
       <Card>
