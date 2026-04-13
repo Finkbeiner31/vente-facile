@@ -10,16 +10,18 @@ import {
 } from '@/components/ui/table';
 import {
   Upload, Download, FileSpreadsheet, AlertTriangle, CheckCircle2,
-  XCircle, Loader2, ArrowLeft, Info,
+  XCircle, Loader2, ArrowLeft, Info, Eye, SkipForward,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { Link } from 'react-router-dom';
 import {
   parseCSV, parseXLSX, validateRows, generateTemplate,
   type ImportRow, type ValidatedRow,
 } from '@/lib/importUtils';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 type ImportMode = 'create_only' | 'update_only' | 'create_and_update';
 type Step = 'upload' | 'preview' | 'result';
