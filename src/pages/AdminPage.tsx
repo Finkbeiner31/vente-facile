@@ -354,6 +354,47 @@ export default function AdminPage() {
     updatePotentialMutation.mutate(updates);
   };
 
+  // Visit duration defaults
+  const durationItems = [
+    { key: 'visit_duration_client', label: 'Client', settingKey: 'client' as const },
+    { key: 'visit_duration_prospect', label: 'Prospect', settingKey: 'prospect' as const },
+    { key: 'visit_duration_prospect_qualifie', label: 'Prospect qualifié', settingKey: 'prospect_qualifie' as const },
+  ];
+
+  const startEditDurations = () => {
+    if (visitDurations) {
+      setDurationForm({
+        visit_duration_client: visitDurations.client,
+        visit_duration_prospect: visitDurations.prospect,
+        visit_duration_prospect_qualifie: visitDurations.prospect_qualifie,
+      });
+    }
+    setEditingDurations(true);
+  };
+
+  const updateDurationMutation = useMutation({
+    mutationFn: async (updates: { key: string; value: number }[]) => {
+      for (const u of updates) {
+        const { error } = await (supabase as any)
+          .from('app_settings')
+          .update({ setting_value: String(u.value) })
+          .eq('setting_key', u.key);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['visit-duration-defaults'] });
+      setEditingDurations(false);
+      toast.success('Temps de visite mis à jour');
+    },
+    onError: () => toast.error('Erreur lors de la mise à jour'),
+  });
+
+  const saveDurations = () => {
+    const updates = Object.entries(durationForm).map(([key, value]) => ({ key, value }));
+    updateDurationMutation.mutate(updates);
+  };
+
   const dayNames = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
   const isCommercialRole = (role: string) => role === 'sales_rep';
   const filteredUsers = allUsers.filter(u => {
