@@ -43,6 +43,7 @@ interface CustomerListItem {
   latitude: number | null;
   longitude: number | null;
   zone: string | null;
+  zoneStatus: string | null;
   relationshipType: string | null;
   managementMode: string;
   exceptionalCommercialId: string | null;
@@ -162,6 +163,7 @@ export default function CustomersPage() {
           latitude: customer.latitude,
           longitude: customer.longitude,
           zone: customer.zone || null,
+          zoneStatus: customer.zone_status || null,
           relationshipType: customer.relationship_type || null,
           managementMode: customer.management_mode || 'standard',
           exceptionalCommercialId: customer.exceptional_commercial_id || null,
@@ -421,6 +423,21 @@ export default function CustomersPage() {
                         {customer.repAssignmentMode === 'manual' && (
                           <Badge className="text-[9px] h-4 bg-warning/15 text-warning">
                             ✋ Affectation manuelle
+                          </Badge>
+                        )}
+                        {customer.zoneStatus === 'outside' && (
+                          <Badge className="text-[9px] h-4 bg-destructive/15 text-destructive">
+                            Hors zone
+                          </Badge>
+                        )}
+                        {customer.zoneStatus === 'to_confirm' && (
+                          <Badge className="text-[9px] h-4 bg-warning/15 text-warning">
+                            Zone à confirmer
+                          </Badge>
+                        )}
+                        {customer.zoneStatus === 'pending_admin' && (
+                          <Badge className="text-[9px] h-4 bg-primary/15 text-primary">
+                            Validation admin
                           </Badge>
                         )}
                         {(() => {
