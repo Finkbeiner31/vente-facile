@@ -49,28 +49,131 @@ export default function DashboardPage() {
     }
   }, [dailyTourLoading, dailyTour, activeUserId, autoGenerate]);
 
+  /* ── Fallback: read directly from weekly_zone_planning if no daily_tour ── */
+  const currentWeek = useMemo(() => getCurrentWeekNumber(), []);
+  const currentDow = useMemo(() => getTodayDow(), []);
+  const isWeekday = currentDow <= 5;
+
+  const { data: planningFallback } = useQuery({
+    queryKey: ['dashboard-planning-fallback', activeUserId, currentWeek, currentDow],
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from('weekly_zone_planning')
+        .select('zone_id')
+        .eq('user_id', activeUserId!)
+        .eq('week_number', currentWeek)
+        .eq('day_of_week', currentDow)
+        .limit(1);
+      return data?.[0]?.zone_id || null;
+    },
+    enabled: !!activeUserId && isWeekday && !dailyTourLoading && !dailyTour,
+  });
+
+  // Fallback zone customers (when daily_tour has no stops but planning has a zone)
+  const { data: fallbackCustomers = [] } = useQuery({
+    queryKey: ['dashboard-fallback-customers', planningFallback, activeUserId],
+    queryFn: async () => {
+      if (!planningFallback || !activeUserId) return [];
+      const zone = zones.find(z => z.id === planningFallback);
+      if (!zone) return [];
+
+      const filters: string[] = [];
+      filters.push(`zone.eq.${zone.system_name}`);
+      if (zone.cities?.length > 0) filters.push(`city.in.(${zone.cities.join(',')})`);
+      if (zone.postal_codes?.length > 0) filters.push(`postal_code.in.(${zone.postal_codes.join(',')})`);
+
+      const { data } = await supabase
+        .from('customers')
+        .select('id, company_name, address, city, phone, visit_frequency, number_of_vehicles, annual_revenue_potential, latitude, longitude, sales_potential, customer_type, last_visit_date, assigned_rep_id, management_mode, exceptional_commercial_id, visit_duration_minutes')
+        .in('customer_type', ['client_actif', 'prospect_qualifie', 'prospect'])
+        .in('account_status', ['active'])
+        .or(filters.join(','))
+        .order('annual_revenue_potential', { ascending: false, nullsFirst: false });
+
+      // Filter by operational owner
+      const myCustomers = (data || []).filter((c: any) => {
+        if (c.management_mode === 'exceptional') return c.exceptional_commercial_id === activeUserId;
+        return c.assigned_rep_id === activeUserId;
+      });
+
+      // Score and pick top 12 (same logic as useDailyTour / RoutesPage)
+      const now = new Date();
+      const scored = myCustomers.map((c: any) => {
+        let priority = 0;
+        const rev = Number(c.annual_revenue_potential || 0);
+        priority += Math.min(rev / 1000, 100);
+        if (c.sales_potential === 'A') priority += 30;
+        else if (c.sales_potential === 'B') priority += 15;
+        if (c.last_visit_date) {
+          const daysSince = Math.floor((now.getTime() - new Date(c.last_visit_date).getTime()) / 86400000);
+          if (daysSince > 30) priority += 25;
+          else if (daysSince > 14) priority += 10;
+        } else {
+          priority += 20;
+        }
+        if (c.customer_type === 'prospect_qualifie') priority += 10;
+        return { ...c, priority };
+      });
+
+      scored.sort((a: any, b: any) => b.priority - a.priority);
+      return scored.slice(0, 12);
+    },
+    enabled: !!planningFallback && zones.length > 0 && !!activeUserId && !dailyTour,
+  });
+
   /* ── Zones ── */
   const { data: zones = [] } = useCommercialZones();
 
   const todayZone = useMemo(() => {
-    if (!dailyTour?.zone_id) return null;
-    return zones.find(z => z.id === dailyTour.zone_id) || null;
-  }, [dailyTour, zones]);
+    // Daily tour zone takes priority
+    if (dailyTour?.zone_id) return zones.find(z => z.id === dailyTour.zone_id) || null;
+    // Fallback to planning zone
+    if (planningFallback) return zones.find(z => z.id === planningFallback) || null;
+    return null;
+  }, [dailyTour, zones, planningFallback]);
 
-  /* ── Visits from daily tour ── */
+  /* ── Visits from daily tour OR fallback ── */
   const todayVisits = useMemo(() => {
-    if (!dailyTour?.stops?.length) return [];
-    return dailyTour.stops
-      .filter(s => s.customer)
-      .map(s => ({
-        id: s.id,
-        customer_id: s.customer_id,
-        stop_order: s.stop_order,
-        status: s.status,
-        visit_duration_minutes: s.visit_duration_minutes,
-        customer: s.customer!,
+    // If daily tour has stops, use those
+    if (dailyTour?.stops?.length) {
+      return dailyTour.stops
+        .filter(s => s.customer)
+        .map(s => ({
+          id: s.id,
+          customer_id: s.customer_id,
+          stop_order: s.stop_order,
+          status: s.status,
+          visit_duration_minutes: s.visit_duration_minutes,
+          customer: s.customer!,
+        }));
+    }
+    // Fallback: use planning-based customers
+    if (fallbackCustomers.length > 0) {
+      return fallbackCustomers.map((c: any, i: number) => ({
+        id: c.id,
+        customer_id: c.id,
+        stop_order: i + 1,
+        status: 'planned',
+        visit_duration_minutes: c.visit_duration_minutes || null,
+        customer: {
+          id: c.id,
+          company_name: c.company_name,
+          address: c.address,
+          city: c.city,
+          phone: c.phone,
+          visit_frequency: c.visit_frequency,
+          number_of_vehicles: c.number_of_vehicles,
+          annual_revenue_potential: c.annual_revenue_potential,
+          latitude: c.latitude,
+          longitude: c.longitude,
+          sales_potential: c.sales_potential,
+          customer_type: c.customer_type,
+          last_visit_date: c.last_visit_date,
+        },
       }));
-  }, [dailyTour]);
+    }
+    return [];
+  }, [dailyTour, fallbackCustomers]);
 
   const completedCount = todayVisits.filter(v => v.status === 'completed').length;
   const totalPlanned = todayVisits.length;
