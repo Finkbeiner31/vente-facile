@@ -42,6 +42,7 @@ interface CustomerListItem {
   latitude: number | null;
   longitude: number | null;
   zone: string | null;
+  relationshipType: string | null;
 }
 
 const statusConfig: Record<CustomerStatus, { label: string; class: string }> = {
@@ -127,8 +128,8 @@ export default function CustomersPage() {
           latitude: customer.latitude,
           longitude: customer.longitude,
           zone: (customer as any).zone || null,
+          relationshipType: (customer as any).relationship_type || null,
         };
-      });
     },
     enabled: !loading && !!user,
   });
@@ -364,6 +365,16 @@ export default function CustomersPage() {
                           </Badge>
                         )}
                         <Badge className={`text-[9px] h-4 ${sc.class}`}>{sc.label}</Badge>
+                        {customer.relationshipType && (
+                          <Badge className={`text-[9px] h-4 ${
+                            customer.relationshipType === 'magasin' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                            customer.relationshipType === 'atelier' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' :
+                            'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                          }`}>
+                            {customer.relationshipType === 'magasin' ? 'Magasin' :
+                             customer.relationshipType === 'atelier' ? 'Atelier' : 'Mixte'}
+                          </Badge>
+                        )}
                         {(() => {
                           const freq = customer.visitFrequency || getDefaultFrequency(customer.status);
                           const vs = computeVisitStatus(freq, customer.lastVisitDate);
