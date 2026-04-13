@@ -230,6 +230,16 @@ export function TourneeDualList({ plannedStops, availableCustomers, onUpdatePlan
   const [showAllAvailable, setShowAllAvailable] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
+  const { data: durationDefaults } = useVisitDurationDefaults();
+
+  const totalVisitMin = useMemo(() => {
+    if (!durationDefaults) return 0;
+    return plannedStops.reduce((sum, stop) => {
+      const type = stop.customerType || 'client_actif';
+      const duration = getVisitDurationWithDefaults(type, stop.visitDurationMinutes ?? null, durationDefaults);
+      return sum + duration;
+    }, 0);
+  }, [plannedStops, durationDefaults]);
 
   const toggleFilter = useCallback((filter: string) => {
     setActiveFilters(prev => {
