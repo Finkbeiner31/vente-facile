@@ -432,12 +432,19 @@ export default function CustomerDetailPage() {
             if (!suggested) return null;
             return (
               <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1.5 text-primary"
-                onClick={() => updateCustomerMutation.mutate({ 
-                  zone: suggested.system_name,
-                  assignment_mode: 'automatic',
-                  assignment_source: 'city',
-                  zone_status: 'assigned',
-                } as any)}>
+                onClick={() => {
+                  const updates: Record<string, any> = { 
+                    zone: suggested.system_name,
+                    assignment_mode: 'automatic',
+                    assignment_source: 'city',
+                    zone_status: 'assigned',
+                  };
+                  if (cust.rep_assignment_mode !== 'manual' && suggested.user_id) {
+                    updates.assigned_rep_id = suggested.user_id;
+                    updates.rep_assignment_mode = 'automatic';
+                  }
+                  updateCustomerMutation.mutate(updates);
+                }}>
                 → {formatZoneName(suggested)}
               </Button>
             );
