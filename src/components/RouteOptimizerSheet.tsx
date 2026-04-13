@@ -206,16 +206,16 @@ export default function RouteOptimizerSheet({
       const geo = await geocodeAddress(address);
       if (!geo) { toast.error('Adresse introuvable. Vérifiez la saisie.'); setEditSaving(false); return; }
       
-      const update: Record<string, any> = {
-        [`${field}_address`]: address,
-        [`${field}_lat`]: geo.lat,
-        [`${field}_lng`]: geo.lng,
-      };
+      const updateData = field === 'entreprise'
+        ? { entreprise_address: address, entreprise_lat: geo.lat, entreprise_lng: geo.lng }
+        : field === 'domicile'
+        ? { domicile_address: address, domicile_lat: geo.lat, domicile_lng: geo.lng }
+        : { autre_address: address, autre_lat: geo.lat, autre_lng: geo.lng };
       
-      const { error } = await supabase.from('profiles').update(update).eq('id', user.id);
+      const { error } = await supabase.from('profiles').update(updateData).eq('id', user.id);
       if (error) throw error;
       
-      setAddresses(prev => ({ ...prev, ...update }));
+      setAddresses(prev => ({ ...prev, ...updateData }));
       toast.success('Adresse enregistrée');
       setEditingField(null);
     } catch (e) {
