@@ -135,6 +135,7 @@ function BulkReassignmentCard() {
         open={issueFilter !== null}
         onOpenChange={(open) => { if (!open) setIssueFilter(null); }}
         filterStatus={issueFilter || 'to_confirm'}
+        onSaved={refreshCounters}
       />
     </>
   );
