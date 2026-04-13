@@ -10,12 +10,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import {
   Users, Shield, Settings as SettingsIcon, Truck, Plus, Edit, Trash2, Save,
   Loader2, ArrowRightCircle, MapPin, Building2, Calendar, UserPlus, Power, LogIn,
+  Clock,
 } from 'lucide-react';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { useNavigate } from 'react-router-dom';
 import { AdminZoneManager } from '@/components/AdminZoneManager';
 import { AdminConversionRequests } from '@/components/AdminConversionRequests';
 import { useVehiclePotentials } from '@/hooks/useVehiclePotentials';
+import { useVisitDurationDefaults } from '@/hooks/useVisitDurationDefaults';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
