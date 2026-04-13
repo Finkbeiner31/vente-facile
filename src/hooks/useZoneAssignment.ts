@@ -70,6 +70,18 @@ export function useZoneAssignment() {
   /** Bulk recalculate zones for all auto-assigned clients */
   const bulkRecalculate = useCallback(
     async (): Promise<{ assigned: number; conflicts: number; outside: number; skippedManual: number }> => {
+      // Fetch ALL zones (not filtered by user) for bulk admin operation
+      const { data: allZones, error: zErr } = await (supabase as any)
+        .from('commercial_zones')
+        .select('*');
+      if (zErr) throw zErr;
+      const allZonesParsed: CommercialZone[] = (allZones || []).map((z: any) => ({
+        ...z,
+        cities: z.cities || [],
+        postal_codes: z.postal_codes || [],
+        polygon_coordinates: z.polygon_coordinates || null,
+      }));
+
       // Fetch all customers
       const { data: allCustomers, error } = await (supabase as any)
         .from('customers')
@@ -87,7 +99,7 @@ export function useZoneAssignment() {
           continue;
         }
 
-        const result = computeZoneAssignment(c, zones);
+        const result = computeZoneAssignment(c, allZonesParsed);
         
         const update: Record<string, any> = {
           zone: result.zone,
@@ -98,7 +110,7 @@ export function useZoneAssignment() {
 
         // Auto-assign commercial if rep_assignment_mode is automatic
         if (c.rep_assignment_mode !== 'manual' && result.zone_id) {
-          const matchedZone = zones.find(z => z.id === result.zone_id);
+          const matchedZone = allZonesParsed.find(z => z.id === result.zone_id);
           if (matchedZone?.user_id) {
             update.assigned_rep_id = matchedZone.user_id;
             update.rep_assignment_mode = 'automatic';
@@ -120,7 +132,7 @@ export function useZoneAssignment() {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       return { assigned, conflicts, outside, skippedManual };
     },
-    [zones, queryClient]
+    [queryClient]
   );
 
   return { zones, computeAssignment, autoAssignCustomer, bulkRecalculate };
