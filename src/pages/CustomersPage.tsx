@@ -65,7 +65,7 @@ const potentialColors: Record<string, string> = {
   C: 'bg-muted text-muted-foreground',
 };
 
-type FilterTab = 'tous' | 'clients' | 'prospects' | 'qualifies' | 'en_attente';
+type FilterTab = 'tous' | 'clients' | 'prospects' | 'qualifies' | 'en_attente' | 'archives';
 type PerfFilter = 'tous' | 'optimise' | 'a_developper' | 'sous_exploite';
 type TrendFilter = 'tous' | 'up' | 'down' | 'stable';
 type PriorityFilter = 'tous' | 'high' | 'medium' | 'low';
