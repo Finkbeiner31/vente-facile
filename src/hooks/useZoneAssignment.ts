@@ -73,7 +73,7 @@ export function useZoneAssignment() {
       // Fetch all customers
       const { data: allCustomers, error } = await (supabase as any)
         .from('customers')
-        .select('id, latitude, longitude, postal_code, city, assignment_mode, zone');
+        .select('id, latitude, longitude, postal_code, city, assignment_mode, zone, rep_assignment_mode');
       if (error) throw error;
 
       let assigned = 0, conflicts = 0, outside = 0, skippedManual = 0;
@@ -95,6 +95,15 @@ export function useZoneAssignment() {
           assignment_source: result.assignment_source,
           zone_status: result.zone_status,
         };
+
+        // Auto-assign commercial if rep_assignment_mode is automatic
+        if (c.rep_assignment_mode !== 'manual' && result.zone_id) {
+          const matchedZone = zones.find(z => z.id === result.zone_id);
+          if (matchedZone?.user_id) {
+            update.assigned_rep_id = matchedZone.user_id;
+            update.rep_assignment_mode = 'automatic';
+          }
+        }
 
         updates.push({ id: c.id, update });
 
