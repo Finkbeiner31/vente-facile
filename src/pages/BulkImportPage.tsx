@@ -47,6 +47,8 @@ export default function BulkImportPage() {
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [fileName, setFileName] = useState('');
+  const [previewTab, setPreviewTab] = useState<'new' | 'duplicates' | 'errors'>('new');
+  const [excludedRows, setExcludedRows] = useState<Set<number>>(new Set());
 
   // Fetch existing customers for duplicate detection
   const { data: existingCustomers = [] } = useQuery({
