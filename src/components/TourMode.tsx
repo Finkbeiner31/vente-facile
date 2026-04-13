@@ -50,6 +50,7 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
   const [dayListOpen, setDayListOpen] = useState(false);
   const [addUnplannedOpen, setAddUnplannedOpen] = useState(false);
   const [promotionsOpen, setPromotionsOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   if (!session) return null;
 
