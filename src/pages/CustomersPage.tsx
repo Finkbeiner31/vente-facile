@@ -44,6 +44,8 @@ interface CustomerListItem {
   longitude: number | null;
   zone: string | null;
   relationshipType: string | null;
+  managementMode: string;
+  exceptionalCommercialId: string | null;
 }
 
 const statusConfig: Record<CustomerStatus, { label: string; class: string }> = {
