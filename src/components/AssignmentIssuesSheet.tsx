@@ -1,15 +1,16 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, ExternalLink, MapPin, User, CheckCircle, Map, Save, AlertTriangle } from 'lucide-react';
+import { Loader2, ExternalLink, MapPin, User, CheckCircle, Map, Save, AlertTriangle, Sparkles, Star } from 'lucide-react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import { computeSuggestions, type ZoneSuggestion } from '@/lib/zoneSuggestionEngine';
 
 interface Props {
   open: boolean;
@@ -23,6 +24,17 @@ interface PendingChange {
   zoneName?: string;
   repId?: string;
   markOutside?: boolean;
+}
+
+/* ── Confidence stars ── */
+function ConfidenceStars({ level }: { level: number }) {
+  return (
+    <span className="inline-flex gap-px" title={`Confiance : ${level}/4`}>
+      {[1, 2, 3, 4].map(i => (
+        <Star key={i} className={`h-2.5 w-2.5 ${i <= level ? 'text-amber-400 fill-amber-400' : 'text-muted-foreground/30'}`} />
+      ))}
+    </span>
+  );
 }
 
 /* ── Map dialog ── */
@@ -39,7 +51,6 @@ function ClientMapDialog({ client, zones, open, onOpenChange }: {
     if (!open || !mapRef.current || !client?.latitude || !client?.longitude) return;
     if (!window.google?.maps) return;
 
-    // Small delay to ensure dialog DOM is fully rendered
     const timer = setTimeout(() => {
       if (!mapRef.current) return;
       const center = { lat: client.latitude, lng: client.longitude };
@@ -95,7 +106,6 @@ function ClientMapDialog({ client, zones, open, onOpenChange }: {
         } catch {}
       }
 
-      // Trigger resize so tiles render properly
       google.maps.event.trigger(map, 'resize');
       map.setCenter(center);
     }, 150);
@@ -128,7 +138,6 @@ function ClientMapDialog({ client, zones, open, onOpenChange }: {
             Adresse non géolocalisée
           </div>
         )}
-        {/* Zone legend */}
         <div className="flex flex-wrap gap-2 mt-1">
           <div className="flex items-center gap-1.5 text-xs">
             <div className="h-3 w-3 rounded-full bg-destructive border-2 border-background" />
@@ -143,6 +152,36 @@ function ClientMapDialog({ client, zones, open, onOpenChange }: {
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* ── Suggestion badge row ── */
+function SuggestionRow({ suggestion, onApply }: { suggestion: ZoneSuggestion; onApply: () => void }) {
+  return (
+    <div className="flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 dark:bg-blue-950/20 dark:border-blue-800 px-2 py-1.5">
+      <Sparkles className="h-3 w-3 text-blue-500 shrink-0" />
+      <div className="flex-1 min-w-0 text-[11px]">
+        <span className="font-medium text-blue-700 dark:text-blue-300">{suggestion.zoneName}</span>
+        {suggestion.distanceKm > 0 && (
+          <span className="text-muted-foreground ml-1">({suggestion.distanceKm} km)</span>
+        )}
+        {suggestion.distanceKm === 0 && (
+          <span className="text-muted-foreground ml-1">(dans la zone)</span>
+        )}
+        {suggestion.repName && (
+          <span className="text-muted-foreground ml-1">· {suggestion.repName}</span>
+        )}
+        <span className="ml-1.5"><ConfidenceStars level={suggestion.confidence} /></span>
+      </div>
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-6 text-[10px] border-blue-300 text-blue-700 hover:bg-blue-100 dark:border-blue-700 dark:text-blue-300 shrink-0"
+        onClick={onApply}
+      >
+        Appliquer
+      </Button>
+    </div>
   );
 }
 
@@ -202,6 +241,30 @@ export function AssignmentIssuesSheet({ open, onOpenChange, filterStatus, onSave
     },
     enabled: open,
   });
+
+  // Compute suggestions for all clients
+  const suggestionsMap = useMemo(() => {
+    const map: Record<string, ZoneSuggestion[]> = {};
+    for (const c of clients) {
+      const suggestions = computeSuggestions(c, allZones, allReps);
+      if (suggestions.length > 0) {
+        map[c.id] = suggestions;
+      }
+    }
+    return map;
+  }, [clients, allZones, allReps]);
+
+  const applySuggestion = (clientId: string, suggestion: ZoneSuggestion) => {
+    setPendingChanges(prev => ({
+      ...prev,
+      [clientId]: {
+        zoneId: suggestion.zoneId,
+        zoneName: suggestion.zoneName,
+        repId: suggestion.repId || undefined,
+        markOutside: undefined,
+      },
+    }));
+  };
 
   const setZoneForClient = (clientId: string, zoneId: string) => {
     setPendingChanges(prev => ({
@@ -263,7 +326,6 @@ export function AssignmentIssuesSheet({ open, onOpenChange, filterStatus, onSave
       }
 
       setPendingChanges({});
-      // Refresh the list and parent counters
       await queryClient.invalidateQueries({ queryKey: ['assignment-issues'] });
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       toast.success('Modifications enregistrées');
@@ -294,9 +356,6 @@ export function AssignmentIssuesSheet({ open, onOpenChange, filterStatus, onSave
     if (!repId) return null;
     return allReps.find((r: any) => r.id === repId)?.full_name || null;
   };
-
-  // After save, if list is now empty, auto-close
-  const shouldAutoClose = !isLoading && clients.length === 0 && !hasUnsaved;
 
   return (
     <>
@@ -330,6 +389,9 @@ export function AssignmentIssuesSheet({ open, onOpenChange, filterStatus, onSave
                 {clients.map((c: any) => {
                   const pending = pendingChanges[c.id];
                   const hasPending = !!pending;
+                  const suggestions = suggestionsMap[c.id] || [];
+                  const topSuggestion = suggestions[0];
+
                   return (
                     <div key={c.id} className={`rounded-lg border p-3 space-y-2 transition-colors ${hasPending ? 'border-primary/40 bg-primary/5' : ''}`}>
                       {/* Header */}
@@ -368,6 +430,14 @@ export function AssignmentIssuesSheet({ open, onOpenChange, filterStatus, onSave
                         {pending?.zoneName && <Badge className="text-[10px] bg-primary/10 text-primary border-primary/20">→ {pending.zoneName}</Badge>}
                         {pending?.repId && <Badge className="text-[10px] bg-primary/10 text-primary border-primary/20">→ {getRepName(pending.repId)}</Badge>}
                       </div>
+
+                      {/* Suggestion */}
+                      {topSuggestion && !hasPending && (
+                        <SuggestionRow
+                          suggestion={topSuggestion}
+                          onApply={() => applySuggestion(c.id, topSuggestion)}
+                        />
+                      )}
 
                       {/* Actions */}
                       <div className="flex flex-col sm:flex-row gap-2 pt-1">
@@ -433,7 +503,6 @@ export function AssignmentIssuesSheet({ open, onOpenChange, filterStatus, onSave
         </SheetContent>
       </Sheet>
 
-      {/* Map preview dialog */}
       <ClientMapDialog
         client={mapClient}
         zones={allZones}
@@ -441,7 +510,6 @@ export function AssignmentIssuesSheet({ open, onOpenChange, filterStatus, onSave
         onOpenChange={(o) => { if (!o) setMapClient(null); }}
       />
 
-      {/* Confirm discard dialog */}
       <Dialog open={confirmClose} onOpenChange={setConfirmClose}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
