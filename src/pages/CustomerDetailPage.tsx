@@ -555,6 +555,18 @@ export default function CustomerDetailPage() {
                 </Select>
               </div>
               <div>
+                <label className="text-xs font-medium text-muted-foreground">Type de relation commerciale</label>
+                <Select value={fleetForm.relationship_type || 'none'} onValueChange={v => setFleetForm(f => ({ ...f, relationship_type: v === 'none' ? '' : v }))}>
+                  <SelectTrigger className="h-10 mt-1"><SelectValue placeholder="Non renseigné" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Non renseigné</SelectItem>
+                    <SelectItem value="magasin">Magasin (achat de pièces)</SelectItem>
+                    <SelectItem value="atelier">Atelier (prestations de service)</SelectItem>
+                    <SelectItem value="mixte">Mixte (les deux)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
                 <label className="text-xs font-medium text-muted-foreground">Équipement principal</label>
                 <Select value={fleetForm.equipment_type} onValueChange={v => setFleetForm(f => ({ ...f, equipment_type: v, equipment_types: v === 'Multi-équipement' ? f.equipment_types : [] }))}>
                   <SelectTrigger className="h-10 mt-1"><SelectValue placeholder="Sélectionner..." /></SelectTrigger>
@@ -615,10 +627,19 @@ export default function CustomerDetailPage() {
           ) : (
             <div className="space-y-3">
               {/* Customer type & equipment */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Type de client</p>
                   <p className="text-sm font-medium mt-0.5">{cust.activity_type || <span className="text-muted-foreground italic">Non renseigné</span>}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Relation commerciale</p>
+                  <p className="text-sm font-medium mt-0.5">
+                    {cust.relationship_type === 'magasin' ? 'Magasin' :
+                     cust.relationship_type === 'atelier' ? 'Atelier' :
+                     cust.relationship_type === 'mixte' ? 'Mixte' :
+                     <span className="text-muted-foreground italic">Non renseigné</span>}
+                  </p>
                 </div>
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground">
