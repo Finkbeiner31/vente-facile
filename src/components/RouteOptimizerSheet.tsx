@@ -93,6 +93,9 @@ export default function RouteOptimizerSheet({
     }
   }, [open]);
 
+  // Derive whether we need the full pool
+  const hasExtension = zoneLogicFlags.tolerance || zoneLogicFlags.route;
+
   // Build scored candidates using new engine
   const candidates = useMemo(() => {
     if (!userPos) return [];
@@ -100,9 +103,8 @@ export default function RouteOptimizerSheet({
     const arrival = effectiveArrival || userPos;
     const zoneCustomerIds = new Set(zoneCustomers.map((c: any) => c.id));
     
-    // Source pool: for strict mode use zone customers, otherwise use all available
     const sourcePool: OptCustomer[] = (
-      zoneLogic === 'strict' ? zoneCustomers : (allCustomers || zoneCustomers)
+      !hasExtension ? zoneCustomers : (allCustomers || zoneCustomers)
     ).map((c: any) => ({
       id: c.id,
       company_name: c.company_name,
@@ -125,7 +127,8 @@ export default function RouteOptimizerSheet({
     const config: OptimizationConfig = {
       visitTarget,
       strategy,
-      zoneLogic,
+      zoneLogic: 'strict',
+      zoneLogicFlags,
       typeFilter,
       excludeRecentDays: excludeRecent ? 7 : null,
       departureLat: userPos.lat,
@@ -135,7 +138,7 @@ export default function RouteOptimizerSheet({
     };
 
     return filterCandidates(sourcePool, zoneCustomerIds, config);
-  }, [zoneCustomers, allCustomers, typeFilter, excludeRecent, userPos, effectiveArrival, zoneLogic, visitTarget, strategy]);
+  }, [zoneCustomers, allCustomers, typeFilter, excludeRecent, userPos, effectiveArrival, zoneLogicFlags, hasExtension, visitTarget, strategy]);
 
   const eligibleClients = zoneCustomers.filter((c: any) =>
     c.customer_type !== 'prospect' && c.customer_type !== 'prospect_qualifie').length;
