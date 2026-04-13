@@ -411,6 +411,11 @@ export default function CustomersPage() {
                              customer.relationshipType === 'atelier' ? 'Atelier' : 'Mixte'}
                           </Badge>
                         )}
+                        {customer.managementMode === 'exceptional' && (
+                          <Badge className="text-[9px] h-4 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                            ⚡ Gestion except.
+                          </Badge>
+                        )}
                         {(() => {
                           const freq = customer.visitFrequency || getDefaultFrequency(customer.status);
                           const vs = computeVisitStatus(freq, customer.lastVisitDate);
