@@ -38,6 +38,7 @@ interface TourStop {
   priority: number;
   customerType?: string;
   lastVisitDate?: string | null;
+  visitDurationMinutes?: number | null;
 }
 
 interface TourneeDualListProps {
