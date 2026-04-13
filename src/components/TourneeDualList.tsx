@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
-import { Search, Flame, Star } from 'lucide-react';
+import { Search, Flame, Star, Clock } from 'lucide-react';
+import { useVisitDurationDefaults, getVisitDurationWithDefaults } from '@/hooks/useVisitDurationDefaults';
+import { formatDuration } from '@/lib/tourneeOptimizer';
 import {
   DndContext,
   closestCenter,
