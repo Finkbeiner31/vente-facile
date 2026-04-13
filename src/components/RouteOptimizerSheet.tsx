@@ -23,7 +23,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import {
   type OptCustomer, type ScoredCustomer, type OptimizedRoute,
-  type RouteStrategy, type ZoneLogic, type TypeFilter,
+  type RouteStrategy, type ZoneLogic, type ZoneLogicFlags, type TypeFilter,
   type OptimizationConfig,
   filterCandidates, buildOptimizedRoute,
   haversineKm, estimateDriveMin, formatDuration, getReasonBadgeStyle,
@@ -70,7 +70,7 @@ export default function RouteOptimizerSheet({
   const [arrivalType, setArrivalType] = useState<ArrivalType>('same');
   const [customArrivalAddress, setCustomArrivalAddress] = useState('');
   const [arrivalPos, setArrivalPos] = useState<{ lat: number; lng: number } | null>(null);
-  const [zoneLogic, setZoneLogic] = useState<ZoneLogic>('strict');
+  const [zoneLogicFlags, setZoneLogicFlags] = useState<ZoneLogicFlags>({ strict: true, tolerance: false, route: false });
 
   // Process state
   const [userPos, setUserPos] = useState<{ lat: number; lng: number } | null>(null);
@@ -93,6 +93,9 @@ export default function RouteOptimizerSheet({
     }
   }, [open]);
 
+  // Derive whether we need the full pool
+  const hasExtension = zoneLogicFlags.tolerance || zoneLogicFlags.route;
+
   // Build scored candidates using new engine
   const candidates = useMemo(() => {
     if (!userPos) return [];
@@ -100,9 +103,8 @@ export default function RouteOptimizerSheet({
     const arrival = effectiveArrival || userPos;
     const zoneCustomerIds = new Set(zoneCustomers.map((c: any) => c.id));
     
-    // Source pool: for strict mode use zone customers, otherwise use all available
     const sourcePool: OptCustomer[] = (
-      zoneLogic === 'strict' ? zoneCustomers : (allCustomers || zoneCustomers)
+      !hasExtension ? zoneCustomers : (allCustomers || zoneCustomers)
     ).map((c: any) => ({
       id: c.id,
       company_name: c.company_name,
@@ -125,7 +127,8 @@ export default function RouteOptimizerSheet({
     const config: OptimizationConfig = {
       visitTarget,
       strategy,
-      zoneLogic,
+      zoneLogic: 'strict',
+      zoneLogicFlags,
       typeFilter,
       excludeRecentDays: excludeRecent ? 7 : null,
       departureLat: userPos.lat,
@@ -135,7 +138,7 @@ export default function RouteOptimizerSheet({
     };
 
     return filterCandidates(sourcePool, zoneCustomerIds, config);
-  }, [zoneCustomers, allCustomers, typeFilter, excludeRecent, userPos, effectiveArrival, zoneLogic, visitTarget, strategy]);
+  }, [zoneCustomers, allCustomers, typeFilter, excludeRecent, userPos, effectiveArrival, zoneLogicFlags, hasExtension, visitTarget, strategy]);
 
   const eligibleClients = zoneCustomers.filter((c: any) =>
     c.customer_type !== 'prospect' && c.customer_type !== 'prospect_qualifie').length;
@@ -181,7 +184,8 @@ export default function RouteOptimizerSheet({
     const config: OptimizationConfig = {
       visitTarget,
       strategy,
-      zoneLogic,
+      zoneLogic: 'strict',
+      zoneLogicFlags,
       typeFilter,
       excludeRecentDays: excludeRecent ? 7 : null,
       departureLat: userPos.lat,
@@ -250,12 +254,12 @@ export default function RouteOptimizerSheet({
     }
   };
 
-  const getZoneLogicLabel = () => {
-    switch (zoneLogic) {
-      case 'strict': return 'Strict';
-      case 'tolerance': return 'Tolérance 15 km';
-      case 'route': return 'Clients sur trajet';
-    }
+  const getZoneLogicLabels = (): string[] => {
+    const labels: string[] = [];
+    if (zoneLogicFlags.strict) labels.push('Zone stricte');
+    if (zoneLogicFlags.tolerance) labels.push('Tolérance 15 km');
+    if (zoneLogicFlags.route) labels.push('Trajet A/R');
+    return labels.length > 0 ? labels : ['Zone stricte'];
   };
 
   const departureLabel = getDepartureLabel();
@@ -406,27 +410,38 @@ export default function RouteOptimizerSheet({
                     Logique de zone
                   </label>
                   <div className="space-y-1.5">
-                    <button onClick={() => setZoneLogic('strict')}
-                      className={`w-full rounded-lg border p-2.5 text-left transition-all ${
-                        zoneLogic === 'strict' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-primary/30'
-                      }`}>
-                      <p className="text-xs font-semibold">Respect strict de la zone</p>
-                      <p className="text-[10px] text-muted-foreground">Uniquement les clients dans la zone</p>
-                    </button>
-                    <button onClick={() => setZoneLogic('tolerance')}
-                      className={`w-full rounded-lg border p-2.5 text-left transition-all ${
-                        zoneLogic === 'tolerance' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-primary/30'
-                      }`}>
-                      <p className="text-xs font-semibold">Tolérance zone (15 km)</p>
-                      <p className="text-[10px] text-muted-foreground">Inclut les clients proches de la zone</p>
-                    </button>
-                    <button onClick={() => setZoneLogic('route')}
-                      className={`w-full rounded-lg border p-2.5 text-left transition-all ${
-                        zoneLogic === 'route' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-primary/30'
-                      }`}>
-                      <p className="text-xs font-semibold">Clients sur le trajet aller/retour</p>
-                      <p className="text-[10px] text-muted-foreground">Accepte les clients sur votre route</p>
-                    </button>
+                    <label className={`flex items-start gap-2.5 w-full rounded-lg border p-2.5 cursor-pointer transition-all ${
+                      zoneLogicFlags.strict ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-primary/30'
+                    }`}>
+                      <Checkbox checked={zoneLogicFlags.strict} disabled
+                        className="mt-0.5" />
+                      <div>
+                        <p className="text-xs font-semibold">Respect strict de la zone</p>
+                        <p className="text-[10px] text-muted-foreground">Toujours actif — base de la tournée</p>
+                      </div>
+                    </label>
+                    <label className={`flex items-start gap-2.5 w-full rounded-lg border p-2.5 cursor-pointer transition-all ${
+                      zoneLogicFlags.tolerance ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-primary/30'
+                    }`}
+                      onClick={() => setZoneLogicFlags(f => ({ ...f, tolerance: !f.tolerance }))}>
+                      <Checkbox checked={zoneLogicFlags.tolerance} className="mt-0.5"
+                        onCheckedChange={v => setZoneLogicFlags(f => ({ ...f, tolerance: !!v }))} />
+                      <div>
+                        <p className="text-xs font-semibold">Tolérance zone (15 km)</p>
+                        <p className="text-[10px] text-muted-foreground">Inclut les clients proches de la zone</p>
+                      </div>
+                    </label>
+                    <label className={`flex items-start gap-2.5 w-full rounded-lg border p-2.5 cursor-pointer transition-all ${
+                      zoneLogicFlags.route ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-primary/30'
+                    }`}
+                      onClick={() => setZoneLogicFlags(f => ({ ...f, route: !f.route }))}>
+                      <Checkbox checked={zoneLogicFlags.route} className="mt-0.5"
+                        onCheckedChange={v => setZoneLogicFlags(f => ({ ...f, route: !!v }))} />
+                      <div>
+                        <p className="text-xs font-semibold">Clients sur le trajet aller/retour</p>
+                        <p className="text-[10px] text-muted-foreground">Accepte les clients sur votre route</p>
+                      </div>
+                    </label>
                   </div>
                 </div>
               )}
@@ -520,9 +535,9 @@ export default function RouteOptimizerSheet({
                       <span>Visites : {visitTarget}</span>
                     </div>
                     {zone && (
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-3 w-3 text-primary shrink-0" />
-                        <span>Zone : {getZoneLogicLabel()}</span>
+                      <div className="flex items-start gap-2">
+                        <MapPin className="h-3 w-3 text-primary shrink-0 mt-0.5" />
+                        <span>Zone : {getZoneLogicLabels().join(' + ')}</span>
                       </div>
                     )}
                   </div>
@@ -648,7 +663,7 @@ export default function RouteOptimizerSheet({
                 <span className="flex items-center gap-1"><Flag className="h-3 w-3 text-primary" />{arrivalLabel}</span>
               </div>
               {zoneName && (
-                <p className="text-[10px] text-center text-muted-foreground mt-1">{zoneName} · {strategyLabel} · {getZoneLogicLabel()}</p>
+                <p className="text-[10px] text-center text-muted-foreground mt-1">{zoneName} · {strategyLabel} · {getZoneLogicLabels().join(' + ')}</p>
               )}
             </div>
 
