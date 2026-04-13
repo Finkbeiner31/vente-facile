@@ -459,6 +459,13 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
         open={promotionsOpen}
         onOpenChange={setPromotionsOpen}
       />
+
+      <ReportHistorySheet
+        open={historyOpen}
+        onOpenChange={setHistoryOpen}
+        customerId={current.customer.id}
+        clientName={current.customer.company_name}
+      />
     </div>
   );
 }
