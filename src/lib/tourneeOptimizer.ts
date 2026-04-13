@@ -68,8 +68,9 @@ export interface OptimizationConfig {
 
 // ── Constants ──
 
-const DEFAULT_VISIT_DURATION_CLIENT = 30;
-const DEFAULT_VISIT_DURATION_PROSPECT = 20;
+export const DEFAULT_VISIT_DURATION_CLIENT = 30;
+export const DEFAULT_VISIT_DURATION_PROSPECT = 20;
+export const DEFAULT_VISIT_DURATION_PROSPECT_QUALIFIE = 30;
 const ZONE_TOLERANCE_KM = 15;
 const ROUTE_CORRIDOR_KM = 10;
 
