@@ -2,22 +2,9 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { useCallback } from 'react';
+import { getCurrentWeekNumber, getTodayDow } from '@/lib/weekCycleUtils';
 
 const todayStr = () => format(new Date(), 'yyyy-MM-dd');
-
-// Get current week number in 4-week cycle (0-3)
-function getCurrentWeekNumber(): number {
-  const now = new Date();
-  const startOfYear = new Date(now.getFullYear(), 0, 1);
-  const weekNum = Math.ceil(((now.getTime() - startOfYear.getTime()) / 86400000 + startOfYear.getDay()) / 7);
-  return weekNum % 4;
-}
-
-// Day of week: 1=Mon ... 5=Fri, 0=Sun, 6=Sat
-function getTodayDow(): number {
-  const d = new Date().getDay();
-  return d === 0 ? 7 : d; // 1-7 (Mon-Sun)
-}
 
 interface DailyTourStop {
   id: string;
