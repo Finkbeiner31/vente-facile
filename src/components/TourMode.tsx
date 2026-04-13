@@ -106,10 +106,59 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
     }
   };
 
-  const handleReportSubmit = () => {
+  const handleReportSubmit = async (data: {
+    outcome: string;
+    notes: string;
+    nextActionDate: string;
+    followUpAction: any;
+  }) => {
+    const customerId = current.customer.id;
+
+    // Only persist if it's a real customer (not a temp prospect)
+    if (activeUserId && customerId && !customerId.startsWith('prospect-')) {
+      const reportPayload = {
+        rep_id: activeUserId,
+        customer_id: customerId,
+        visit_date: new Date().toISOString().split('T')[0],
+        quick_outcome: data.outcome,
+        summary: data.notes || null,
+        next_actions: data.followUpAction?.description || null,
+        follow_up_date: data.nextActionDate || null,
+        visit_status: 'completed' as const,
+        started_at: visitStartTime || new Date().toISOString(),
+        ended_at: new Date().toISOString(),
+      };
+
+      console.log('[TourMode] Saving report:', { customerId, activeUserId, reportPayload });
+
+      const { data: saved, error } = await supabase
+        .from('visit_reports')
+        .insert(reportPayload)
+        .select('id')
+        .single();
+
+      if (error) {
+        console.error('[TourMode] Report save failed:', error);
+        toast.error("Impossible d'enregistrer le rapport de visite");
+        return; // Don't mark as completed if save failed
+      }
+
+      console.log('[TourMode] Report saved:', saved.id);
+      toast.success('Rapport enregistré');
+
+      // Update customer last_visit_date
+      await supabase
+        .from('customers')
+        .update({
+          last_visit_date: new Date().toISOString().split('T')[0],
+          next_action_date: data.nextActionDate || null,
+          next_action_description: data.followUpAction?.description || null,
+        })
+        .eq('id', customerId);
+    }
+
     const newStatuses = { ...statuses, [currentIndex]: 'completed' as StopStatus };
     setReportOpen(false);
-    // Find next remaining non-completed stop
     const nextRemaining = stops.findIndex((_, i) => i !== currentIndex && newStatuses[i] !== 'completed');
     if (nextRemaining === -1) {
       persist({ statuses: newStatuses, visitStartTime: null });
