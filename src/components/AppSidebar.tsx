@@ -16,6 +16,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
+import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   Sidebar,
@@ -53,7 +54,10 @@ const adminNav = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
-  const { signOut, profile, role } = useAuth();
+  const { signOut, profile, role: realRole } = useAuth();
+  const { effectiveRole, effectiveFullName, isImpersonating } = useImpersonation();
+  const role = isImpersonating ? effectiveRole : realRole;
+  const displayName = isImpersonating ? effectiveFullName : profile?.full_name;
 
   return (
     <Sidebar collapsible="icon">
@@ -127,10 +131,10 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-3">
-        {!collapsed && profile && (
+        {!collapsed && (displayName || profile) && (
           <div className="mb-2 rounded-lg bg-sidebar-accent p-3">
             <p className="text-sm font-medium text-sidebar-foreground">
-              {profile?.full_name || 'Utilisateur'}
+              {displayName || profile?.full_name || 'Utilisateur'}
             </p>
             <p className="text-xs text-muted-foreground capitalize">
               {role === 'sales_rep' ? 'Commercial' : role === 'manager' ? 'Responsable' : role === 'admin' ? 'Admin' : 'Observateur'}
