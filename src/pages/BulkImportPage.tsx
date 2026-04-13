@@ -191,8 +191,13 @@ export default function BulkImportPage() {
     setImporting(false);
   };
 
-  const errorCount = rows.filter(r => r.errors.length > 0).length;
-  const duplicateCount = rows.filter(r => r.isDuplicate).length;
+  const errorRows = rows.filter(r => r.errors.length > 0);
+  const duplicateRows = rows.filter(r => r.isDuplicate && r.errors.length === 0);
+  const newRows = rows.filter(r => !r.isDuplicate && r.errors.length === 0);
+  const errorCount = errorRows.length;
+  const duplicateCount = duplicateRows.length;
+  const newCount = newRows.length;
+  const importableCount = newCount + duplicateRows.filter(r => !excludedRows.has(r.rowIndex)).length;
   const validCount = rows.filter(r => r.errors.length === 0).length;
 
   // Guard: admin only
