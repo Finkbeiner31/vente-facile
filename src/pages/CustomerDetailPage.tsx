@@ -390,6 +390,9 @@ export default function CustomerDetailPage() {
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="font-heading text-xl md:text-2xl font-bold truncate">{customer.company_name}</h1>
             <Badge className={`text-[10px] shrink-0 ${sc.class}`}>{sc.label}</Badge>
+            {cust.account_status === 'archived' && (
+              <Badge className="text-[10px] bg-muted text-muted-foreground">Archivé</Badge>
+            )}
           </div>
           {cust.activity_type && (
             <p className="text-xs text-primary font-medium mt-0.5">{cust.activity_type}</p>
@@ -401,6 +404,34 @@ export default function CustomerDetailPage() {
             </p>
           )}
         </div>
+        {/* Admin delete/archive actions */}
+        {role === 'admin' && (
+          <div className="flex gap-1 shrink-0">
+            {canDelete && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleteDialogOpen(true)}>
+                <Trash2 className="h-3.5 w-3.5 mr-1" /> Supprimer
+              </Button>
+            )}
+            {canArchive && cust.account_status !== 'archived' && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground hover:bg-muted" onClick={() => setArchiveDialogOpen(true)}>
+                <Archive className="h-3.5 w-3.5 mr-1" /> Archiver
+              </Button>
+            )}
+            {cust.account_status === 'archived' && (
+              <Button variant="ghost" size="sm" className="h-8 text-xs text-primary" onClick={() => {
+                updateCustomerMutation.mutate({ account_status: 'active' } as any);
+                toast.success('Compte restauré');
+              }}>
+                <Archive className="h-3.5 w-3.5 mr-1" /> Restaurer
+              </Button>
+            )}
+            {hasOperationalHistory && (
+              <p className="text-[10px] text-muted-foreground self-center ml-1 hidden md:block">
+                Suppression impossible (historique existant)
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Key metrics */}
