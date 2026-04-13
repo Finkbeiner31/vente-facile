@@ -663,7 +663,7 @@ export default function RouteOptimizerSheet({
                 <span className="flex items-center gap-1"><Flag className="h-3 w-3 text-primary" />{arrivalLabel}</span>
               </div>
               {zoneName && (
-                <p className="text-[10px] text-center text-muted-foreground mt-1">{zoneName} · {strategyLabel} · {getZoneLogicLabel()}</p>
+                <p className="text-[10px] text-center text-muted-foreground mt-1">{zoneName} · {strategyLabel} · {getZoneLogicLabels().join(' + ')}</p>
               )}
             </div>
 
