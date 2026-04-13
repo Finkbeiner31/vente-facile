@@ -46,6 +46,7 @@ interface CustomerListItem {
   relationshipType: string | null;
   managementMode: string;
   exceptionalCommercialId: string | null;
+  repAssignmentMode: string;
 }
 
 const statusConfig: Record<CustomerStatus, { label: string; class: string }> = {
@@ -164,6 +165,7 @@ export default function CustomersPage() {
           relationshipType: customer.relationship_type || null,
           managementMode: customer.management_mode || 'standard',
           exceptionalCommercialId: customer.exceptional_commercial_id || null,
+          repAssignmentMode: customer.rep_assignment_mode || 'automatic',
         };
       });
     },
@@ -414,6 +416,11 @@ export default function CustomersPage() {
                         {customer.managementMode === 'exceptional' && (
                           <Badge className="text-[9px] h-4 bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
                             ⚡ Gestion except.
+                          </Badge>
+                        )}
+                        {customer.repAssignmentMode === 'manual' && (
+                          <Badge className="text-[9px] h-4 bg-warning/15 text-warning">
+                            ✋ Affectation manuelle
                           </Badge>
                         )}
                         {(() => {
