@@ -20,6 +20,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { useZoneAssignment } from '@/hooks/useZoneAssignment';
+import { RefreshCw } from 'lucide-react';
 
 const roleLabels: Record<string, string> = {
   admin: 'Administrateur',
@@ -689,7 +691,9 @@ export default function AdminPage() {
         </TabsContent>
 
         {/* Settings tab */}
-        <TabsContent value="settings" className="mt-4">
+        <TabsContent value="settings" className="mt-4 space-y-4">
+          {/* Bulk reassignment */}
+          <BulkReassignmentCard />
           <Card>
             <CardContent className="p-6">
               <p className="text-sm text-muted-foreground">Les paramètres de l'application seront disponibles ici.</p>
