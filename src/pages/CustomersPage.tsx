@@ -418,6 +418,11 @@ export default function CustomersPage() {
                             ⚡ Gestion except.
                           </Badge>
                         )}
+                        {customer.repAssignmentMode === 'manual' && (
+                          <Badge className="text-[9px] h-4 bg-warning/15 text-warning">
+                            ✋ Affectation manuelle
+                          </Badge>
+                        )}
                         {(() => {
                           const freq = customer.visitFrequency || getDefaultFrequency(customer.status);
                           const vs = computeVisitStatus(freq, customer.lastVisitDate);
