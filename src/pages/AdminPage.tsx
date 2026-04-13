@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { useZoneAssignment } from '@/hooks/useZoneAssignment';
 import { RefreshCw } from 'lucide-react';
+import { AssignmentIssuesSheet } from '@/components/AssignmentIssuesSheet';
 
 const roleLabels: Record<string, string> = {
   admin: 'Administrateur',
@@ -50,6 +51,7 @@ function BulkReassignmentCard() {
   const { bulkRecalculate } = useZoneAssignment();
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<{ assigned: number; conflicts: number; outside: number; skippedManual: number } | null>(null);
+  const [issueFilter, setIssueFilter] = useState<'to_confirm' | 'outside' | null>(null);
 
   const run = async () => {
     setRunning(true);
@@ -66,44 +68,60 @@ function BulkReassignmentCard() {
   };
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <CardTitle className="font-heading text-base flex items-center gap-2">
-          <RefreshCw className="h-5 w-5 text-primary" />
-          Recalculer les affectations clients
-        </CardTitle>
-        <p className="text-xs text-muted-foreground">
-          Réassigne automatiquement chaque client au commercial propriétaire de sa zone.
-          Les affectations manuelles sont préservées.
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <Button onClick={run} disabled={running}>
-          {running ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />}
-          Lancer le recalcul
-        </Button>
-        {result && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-            <div className="rounded-lg border p-2">
-              <p className="text-lg font-bold text-primary">{result.assigned}</p>
-              <p className="text-[10px] text-muted-foreground">Assignés</p>
+    <>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="font-heading text-base flex items-center gap-2">
+            <RefreshCw className="h-5 w-5 text-primary" />
+            Recalculer les affectations clients
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Réassigne automatiquement chaque client au commercial propriétaire de sa zone.
+            Les affectations manuelles sont préservées.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Button onClick={run} disabled={running}>
+            {running ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RefreshCw className="h-4 w-4 mr-1" />}
+            Lancer le recalcul
+          </Button>
+          {result && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
+              <div className="rounded-lg border p-2">
+                <p className="text-lg font-bold text-primary">{result.assigned}</p>
+                <p className="text-[10px] text-muted-foreground">Assignés</p>
+              </div>
+              <button
+                className="rounded-lg border p-2 hover:border-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20 transition-colors cursor-pointer text-center"
+                onClick={() => setIssueFilter('to_confirm')}
+                disabled={result.conflicts === 0}
+              >
+                <p className="text-lg font-bold text-amber-600">{result.conflicts}</p>
+                <p className="text-[10px] text-muted-foreground">À confirmer</p>
+              </button>
+              <button
+                className="rounded-lg border p-2 hover:border-muted-foreground/40 hover:bg-muted/50 transition-colors cursor-pointer text-center"
+                onClick={() => setIssueFilter('outside')}
+                disabled={result.outside === 0}
+              >
+                <p className="text-lg font-bold text-muted-foreground">{result.outside}</p>
+                <p className="text-[10px] text-muted-foreground">Hors zone</p>
+              </button>
+              <div className="rounded-lg border p-2">
+                <p className="text-lg font-bold">{result.skippedManual}</p>
+                <p className="text-[10px] text-muted-foreground">Manuels conservés</p>
+              </div>
             </div>
-            <div className="rounded-lg border p-2">
-              <p className="text-lg font-bold text-amber-600">{result.conflicts}</p>
-              <p className="text-[10px] text-muted-foreground">À confirmer</p>
-            </div>
-            <div className="rounded-lg border p-2">
-              <p className="text-lg font-bold text-muted-foreground">{result.outside}</p>
-              <p className="text-[10px] text-muted-foreground">Hors zone</p>
-            </div>
-            <div className="rounded-lg border p-2">
-              <p className="text-lg font-bold">{result.skippedManual}</p>
-              <p className="text-[10px] text-muted-foreground">Manuels conservés</p>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+          )}
+        </CardContent>
+      </Card>
+
+      <AssignmentIssuesSheet
+        open={issueFilter !== null}
+        onOpenChange={(open) => { if (!open) setIssueFilter(null); }}
+        filterStatus={issueFilter || 'to_confirm'}
+      />
+    </>
   );
 }
 
