@@ -25,6 +25,15 @@ import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
 
+function ImpersonationWrapper({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  return (
+    <ImpersonationProvider realUserId={user?.id ?? null}>
+      {children}
+    </ImpersonationProvider>
+  );
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
