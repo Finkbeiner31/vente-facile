@@ -374,6 +374,89 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_tour_stops: {
+        Row: {
+          created_at: string
+          customer_id: string
+          daily_tour_id: string
+          id: string
+          status: string
+          stop_order: number
+          visit_duration_minutes: number | null
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          daily_tour_id: string
+          id?: string
+          status?: string
+          stop_order?: number
+          visit_duration_minutes?: number | null
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          daily_tour_id?: string
+          id?: string
+          status?: string
+          stop_order?: number
+          visit_duration_minutes?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_tour_stops_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_tour_stops_daily_tour_id_fkey"
+            columns: ["daily_tour_id"]
+            isOneToOne: false
+            referencedRelation: "daily_tours"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_tours: {
+        Row: {
+          created_at: string
+          id: string
+          status: string
+          tour_date: string
+          updated_at: string
+          user_id: string
+          zone_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          status?: string
+          tour_date: string
+          updated_at?: string
+          user_id: string
+          zone_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          status?: string
+          tour_date?: string
+          updated_at?: string
+          user_id?: string
+          zone_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_tours_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "commercial_zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       monthly_revenues: {
         Row: {
           created_at: string
