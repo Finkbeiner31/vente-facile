@@ -9,8 +9,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import {
   Users, Shield, Settings as SettingsIcon, Truck, Plus, Edit, Trash2, Save,
-  Loader2, ArrowRightCircle, MapPin, Building2, Calendar, UserPlus, Power,
+  Loader2, ArrowRightCircle, MapPin, Building2, Calendar, UserPlus, Power, LogIn,
 } from 'lucide-react';
+import { useImpersonation } from '@/contexts/ImpersonationContext';
+import { useNavigate } from 'react-router-dom';
 import { AdminZoneManager } from '@/components/AdminZoneManager';
 import { AdminConversionRequests } from '@/components/AdminConversionRequests';
 import { useVehiclePotentials } from '@/hooks/useVehiclePotentials';
@@ -44,6 +46,8 @@ interface UserWithRole {
 
 export default function AdminPage() {
   const { user: currentUser, role: currentRole, loading: authLoading } = useAuth();
+  const { startImpersonation } = useImpersonation();
+  const navigate = useNavigate();
   const { data: potentials = [], isLoading: potentialsLoading } = useVehiclePotentials();
   const [editingPotentials, setEditingPotentials] = useState(false);
   const [potentialForm, setPotentialForm] = useState<Record<string, number>>({});
@@ -421,6 +425,18 @@ export default function AdminPage() {
                               <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive ml-auto"
                                 onClick={() => setShowDeleteModal(selectedUser.id)}>
                                 <Trash2 className="h-3.5 w-3.5 mr-1" />Supprimer
+                              </Button>
+                              <Button variant="outline" size="sm" className="h-7 text-xs"
+                                onClick={() => {
+                                  startImpersonation({
+                                    id: selectedUser.id,
+                                    full_name: selectedUser.full_name,
+                                    email: selectedUser.email,
+                                    role: selectedUser.role,
+                                  });
+                                  navigate('/');
+                                }}>
+                                <LogIn className="h-3.5 w-3.5 mr-1" />Se connecter en tant que
                               </Button>
                             </>
                           )}
