@@ -7,6 +7,8 @@ interface ImpersonatedUser {
   role: string;
 }
 
+export type EffectiveRole = 'admin' | 'manager' | 'sales_rep' | 'executive' | null;
+
 interface ImpersonationContextType {
   impersonatedUser: ImpersonatedUser | null;
   isImpersonating: boolean;
