@@ -184,7 +184,8 @@ export default function RouteOptimizerSheet({
     const config: OptimizationConfig = {
       visitTarget,
       strategy,
-      zoneLogic,
+      zoneLogic: 'strict',
+      zoneLogicFlags,
       typeFilter,
       excludeRecentDays: excludeRecent ? 7 : null,
       departureLat: userPos.lat,
