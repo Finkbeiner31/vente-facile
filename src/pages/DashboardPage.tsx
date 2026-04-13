@@ -67,7 +67,7 @@ export default function DashboardPage() {
         .limit(1);
       return data?.[0]?.zone_id || null;
     },
-    enabled: !!activeUserId && isWeekday && !dailyTourLoading && !dailyTour,
+    enabled: !!activeUserId && isWeekdayToday && !dailyTourLoading && !dailyTour,
   });
 
   // Fallback zone customers (when daily_tour has no stops but planning has a zone)
