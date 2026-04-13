@@ -29,7 +29,9 @@ interface TourReportSheetProps {
     notes: string;
     nextActionDate: string;
     followUpAction: FollowUpAction | null;
-  }) => void;
+    promotionPresented: boolean;
+    promotionId: string | null;
+  }) => Promise<void> | void;
   onAddProspect?: () => void;
 }
 
