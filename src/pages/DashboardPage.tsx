@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { useTourSession } from '@/contexts/TourSessionContext';
@@ -7,6 +7,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { TourMode } from '@/components/TourMode';
+import { useDailyTour } from '@/hooks/useDailyTour';
 
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,7 +16,7 @@ import { Progress } from '@/components/ui/progress';
 import {
   Play, RotateCcw, MapPin, CheckCircle2, Clock,
   AlertTriangle, ArrowRight, Plus, Flame,
-  Eye, Calendar,
+  Eye, Calendar, RefreshCw, Loader2,
 } from 'lucide-react';
 
 import { computeVisitStatus } from '@/lib/visitFrequencyUtils';
@@ -24,7 +25,6 @@ import { formatZoneName, useCommercialZones } from '@/hooks/useCommercialZones';
 /* ────────────────────────── helpers ────────────────────────── */
 
 const todayStr = () => format(new Date(), 'yyyy-MM-dd');
-const todayDow = () => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1; }; // 0=Mon
 
 /* ═══════════════════════════════════════════════════════════════
    DASHBOARD PAGE
@@ -34,32 +34,48 @@ export default function DashboardPage() {
   const { effectiveUserId, isImpersonating, impersonatedUser } = useImpersonation();
   const { session, startSession } = useTourSession();
   const [tourMode, setTourMode] = useState(false);
+  const [confirmRegenerate, setConfirmRegenerate] = useState(false);
   
   const activeUserId = effectiveUserId || user?.id;
-  
 
-  /* ── Zone du jour ── */
+  /* ── Daily Tour (auto-generated from planning) ── */
+  const { dailyTour, isLoading: dailyTourLoading, autoGenerate, regenerate, isRegenerating, isGenerating } = useDailyTour(activeUserId);
+
+  // Auto-generate daily tour if none exists
+  useEffect(() => {
+    if (!dailyTourLoading && dailyTour === null && activeUserId) {
+      autoGenerate();
+    }
+  }, [dailyTourLoading, dailyTour, activeUserId, autoGenerate]);
+
+  /* ── Zones ── */
   const { data: zones = [] } = useCommercialZones();
-  const { data: planning = [] } = useQuery({
-    queryKey: ['dashboard-zone-planning', activeUserId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from('weekly_zone_planning')
-        .select('day_of_week, zone_id')
-        .eq('user_id', activeUserId!);
-      return data || [];
-    },
-    enabled: !!activeUserId,
-  });
 
   const todayZone = useMemo(() => {
-    const dow = todayDow();
-    const p = planning.find(p => p.day_of_week === dow);
-    if (!p?.zone_id) return null;
-    return zones.find(z => z.id === p.zone_id) || null;
-  }, [planning, zones]);
+    if (!dailyTour?.zone_id) return null;
+    return zones.find(z => z.id === dailyTour.zone_id) || null;
+  }, [dailyTour, zones]);
 
-  /* ── Customers ── */
+  /* ── Visits from daily tour ── */
+  const todayVisits = useMemo(() => {
+    if (!dailyTour?.stops?.length) return [];
+    return dailyTour.stops
+      .filter(s => s.customer)
+      .map(s => ({
+        id: s.id,
+        customer_id: s.customer_id,
+        stop_order: s.stop_order,
+        status: s.status,
+        visit_duration_minutes: s.visit_duration_minutes,
+        customer: s.customer!,
+      }));
+  }, [dailyTour]);
+
+  const completedCount = todayVisits.filter(v => v.status === 'completed').length;
+  const totalPlanned = todayVisits.length;
+  const progressPct = totalPlanned > 0 ? (completedCount / totalPlanned) * 100 : 0;
+
+  /* ── Customers (for alerts) ── */
   const { data: allCustomers = [] } = useQuery({
     queryKey: ['dashboard-customers', activeUserId],
     queryFn: async () => {
@@ -71,40 +87,6 @@ export default function DashboardPage() {
     },
     enabled: !!activeUserId,
   });
-
-  /* ── Today's route stops ── */
-  const { data: todayStops = [] } = useQuery({
-    queryKey: ['dashboard-today-route', activeUserId, todayStr()],
-    queryFn: async () => {
-      const { data: routes } = await supabase
-        .from('routes')
-        .select('id')
-        .eq('rep_id', activeUserId!)
-        .eq('route_date', todayStr())
-        .eq('status', 'planned')
-        .limit(1);
-      if (!routes?.length) return [];
-      const { data: stops } = await supabase
-        .from('route_stops')
-        .select('id, customer_id, stop_order, status')
-        .eq('route_id', routes[0].id)
-        .order('stop_order', { ascending: true });
-      return stops || [];
-    },
-    enabled: !!activeUserId,
-  });
-
-  const todayVisits = useMemo(() => {
-    if (!todayStops.length) return [];
-    const map = new Map(allCustomers.map(c => [c.id, c]));
-    return todayStops
-      .map(s => ({ ...s, customer: map.get(s.customer_id) }))
-      .filter(s => s.customer) as Array<typeof todayStops[0] & { customer: typeof allCustomers[0] }>;
-  }, [todayStops, allCustomers]);
-
-  const completedCount = todayVisits.filter(v => v.status === 'completed').length;
-  const totalPlanned = todayVisits.length;
-  const progressPct = totalPlanned > 0 ? (completedCount / totalPlanned) * 100 : 0;
 
   /* ── Urgent tasks ── */
   const { data: urgentTasks = [] } = useQuery({
@@ -139,7 +121,6 @@ export default function DashboardPage() {
   const alerts = useMemo(() => {
     const items: { icon: React.ElementType; text: string; color: string; link?: string }[] = [];
 
-    // Overdue clients across zones
     const overdueClients = allCustomers.filter(c => {
       if (c.customer_type === 'prospect') return false;
       const vs = computeVisitStatus(c.visit_frequency, c.last_visit_date);
@@ -154,20 +135,7 @@ export default function DashboardPage() {
       });
     }
 
-    // Zones without visits this week
-    const zonesWithVisits = new Set(todayVisits.map(v => v.customer?.zone).filter(Boolean));
-    const unvisitedZones = zones.filter(z => !zonesWithVisits.has(z.system_name));
-    if (unvisitedZones.length > 0 && zones.length > 0) {
-      items.push({
-        icon: Eye,
-        text: `${unvisitedZones.length} zone${unvisitedZones.length > 1 ? 's' : ''} sans visite prévue`,
-        color: 'text-warning',
-        link: '/tournees',
-      });
-    }
-
-    // No visits planned today
-    if (totalPlanned === 0) {
+    if (totalPlanned === 0 && !dailyTourLoading && !isGenerating) {
       items.push({
         icon: Calendar,
         text: 'Aucune visite planifiée aujourd\'hui',
@@ -177,7 +145,7 @@ export default function DashboardPage() {
     }
 
     return items;
-  }, [allCustomers, todayVisits, zones, totalPlanned]);
+  }, [allCustomers, totalPlanned, dailyTourLoading, isGenerating]);
 
   /* ── Tour mode launch ── */
   const handleLaunchTour = () => {
@@ -205,12 +173,12 @@ export default function DashboardPage() {
 
   /* ── Tour mode view ── */
   if (tourMode && session?.active) {
-    const tourCustomers = allCustomers.map(c => ({
-      id: c.id, company_name: c.company_name, address: c.address || '', city: c.city || '',
-      phone: c.phone || '', visit_frequency: c.visit_frequency || 'monthly',
-      number_of_vehicles: c.number_of_vehicles || 0,
-      annual_revenue_potential: Number(c.annual_revenue_potential || 0),
-      latitude: c.latitude, longitude: c.longitude, sales_potential: c.sales_potential || 'C',
+    const tourCustomers = todayVisits.map(s => ({
+      id: s.customer.id, company_name: s.customer.company_name, address: s.customer.address || '', city: s.customer.city || '',
+      phone: s.customer.phone || '', visit_frequency: s.customer.visit_frequency || 'monthly',
+      number_of_vehicles: s.customer.number_of_vehicles || 0,
+      annual_revenue_potential: Number(s.customer.annual_revenue_potential || 0),
+      latitude: s.customer.latitude, longitude: s.customer.longitude, sales_potential: s.customer.sales_potential || 'C',
     }));
     return <TourMode onExit={() => setTourMode(false)} allCustomers={tourCustomers} />;
   }
@@ -218,6 +186,11 @@ export default function DashboardPage() {
   const effectiveName = isImpersonating ? impersonatedUser?.full_name : profile?.full_name;
   const firstName = effectiveName?.split(' ')[0] || 'Commercial';
   const sessionCompletedCount = session ? Object.values(session.statuses).filter(s => s === 'completed').length : 0;
+
+  const handleRegenerate = async () => {
+    setConfirmRegenerate(false);
+    await regenerate();
+  };
 
   return (
     <div className="space-y-4 animate-fade-in pb-20 md:pb-0">
@@ -237,7 +210,11 @@ export default function DashboardPage() {
             <div className="flex items-center gap-2 min-w-0">
               <MapPin className="h-4 w-4 text-primary shrink-0" />
               <span className="text-sm font-semibold truncate">
-                {todayZone ? formatZoneName(todayZone) : 'Aucune zone assignée'}
+                {dailyTourLoading || isGenerating ? (
+                  <span className="flex items-center gap-1.5 text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Chargement…
+                  </span>
+                ) : todayZone ? formatZoneName(todayZone) : 'Aucune zone assignée'}
               </span>
             </div>
             <Badge variant="secondary" className="text-xs font-bold shrink-0">
@@ -281,14 +258,40 @@ export default function DashboardPage() {
       <section>
         <div className="flex items-center justify-between mb-2">
           <h2 className="font-heading text-sm font-semibold">Visites du jour</h2>
-          <Link to="/tournees">
-            <Button variant="ghost" size="sm" className="text-xs h-7 gap-1">
-              Tournée <ArrowRight className="h-3 w-3" />
-            </Button>
-          </Link>
+          <div className="flex items-center gap-1">
+            {dailyTour && (
+              confirmRegenerate ? (
+                <div className="flex items-center gap-1">
+                  <Button variant="destructive" size="sm" className="text-xs h-7" onClick={handleRegenerate} disabled={isRegenerating}>
+                    {isRegenerating ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                    Confirmer
+                  </Button>
+                  <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => setConfirmRegenerate(false)}>
+                    Annuler
+                  </Button>
+                </div>
+              ) : (
+                <Button variant="ghost" size="sm" className="text-xs h-7 gap-1 text-muted-foreground" onClick={() => setConfirmRegenerate(true)}>
+                  <RefreshCw className="h-3 w-3" /> Regénérer
+                </Button>
+              )
+            )}
+            <Link to="/tournees">
+              <Button variant="ghost" size="sm" className="text-xs h-7 gap-1">
+                Tournée <ArrowRight className="h-3 w-3" />
+              </Button>
+            </Link>
+          </div>
         </div>
 
-        {todayVisits.length === 0 ? (
+        {(dailyTourLoading || isGenerating) ? (
+          <Card>
+            <CardContent className="py-8 text-center">
+              <Loader2 className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2 animate-spin" />
+              <p className="text-sm text-muted-foreground">Génération de la tournée…</p>
+            </CardContent>
+          </Card>
+        ) : todayVisits.length === 0 ? (
           <Card>
             <CardContent className="py-8 text-center">
               <Calendar className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
@@ -307,7 +310,6 @@ export default function DashboardPage() {
                 <Link key={stop.id} to={`/clients/${stop.customer.id}`} className="block">
                   <Card className={`transition-colors hover:bg-accent/5 ${isDone ? 'opacity-60' : ''} ${isActive ? 'border-primary/40' : ''}`}>
                     <CardContent className="p-2.5 flex items-center gap-2.5">
-                      {/* Step indicator */}
                       <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${
                         isDone ? 'bg-accent/15 text-accent' : isActive ? 'bg-primary/15 text-primary' : 'bg-muted text-muted-foreground'
                       }`}>
@@ -397,7 +399,6 @@ export default function DashboardPage() {
           </div>
         </section>
       )}
-
     </div>
   );
 }
