@@ -31,6 +31,12 @@ export interface OptCustomer {
 
 export type RouteStrategy = 'nearest' | 'farthest';
 export type ZoneLogic = 'strict' | 'tolerance' | 'route';
+
+export interface ZoneLogicFlags {
+  strict: boolean;
+  tolerance: boolean;
+  route: boolean;
+}
 export type TypeFilter = 'tous' | 'clients' | 'prospects';
 
 export interface ScoredCustomer extends OptCustomer {
