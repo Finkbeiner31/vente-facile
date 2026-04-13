@@ -480,9 +480,18 @@ export type Database = {
       }
       profiles: {
         Row: {
+          autre_address: string | null
+          autre_lat: number | null
+          autre_lng: number | null
           avatar_url: string | null
           created_at: string
+          domicile_address: string | null
+          domicile_lat: number | null
+          domicile_lng: number | null
           email: string | null
+          entreprise_address: string | null
+          entreprise_lat: number | null
+          entreprise_lng: number | null
           full_name: string
           id: string
           is_active: boolean
@@ -491,9 +500,18 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          autre_address?: string | null
+          autre_lat?: number | null
+          autre_lng?: number | null
           avatar_url?: string | null
           created_at?: string
+          domicile_address?: string | null
+          domicile_lat?: number | null
+          domicile_lng?: number | null
           email?: string | null
+          entreprise_address?: string | null
+          entreprise_lat?: number | null
+          entreprise_lng?: number | null
           full_name?: string
           id: string
           is_active?: boolean
@@ -502,9 +520,18 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          autre_address?: string | null
+          autre_lat?: number | null
+          autre_lng?: number | null
           avatar_url?: string | null
           created_at?: string
+          domicile_address?: string | null
+          domicile_lat?: number | null
+          domicile_lng?: number | null
           email?: string | null
+          entreprise_address?: string | null
+          entreprise_lat?: number | null
+          entreprise_lng?: number | null
           full_name?: string
           id?: string
           is_active?: boolean
