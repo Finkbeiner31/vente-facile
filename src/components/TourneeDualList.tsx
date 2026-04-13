@@ -82,6 +82,7 @@ function customerToStop(c: any): TourStop {
     priority: calcPriority(c),
     customerType: c.customer_type,
     lastVisitDate: c.last_visit_date,
+    visitDurationMinutes: c.visit_duration_minutes ?? null,
   };
 }
 
