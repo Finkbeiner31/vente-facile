@@ -291,26 +291,9 @@ export default function BulkImportPage() {
             <h1 className="font-heading text-2xl font-bold">Aperçu de l'import</h1>
             <p className="text-sm text-muted-foreground">{fileName} · {rows.length} lignes détectées</p>
           </div>
-          <Button variant="ghost" onClick={() => { setStep('upload'); setRows([]); }}>
+          <Button variant="ghost" onClick={() => { setStep('upload'); setRows([]); setExcludedRows(new Set()); }}>
             <ArrowLeft className="h-4 w-4 mr-1" /> Retour
           </Button>
-        </div>
-
-        {/* Summary badges */}
-        <div className="flex flex-wrap gap-2">
-          <Badge variant="secondary" className="gap-1">
-            <CheckCircle2 className="h-3 w-3 text-accent" /> {validCount} valides
-          </Badge>
-          {errorCount > 0 && (
-            <Badge variant="destructive" className="gap-1">
-              <XCircle className="h-3 w-3" /> {errorCount} erreurs
-            </Badge>
-          )}
-          {duplicateCount > 0 && (
-            <Badge variant="secondary" className="gap-1 bg-warning/15 text-warning">
-              <AlertTriangle className="h-3 w-3" /> {duplicateCount} doublons
-            </Badge>
-          )}
         </div>
 
         {/* Import mode */}
@@ -330,6 +313,21 @@ export default function BulkImportPage() {
           </CardContent>
         </Card>
 
+        {/* 3-tab classification */}
+        <Tabs value={previewTab} onValueChange={v => setPreviewTab(v as any)}>
+          <TabsList className="w-full">
+            <TabsTrigger value="new" className="flex-1 text-xs gap-1">
+              <CheckCircle2 className="h-3 w-3" /> Nouveaux ({newCount})
+            </TabsTrigger>
+            <TabsTrigger value="duplicates" className="flex-1 text-xs gap-1">
+              <AlertTriangle className="h-3 w-3" /> Doublons ({duplicateCount})
+            </TabsTrigger>
+            <TabsTrigger value="errors" className="flex-1 text-xs gap-1">
+              <XCircle className="h-3 w-3" /> Invalides ({errorCount})
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
         {/* Preview table */}
         <div className="border rounded-lg overflow-auto max-h-[50vh]">
           <Table>
@@ -341,15 +339,18 @@ export default function BulkImportPage() {
                 <TableHead>Ville</TableHead>
                 <TableHead>Contact</TableHead>
                 <TableHead>Téléphone</TableHead>
-                <TableHead>Véhicules</TableHead>
                 <TableHead className="min-w-[200px]">Validation</TableHead>
+                {previewTab === 'duplicates' && <TableHead className="w-[140px]">Action</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => (
+              {(previewTab === 'new' ? newRows : previewTab === 'duplicates' ? duplicateRows : errorRows).map((row) => (
                 <TableRow
                   key={row.rowIndex}
-                  className={row.errors.length > 0 ? 'bg-destructive/5' : row.isDuplicate ? 'bg-warning/5' : ''}
+                  className={`${
+                    row.errors.length > 0 ? 'bg-destructive/5' :
+                    row.isDuplicate ? (excludedRows.has(row.rowIndex) ? 'bg-muted/50 opacity-50' : 'bg-warning/5') : ''
+                  }`}
                 >
                   <TableCell className="text-xs text-muted-foreground">{row.rowIndex + 1}</TableCell>
                   <TableCell>
@@ -359,7 +360,6 @@ export default function BulkImportPage() {
                   <TableCell className="text-sm">{row.data.ville || '—'}</TableCell>
                   <TableCell className="text-sm">{row.data.contact_principal || '—'}</TableCell>
                   <TableCell className="text-sm">{row.data.telephone || '—'}</TableCell>
-                  <TableCell className="text-sm">{row.data.nb_vehicules || '—'}</TableCell>
                   <TableCell>
                     {row.errors.length > 0 ? (
                       <div className="space-y-0.5">
@@ -371,30 +371,64 @@ export default function BulkImportPage() {
                       </div>
                     ) : row.isDuplicate ? (
                       <p className="text-xs text-warning flex items-center gap-1">
-                        <AlertTriangle className="h-3 w-3 shrink-0" /> Doublon: {row.duplicateOf}
+                        <AlertTriangle className="h-3 w-3 shrink-0" /> {row.duplicateOf}
                       </p>
                     ) : (
                       <p className="text-xs text-accent flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3 shrink-0" /> OK
+                        <CheckCircle2 className="h-3 w-3 shrink-0" /> Prêt
                       </p>
                     )}
                   </TableCell>
+                  {previewTab === 'duplicates' && (
+                    <TableCell>
+                      <div className="flex gap-1">
+                        {excludedRows.has(row.rowIndex) ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-[10px]"
+                            onClick={() => setExcludedRows(prev => { const next = new Set(prev); next.delete(row.rowIndex); return next; })}
+                          >
+                            Réintégrer
+                          </Button>
+                        ) : (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-[10px]"
+                              onClick={() => setExcludedRows(prev => new Set(prev).add(row.rowIndex))}
+                            >
+                              <SkipForward className="h-3 w-3 mr-0.5" /> Ignorer
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))}
+              {(previewTab === 'new' ? newRows : previewTab === 'duplicates' ? duplicateRows : errorRows).length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={previewTab === 'duplicates' ? 8 : 7} className="text-center text-sm text-muted-foreground py-8">
+                    Aucune ligne dans cette catégorie
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </div>
 
         {/* Import button */}
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => { setStep('upload'); setRows([]); }}>
+          <Button variant="outline" onClick={() => { setStep('upload'); setRows([]); setExcludedRows(new Set()); }}>
             Annuler
           </Button>
-          <Button onClick={handleImport} disabled={importing || validCount === 0}>
+          <Button onClick={handleImport} disabled={importing || importableCount === 0}>
             {importing ? (
               <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Import en cours...</>
             ) : (
-              <><Upload className="h-4 w-4 mr-2" /> Importer {validCount} lignes</>
+              <><Upload className="h-4 w-4 mr-2" /> Importer {importableCount} lignes</>
             )}
           </Button>
         </div>
