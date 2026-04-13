@@ -47,6 +47,24 @@ export function useZoneAssignment() {
         zone_status: result.zone_status,
       };
 
+      // Auto-assign commercial from zone owner if rep_assignment_mode is automatic
+      if (!options?.force) {
+        const repMode = current?.rep_assignment_mode;
+        if (repMode !== 'manual' && result.zone_id) {
+          const matchedZone = zones.find(z => z.id === result.zone_id);
+          if (matchedZone?.user_id) {
+            update.assigned_rep_id = matchedZone.user_id;
+            update.rep_assignment_mode = 'automatic';
+          }
+        }
+      } else if (result.zone_id) {
+        const matchedZone = zones.find(z => z.id === result.zone_id);
+        if (matchedZone?.user_id) {
+          update.assigned_rep_id = matchedZone.user_id;
+          update.rep_assignment_mode = 'automatic';
+        }
+      }
+
       await (supabase as any).from('customers').update(update).eq('id', customerId);
       queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
       queryClient.invalidateQueries({ queryKey: ['customers'] });
