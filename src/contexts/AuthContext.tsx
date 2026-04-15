@@ -24,39 +24,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
-    try {
-      const [{ data: profileData }, { data: roleData }] = await Promise.all([
-        supabase.from('profiles').select('*').eq('id', userId).single(),
-        supabase.from('user_roles').select('role').eq('user_id', userId).single(),
-      ]);
-      setProfile(profileData);
-      setRole(roleData?.role as UserRole || 'sales_rep');
-    } catch (e) {
-      console.error('fetchProfile error:', e);
-      setProfile(null);
-      setRole(null);
-    } finally {
-      setLoading(false);
-    }
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    const { data: roleData } = await supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .single();
+
+    setProfile(profileData);
+    setRole(roleData?.role as UserRole || 'sales_rep');
   };
 
   useEffect(() => {
-    let isMounted = true;
-
-    const loadProfile = async (userId: string) => {
-      if (!isMounted) return;
-      setLoading(true);
-      await fetchProfile(userId);
-    };
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      async (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          window.setTimeout(() => {
-            void loadProfile(session.user.id);
-          }, 0);
+          await fetchProfile(session.user.id);
         } else {
           setProfile(null);
           setRole(null);
@@ -66,20 +56,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!isMounted) return;
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        await loadProfile(session.user.id);
-      } else {
-        setLoading(false);
+        await fetchProfile(session.user.id);
       }
+      setLoading(false);
     });
 
-    return () => {
-      isMounted = false;
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
   const signIn = async (email: string, password: string) => {

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, DragEvent } from 'react';
+import { useState, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,29 +10,27 @@ import {
 } from '@/components/ui/table';
 import {
   Upload, Download, FileSpreadsheet, AlertTriangle, CheckCircle2,
-  XCircle, Loader2, ArrowLeft, Info, SkipForward, FileText,
+  XCircle, Loader2, ArrowLeft, Info, Eye, SkipForward,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { Link } from 'react-router-dom';
 import {
   parseCSV, parseXLSX, validateRows, generateTemplate,
   type ImportRow, type ValidatedRow,
 } from '@/lib/importUtils';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import Papa from 'papaparse';
 
 type ImportMode = 'create_only' | 'update_only' | 'create_and_update';
 type Step = 'upload' | 'preview' | 'result';
-type FileFormat = 'xlsx' | 'csv' | null;
 
 interface ImportResult {
   created: number;
   updated: number;
   skipped: number;
   errors: number;
-  errorDetails: { row: number; entreprise: string; reason: string }[];
 }
 
 const splitName = (full: string) => {
@@ -40,14 +38,6 @@ const splitName = (full: string) => {
   if (parts.length <= 1) return { first_name: parts[0] || '', last_name: '' };
   return { first_name: parts.slice(0, -1).join(' '), last_name: parts[parts.length - 1] };
 };
-
-const CSV_TEMPLATE_HEADERS = ['entreprise', 'adresse', 'ville', 'code_postal', 'telephone', 'email', 'nb_vehicules', 'statut', 'sales_potential'];
-const CSV_TEMPLATE_EXAMPLE = ['Exemple SARL', '12 rue de la Paix', 'Paris', '75002', '0612345678', 'jean@exemple.fr', '5', 'prospect', 'B'];
-
-function generateCSVTemplate(): Blob {
-  const csv = Papa.unparse({ fields: CSV_TEMPLATE_HEADERS, data: [CSV_TEMPLATE_EXAMPLE] });
-  return new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-}
 
 export default function BulkImportPage() {
   const { user, role } = useAuth();
@@ -59,10 +49,8 @@ export default function BulkImportPage() {
   const [fileName, setFileName] = useState('');
   const [previewTab, setPreviewTab] = useState<'new' | 'duplicates' | 'errors'>('new');
   const [excludedRows, setExcludedRows] = useState<Set<number>>(new Set());
-  const [selectedFormat, setSelectedFormat] = useState<FileFormat>(null);
-  const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Fetch existing customers for duplicate detection
   const { data: existingCustomers = [] } = useQuery({
     queryKey: ['customers-for-import'],
     queryFn: async () => {
@@ -79,8 +67,11 @@ export default function BulkImportPage() {
     },
   });
 
-  const processFile = useCallback(async (file: File) => {
+  const handleFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
     setFileName(file.name);
+
     try {
       let parsed: ImportRow[];
       if (file.name.endsWith('.csv')) {
@@ -93,38 +84,22 @@ export default function BulkImportPage() {
         toast.error('Format non supporté. Utilisez .csv ou .xlsx');
         return;
       }
+
       if (parsed.length === 0) {
         toast.error('Le fichier est vide ou mal formaté.');
         return;
       }
+
       const validated = validateRows(parsed, existingCustomers);
       setRows(validated);
       setStep('preview');
     } catch {
       toast.error('Erreur lors de la lecture du fichier.');
     }
-  }, [existingCustomers]);
 
-  const handleFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    await processFile(file);
+    // Reset input for re-upload
     e.target.value = '';
-  }, [processFile]);
-
-  const handleDrop = useCallback(async (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) await processFile(file);
-  }, [processFile]);
-
-  const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragging(true);
-  }, []);
-
-  const handleDragLeave = useCallback(() => setIsDragging(false), []);
+  }, [existingCustomers]);
 
   const handleDownloadTemplate = () => {
     const blob = generateTemplate();
@@ -136,32 +111,20 @@ export default function BulkImportPage() {
     URL.revokeObjectURL(url);
   };
 
-  const handleDownloadCSVTemplate = () => {
-    const blob = generateCSVTemplate();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'modele_import_clients.csv';
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
   const handleImport = async () => {
     if (!user) return;
     setImporting(true);
-    const res: ImportResult = { created: 0, updated: 0, skipped: 0, errors: 0, errorDetails: [] };
+    const res: ImportResult = { created: 0, updated: 0, skipped: 0, errors: 0 };
 
     for (const row of rows) {
-      if (row.errors.length > 0) { 
-        res.errors++; 
-        res.errorDetails.push({ row: row.rowIndex + 1, entreprise: row.data.entreprise || '—', reason: row.errors.join(', ') });
-        continue; 
-      }
+      // Skip rows with errors or excluded by user
+      if (row.errors.length > 0) { res.errors++; continue; }
       if (excludedRows.has(row.rowIndex)) { res.skipped++; continue; }
 
       const d = row.data;
       const isExisting = row.isDuplicate && row.duplicateOf?.includes('existant en base');
 
+      // Mode logic
       if (mode === 'create_only' && isExisting) { res.skipped++; continue; }
       if (mode === 'update_only' && !isExisting) { res.skipped++; continue; }
 
@@ -182,31 +145,30 @@ export default function BulkImportPage() {
 
       try {
         if (isExisting && (mode === 'update_only' || mode === 'create_and_update')) {
+          // Find existing customer
           const existing = existingCustomers.find(c =>
             c.company_name.toLowerCase() === d.entreprise.trim().toLowerCase() &&
             c.city.toLowerCase() === d.ville.trim().toLowerCase()
           );
           if (existing) {
-            const { error } = await supabase.from('customers').update(customerData).eq('id', existing.id);
-            if (error) { 
-              res.errors++; 
-              res.errorDetails.push({ row: row.rowIndex + 1, entreprise: d.entreprise, reason: error.message });
-            } else { res.updated++; }
+            const { error } = await supabase
+              .from('customers')
+              .update(customerData)
+              .eq('id', existing.id);
+            if (error) { res.errors++; } else { res.updated++; }
           } else { res.skipped++; }
         } else {
+          // Create
           const { data: created, error } = await supabase
             .from('customers')
             .insert({ ...customerData, assigned_rep_id: user.id })
             .select('id')
             .single();
 
-          if (error) { 
-            res.errors++; 
-            res.errorDetails.push({ row: row.rowIndex + 1, entreprise: d.entreprise, reason: error.message });
-            continue; 
-          }
+          if (error) { res.errors++; continue; }
           res.created++;
 
+          // Create primary contact if provided
           if (d.contact_principal.trim() && created?.id) {
             const { first_name, last_name } = splitName(d.contact_principal);
             await supabase.from('contacts').insert({
@@ -221,7 +183,6 @@ export default function BulkImportPage() {
         }
       } catch {
         res.errors++;
-        res.errorDetails.push({ row: row.rowIndex + 1, entreprise: d.entreprise, reason: 'Erreur inattendue' });
       }
     }
 
@@ -237,7 +198,9 @@ export default function BulkImportPage() {
   const duplicateCount = duplicateRows.length;
   const newCount = newRows.length;
   const importableCount = newCount + duplicateRows.filter(r => !excludedRows.has(r.rowIndex)).length;
+  const validCount = rows.filter(r => r.errors.length === 0).length;
 
+  // Guard: admin only
   if (role !== 'admin') {
     return (
       <div className="flex items-center justify-center py-20">
@@ -256,97 +219,53 @@ export default function BulkImportPage() {
 
   // ── UPLOAD STEP ──
   if (step === 'upload') {
-    const acceptedFormat = selectedFormat === 'xlsx' ? '.xlsx,.xls' : selectedFormat === 'csv' ? '.csv' : '.csv,.xlsx,.xls';
-
     return (
       <div className="space-y-6 animate-fade-in">
         <div>
           <h1 className="font-heading text-2xl font-bold">Import clients / prospects</h1>
-          <p className="text-sm text-muted-foreground">Importez vos données en masse depuis un fichier Excel ou CSV</p>
+          <p className="text-sm text-muted-foreground">Importez en masse depuis un fichier CSV ou Excel</p>
         </div>
 
-        {/* Step 1: Format selection */}
-        <div>
-          <p className="text-sm font-medium mb-3">1. Choisissez le format de votre fichier</p>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <button
-              onClick={() => setSelectedFormat('xlsx')}
-              className={`flex items-center gap-4 rounded-lg border-2 p-5 text-left transition-all ${
-                selectedFormat === 'xlsx'
-                  ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
-                  : 'border-border hover:border-primary/40'
-              }`}
-            >
-              <FileSpreadsheet className="h-10 w-10 shrink-0 text-green-600" />
-              <div>
-                <p className="font-semibold">Fichier Excel (.xlsx)</p>
-                <p className="text-xs text-muted-foreground">Microsoft Excel, Google Sheets exporté</p>
-              </div>
-            </button>
-            <button
-              onClick={() => setSelectedFormat('csv')}
-              className={`flex items-center gap-4 rounded-lg border-2 p-5 text-left transition-all ${
-                selectedFormat === 'csv'
-                  ? 'border-primary bg-primary/5 ring-2 ring-primary/20'
-                  : 'border-border hover:border-primary/40'
-              }`}
-            >
-              <FileText className="h-10 w-10 shrink-0 text-blue-600" />
-              <div>
-                <p className="font-semibold">Fichier CSV (.csv)</p>
-                <p className="text-xs text-muted-foreground">Fichier texte avec séparateurs</p>
-              </div>
-            </button>
-          </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card className="border-dashed border-2 hover:border-primary/50 transition-colors">
+            <CardContent className="p-8 text-center">
+              <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="font-medium mb-2">Importer un fichier</h3>
+              <p className="text-xs text-muted-foreground mb-4">
+                Formats acceptés : .csv, .xlsx
+              </p>
+              <label>
+                <input
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={handleFile}
+                  className="hidden"
+                />
+                <Button asChild variant="default">
+                  <span>
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Choisir un fichier
+                  </span>
+                </Button>
+              </label>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-8 text-center">
+              <Download className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="font-medium mb-2">Modèle d'import</h3>
+              <p className="text-xs text-muted-foreground mb-4">
+                Téléchargez le modèle Excel avec les colonnes attendues
+              </p>
+              <Button variant="outline" onClick={handleDownloadTemplate}>
+                <Download className="h-4 w-4 mr-2" />
+                Télécharger le modèle
+              </Button>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Step 2: Download template */}
-        <div>
-          <p className="text-sm font-medium mb-3">2. Téléchargez le modèle (optionnel)</p>
-          <div className="flex flex-wrap gap-3">
-            <Button variant="outline" onClick={handleDownloadTemplate}>
-              <Download className="h-4 w-4 mr-2" />
-              Modèle Excel (.xlsx)
-            </Button>
-            <Button variant="outline" onClick={handleDownloadCSVTemplate}>
-              <Download className="h-4 w-4 mr-2" />
-              Modèle CSV (.csv)
-            </Button>
-          </div>
-        </div>
-
-        {/* Step 3: Drag & Drop zone */}
-        <div>
-          <p className="text-sm font-medium mb-3">3. Déposez votre fichier</p>
-          <div
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onClick={() => fileInputRef.current?.click()}
-            className={`cursor-pointer rounded-xl border-2 border-dashed p-12 text-center transition-all ${
-              isDragging
-                ? 'border-primary bg-primary/10 scale-[1.01]'
-                : 'border-muted-foreground/30 hover:border-primary/50 hover:bg-muted/30'
-            }`}
-          >
-            <Upload className={`mx-auto h-14 w-14 mb-4 ${isDragging ? 'text-primary' : 'text-muted-foreground/50'}`} />
-            <p className="text-base font-medium mb-1">
-              Glissez votre fichier ici ou cliquez pour parcourir
-            </p>
-            <p className="text-sm text-muted-foreground">
-              {selectedFormat === 'xlsx' ? 'Format accepté : .xlsx' : selectedFormat === 'csv' ? 'Format accepté : .csv' : 'Formats acceptés : .csv, .xlsx'}
-            </p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept={acceptedFormat}
-              onChange={handleFile}
-              className="hidden"
-            />
-          </div>
-        </div>
-
-        {/* Info: expected columns */}
         <Card>
           <CardContent className="p-5">
             <div className="flex items-start gap-3">
@@ -354,7 +273,7 @@ export default function BulkImportPage() {
               <div className="text-sm text-muted-foreground space-y-1">
                 <p className="font-medium text-foreground">Colonnes attendues</p>
                 <p>statut*, entreprise*, ville*, adresse, code_postal, nb_vehicules, frequence_visite, contact_principal, telephone, email, notes, commercial_assigne, zone</p>
-                <p className="text-xs">* champs obligatoires — L'ordre des colonnes n'a pas d'importance</p>
+                <p className="text-xs">* champs obligatoires</p>
               </div>
             </div>
           </CardContent>
@@ -365,9 +284,6 @@ export default function BulkImportPage() {
 
   // ── PREVIEW STEP ──
   if (step === 'preview') {
-    const previewRows = rows.slice(0, 5);
-    const displayRows = previewTab === 'new' ? newRows : previewTab === 'duplicates' ? duplicateRows : errorRows;
-
     return (
       <div className="space-y-4 animate-fade-in">
         <div className="flex items-center justify-between flex-wrap gap-2">
@@ -379,41 +295,6 @@ export default function BulkImportPage() {
             <ArrowLeft className="h-4 w-4 mr-1" /> Retour
           </Button>
         </div>
-
-        {/* Quick preview of first 5 rows */}
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm font-medium mb-2">
-              Aperçu des 5 premières lignes ({rows.length} au total)
-            </p>
-            <div className="overflow-auto max-h-[200px] border rounded-md">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-10">#</TableHead>
-                    <TableHead>Entreprise</TableHead>
-                    <TableHead>Ville</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead>Téléphone</TableHead>
-                    <TableHead>Email</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {previewRows.map(row => (
-                    <TableRow key={row.rowIndex}>
-                      <TableCell className="text-xs text-muted-foreground">{row.rowIndex + 1}</TableCell>
-                      <TableCell className="font-medium text-sm">{row.data.entreprise || '—'}</TableCell>
-                      <TableCell className="text-sm">{row.data.ville || '—'}</TableCell>
-                      <TableCell><Badge variant="secondary" className="text-[10px]">{row.data.statut || '—'}</Badge></TableCell>
-                      <TableCell className="text-sm">{row.data.telephone || '—'}</TableCell>
-                      <TableCell className="text-sm">{row.data.email || '—'}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
 
         {/* Import mode */}
         <Card>
@@ -447,7 +328,7 @@ export default function BulkImportPage() {
           </TabsList>
         </Tabs>
 
-        {/* Detail table */}
+        {/* Preview table */}
         <div className="border rounded-lg overflow-auto max-h-[50vh]">
           <Table>
             <TableHeader>
@@ -463,7 +344,7 @@ export default function BulkImportPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {displayRows.map((row) => (
+              {(previewTab === 'new' ? newRows : previewTab === 'duplicates' ? duplicateRows : errorRows).map((row) => (
                 <TableRow
                   key={row.rowIndex}
                   className={`${
@@ -494,36 +375,40 @@ export default function BulkImportPage() {
                       </p>
                     ) : (
                       <p className="text-xs text-accent flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3 shrink-0" /> Prêt à importer
+                        <CheckCircle2 className="h-3 w-3 shrink-0" /> Prêt
                       </p>
                     )}
                   </TableCell>
                   {previewTab === 'duplicates' && (
                     <TableCell>
-                      {excludedRows.has(row.rowIndex) ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="h-7 text-[10px]"
-                          onClick={() => setExcludedRows(prev => { const next = new Set(prev); next.delete(row.rowIndex); return next; })}
-                        >
-                          Réintégrer
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 text-[10px]"
-                          onClick={() => setExcludedRows(prev => new Set(prev).add(row.rowIndex))}
-                        >
-                          <SkipForward className="h-3 w-3 mr-0.5" /> Ignorer
-                        </Button>
-                      )}
+                      <div className="flex gap-1">
+                        {excludedRows.has(row.rowIndex) ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-[10px]"
+                            onClick={() => setExcludedRows(prev => { const next = new Set(prev); next.delete(row.rowIndex); return next; })}
+                          >
+                            Réintégrer
+                          </Button>
+                        ) : (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-[10px]"
+                              onClick={() => setExcludedRows(prev => new Set(prev).add(row.rowIndex))}
+                            >
+                              <SkipForward className="h-3 w-3 mr-0.5" /> Ignorer
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </TableCell>
                   )}
                 </TableRow>
               ))}
-              {displayRows.length === 0 && (
+              {(previewTab === 'new' ? newRows : previewTab === 'duplicates' ? duplicateRows : errorRows).length === 0 && (
                 <TableRow>
                   <TableCell colSpan={previewTab === 'duplicates' ? 8 : 7} className="text-center text-sm text-muted-foreground py-8">
                     Aucune ligne dans cette catégorie
@@ -559,16 +444,6 @@ export default function BulkImportPage() {
         <p className="text-sm text-muted-foreground">{fileName}</p>
       </div>
 
-      {/* Summary sentence */}
-      <Card>
-        <CardContent className="p-5">
-          <p className="text-base font-medium">
-            {result?.created || 0} client(s) créé(s), {result?.updated || 0} mis à jour, {result?.errors || 0} erreur(s)
-            {(result?.skipped || 0) > 0 && `, ${result?.skipped} ignoré(s)`}
-          </p>
-        </CardContent>
-      </Card>
-
       <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
         <Card>
           <CardContent className="p-5 text-center">
@@ -600,37 +475,8 @@ export default function BulkImportPage() {
         </Card>
       </div>
 
-      {/* Error details */}
-      {result && result.errorDetails.length > 0 && (
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm font-medium mb-2 text-destructive">Détail des erreurs</p>
-            <div className="overflow-auto max-h-[200px] border rounded-md">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-16">Ligne</TableHead>
-                    <TableHead>Entreprise</TableHead>
-                    <TableHead>Raison</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {result.errorDetails.map((ed, i) => (
-                    <TableRow key={i}>
-                      <TableCell className="text-xs">{ed.row}</TableCell>
-                      <TableCell className="text-sm font-medium">{ed.entreprise}</TableCell>
-                      <TableCell className="text-xs text-destructive">{ed.reason}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       <div className="flex justify-end gap-2">
-        <Button variant="outline" onClick={() => { setStep('upload'); setRows([]); setResult(null); setSelectedFormat(null); }}>
+        <Button variant="outline" onClick={() => { setStep('upload'); setRows([]); setResult(null); }}>
           Nouvel import
         </Button>
         <Button asChild variant="default">
