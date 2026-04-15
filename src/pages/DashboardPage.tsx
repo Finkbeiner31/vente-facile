@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { TourMode } from '@/components/TourMode';
 import { useDailyTour } from '@/hooks/useDailyTour';
+import { isReadOnly, canPerformAction, getRoleLabel, type AppRole } from '@/lib/permissions';
 import { getCurrentWeekNumber, getTodayDow } from '@/lib/weekCycleUtils';
 
 import { Card, CardContent } from '@/components/ui/card';
@@ -31,13 +32,16 @@ const todayStr = () => format(new Date(), 'yyyy-MM-dd');
    DASHBOARD PAGE
    ═══════════════════════════════════════════════════════════════ */
 export default function DashboardPage() {
-  const { profile, user, loading: authLoading } = useAuth();
-  const { effectiveUserId, isImpersonating, impersonatedUser } = useImpersonation();
+  const { profile, user, loading: authLoading, role: authRole } = useAuth();
+  const { effectiveUserId, isImpersonating, impersonatedUser, effectiveRole } = useImpersonation();
   const { session, startSession } = useTourSession();
   const [tourMode, setTourMode] = useState(false);
   const [confirmRegenerate, setConfirmRegenerate] = useState(false);
   
   const activeUserId = effectiveUserId || user?.id;
+  const role = (isImpersonating ? effectiveRole : authRole) as AppRole | null;
+  const readOnly = isReadOnly(role);
+  const canRunTour = canPerformAction(role, 'run_tournee');
 
   /* ── Daily Tour (auto-generated from planning) ── */
   const { dailyTour, isLoading: dailyTourLoading, autoGenerate, regenerate, isRegenerating, isGenerating } = useDailyTour(activeUserId);
@@ -302,8 +306,14 @@ export default function DashboardPage() {
         <h1 className="font-heading text-xl md:text-2xl font-bold">Bonjour, {firstName} 👋</h1>
         <p className="text-xs text-muted-foreground">
           {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+          {readOnly && <span className="ml-2 text-primary font-medium">({getRoleLabel(role)} — lecture seule)</span>}
         </p>
       </div>
+
+      {/* ═══ ADMIN/MANAGER OVERVIEW SECTION ═══ */}
+      {(role === 'admin' || role === 'manager') && (
+        <AdminManagerOverview role={role} />
+      )}
 
       {/* ═══ A. MA JOURNÉE ═══ */}
       <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
@@ -336,24 +346,28 @@ export default function DashboardPage() {
           )}
 
           {/* Main CTA */}
-          {session?.active ? (
+          {readOnly ? (
+            <div className="text-center py-2">
+              <p className="text-xs text-muted-foreground">Mode lecture seule — aucune action disponible</p>
+            </div>
+          ) : session?.active ? (
             <Button className="w-full h-12 font-bold text-sm gap-2" onClick={() => setTourMode(true)}>
               <RotateCcw className="h-4 w-4" />
               Reprendre ma tournée ({sessionCompletedCount}/{session.stops.length})
             </Button>
-          ) : totalPlanned > 0 ? (
+          ) : totalPlanned > 0 && canRunTour ? (
             <Button className="w-full h-12 font-bold text-sm gap-2" onClick={handleLaunchTour}>
               <Play className="h-4 w-4" />
               Démarrer ma tournée
             </Button>
-          ) : (
+          ) : canRunTour ? (
             <Link to="/tournees" className="block">
               <Button variant="outline" className="w-full h-12 font-bold text-sm gap-2">
                 <Calendar className="h-4 w-4" />
                 Planifier ma tournée
               </Button>
             </Link>
-          )}
+          ) : null}
         </CardContent>
       </Card>
 
@@ -436,7 +450,8 @@ export default function DashboardPage() {
         )}
       </section>
 
-      {/* ═══ C. TÂCHES URGENTES ═══ */}
+      {/* ═══ C. TÂCHES URGENTES (hidden for observateur) ═══ */}
+      {!readOnly && (
       <section>
         <div className="flex items-center justify-between mb-2">
           <h2 className="font-heading text-sm font-semibold flex items-center gap-1.5">
@@ -474,14 +489,17 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             ))}
+            {canPerformAction(role, 'create_task') && (
             <Link to="/taches" className="block">
               <Button variant="ghost" size="sm" className="w-full text-xs h-8 gap-1 text-muted-foreground">
                 <Plus className="h-3 w-3" /> Ajouter une tâche
               </Button>
             </Link>
+            )}
           </div>
         )}
       </section>
+      )}
 
       {/* ═══ D. ALERTES INTELLIGENTES ═══ */}
       {alerts.length > 0 && (
@@ -501,6 +519,78 @@ export default function DashboardPage() {
             ))}
           </div>
         </section>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ADMIN / MANAGER OVERVIEW PANEL
+   Shows team-level and management KPIs at the top of dashboard
+   ═══════════════════════════════════════════════════════════════ */
+function AdminManagerOverview({ role }: { role: AppRole }) {
+  const { data: stats } = useQuery({
+    queryKey: ['admin-overview-stats', role],
+    queryFn: async () => {
+      const today = format(new Date(), 'yyyy-MM-dd');
+      
+      const [
+        { count: totalCustomers },
+        { count: totalProspects },
+        { count: pendingConversions },
+        { count: todayReports },
+        { count: activeUsers },
+      ] = await Promise.all([
+        supabase.from('customers').select('*', { count: 'exact', head: true }).eq('customer_type', 'client_actif'),
+        supabase.from('customers').select('*', { count: 'exact', head: true }).in('customer_type', ['prospect', 'prospect_qualifie']),
+        supabase.from('conversion_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+        supabase.from('visit_reports').select('*', { count: 'exact', head: true }).eq('visit_date', today),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_active', true),
+      ]);
+
+      return {
+        totalCustomers: totalCustomers || 0,
+        totalProspects: totalProspects || 0,
+        pendingConversions: pendingConversions || 0,
+        todayReports: todayReports || 0,
+        activeUsers: activeUsers || 0,
+      };
+    },
+  });
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+      <Card>
+        <CardContent className="p-3 text-center">
+          <p className="text-lg font-bold text-primary">{stats?.activeUsers ?? '–'}</p>
+          <p className="text-[10px] text-muted-foreground">Utilisateurs actifs</p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="p-3 text-center">
+          <p className="text-lg font-bold">{stats?.totalCustomers ?? '–'}</p>
+          <p className="text-[10px] text-muted-foreground">Clients actifs</p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="p-3 text-center">
+          <p className="text-lg font-bold">{stats?.totalProspects ?? '–'}</p>
+          <p className="text-[10px] text-muted-foreground">Prospects</p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="p-3 text-center">
+          <p className="text-lg font-bold text-accent">{stats?.todayReports ?? '–'}</p>
+          <p className="text-[10px] text-muted-foreground">Rapports aujourd'hui</p>
+        </CardContent>
+      </Card>
+      {role === 'admin' && (
+        <Card className={stats?.pendingConversions ? 'border-warning/40' : ''}>
+          <CardContent className="p-3 text-center">
+            <p className="text-lg font-bold text-warning">{stats?.pendingConversions ?? '–'}</p>
+            <p className="text-[10px] text-muted-foreground">Conversions en attente</p>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
