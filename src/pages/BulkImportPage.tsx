@@ -194,13 +194,29 @@ export default function BulkImportPage() {
     if (!user) return;
     setImporting(true);
     const mappedRows = getMappedRows();
-    const res: ImportResult = { created: 0, errors: 0, errorDetails: [] };
+    const res: ImportResult = { created: 0, duplicates: 0, errors: 0, errorDetails: [] };
+
+    // Fetch existing customers for duplicate check
+    const { data: existingCustomers } = await supabase
+      .from('customers')
+      .select('company_name, city');
+    const existingSet = new Set(
+      (existingCustomers || []).map(c => `${(c.company_name || '').toLowerCase()}|${(c.city || '').toLowerCase()}`)
+    );
 
     for (let i = 0; i < mappedRows.length; i++) {
       const r = mappedRows[i];
+      if (ignoredIndices.has(i)) continue;
       if (isRowInvalid(r)) {
         res.errors++;
         res.errorDetails.push({ row: i + 1, reason: 'Entreprise ou Ville manquante' });
+        continue;
+      }
+
+      // Duplicate check
+      const dupeKey = `${r.entreprise.toLowerCase()}|${r.ville.toLowerCase()}`;
+      if (existingSet.has(dupeKey)) {
+        res.duplicates++;
         continue;
       }
 
@@ -235,8 +251,9 @@ export default function BulkImportPage() {
           continue;
         }
         res.created++;
+        // Add to existing set to catch intra-file duplicates
+        existingSet.add(dupeKey);
 
-        // Create contact if provided
         if (r.contact_nom && created?.id) {
           const parts = r.contact_nom.trim().split(/\s+/);
           const first_name = parts[0] || '';
