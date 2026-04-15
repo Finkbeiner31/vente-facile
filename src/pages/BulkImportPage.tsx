@@ -87,9 +87,6 @@ export default function BulkImportPage() {
   const [result, setResult] = useState<ImportResult | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [statutMode, setStatutMode] = useState<StatutMode>('client_actif');
-  const [showInvalidPanel, setShowInvalidPanel] = useState(false);
-  const [corrections, setCorrections] = useState<Record<number, { entreprise?: string; ville?: string }>>({});
-  const [correctedIndices, setCorrectedIndices] = useState<Set<number>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const parseFile = useCallback(async (file: File) => {
@@ -161,7 +158,7 @@ export default function BulkImportPage() {
   };
 
   const getMappedRows = (): MappedRow[] => {
-    return rawData.map((row, idx) => {
+    return rawData.map(row => {
       const mapped: MappedRow = {};
       for (const field of CRM_FIELDS) {
         if (field.key === 'statut') {
@@ -175,12 +172,6 @@ export default function BulkImportPage() {
         }
         const col = mapping[field.key];
         mapped[field.key] = col ? String(row[col] ?? '').trim() : '';
-      }
-      // Apply corrections
-      const corr = corrections[idx];
-      if (corr) {
-        if (corr.entreprise !== undefined) mapped.entreprise = corr.entreprise;
-        if (corr.ville !== undefined) mapped.ville = corr.ville;
       }
       return mapped;
     });
@@ -551,27 +542,8 @@ export default function BulkImportPage() {
   if (step === 'preview') {
     const mappedRows = getMappedRows();
     const previewRows = mappedRows.slice(0, 5);
-    const invalidRows = mappedRows.map((row, i) => ({ row, index: i })).filter(r => isRowInvalid(r.row));
-    const invalidCount = invalidRows.length;
+    const invalidCount = mappedRows.filter(isRowInvalid).length;
     const validCount = mappedRows.length - invalidCount;
-
-    const handleCorrection = (idx: number, field: 'entreprise' | 'ville', value: string) => {
-      setCorrections(prev => ({
-        ...prev,
-        [idx]: { ...prev[idx], [field]: value },
-      }));
-    };
-
-    const handleValidateCorrection = (idx: number) => {
-      const corr = corrections[idx];
-      const row = getMappedRows()[idx];
-      if (row.entreprise && row.ville) {
-        setCorrectedIndices(prev => new Set(prev).add(idx));
-        toast.success(`Ligne ${idx + 1} corrigée`);
-      } else {
-        toast.error('Entreprise et Ville doivent être remplies');
-      }
-    };
 
     return (
       <div className="space-y-6 animate-fade-in">
@@ -593,89 +565,12 @@ export default function BulkImportPage() {
             {validCount} valides
           </Badge>
           {invalidCount > 0 && (
-            <Badge
-              variant="destructive"
-              className="text-sm px-3 py-1 cursor-pointer hover:opacity-80 transition-opacity"
-              onClick={() => setShowInvalidPanel(!showInvalidPanel)}
-            >
+            <Badge variant="destructive" className="text-sm px-3 py-1">
               <XCircle className="h-3.5 w-3.5 mr-1.5" />
-              {invalidCount} invalides — cliquez pour corriger
+              {invalidCount} invalides (entreprise ou ville manquante)
             </Badge>
           )}
         </div>
-
-        {/* Invalid rows correction panel */}
-        {showInvalidPanel && invalidCount > 0 && (
-          <Card className="border-destructive/30">
-            <CardContent className="p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4 text-destructive" />
-                  {invalidCount} ligne{invalidCount > 1 ? 's' : ''} à corriger
-                </p>
-                <Button variant="ghost" size="sm" onClick={() => setShowInvalidPanel(false)}>
-                  Fermer
-                </Button>
-              </div>
-
-              <div className="overflow-auto max-h-[400px] space-y-3">
-                {invalidRows.map(({ row, index }) => (
-                  <div key={index} className="border rounded-lg p-3 bg-destructive/5 space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">Ligne {index + 1}</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-xs text-muted-foreground">Entreprise {!row.entreprise && <span className="text-destructive">⚠ vide</span>}</label>
-                        <input
-                          type="text"
-                          className="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-sm"
-                          value={corrections[index]?.entreprise ?? row.entreprise}
-                          onChange={(e) => handleCorrection(index, 'entreprise', e.target.value)}
-                          placeholder="Nom de l'entreprise"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">Ville {!row.ville && <span className="text-destructive">⚠ vide</span>}</label>
-                        <input
-                          type="text"
-                          className="flex h-8 w-full rounded-md border border-input bg-background px-2 py-1 text-sm"
-                          value={corrections[index]?.ville ?? row.ville}
-                          onChange={(e) => handleCorrection(index, 'ville', e.target.value)}
-                          placeholder="Ville"
-                        />
-                      </div>
-                    </div>
-                    {row.code_postal || row.telephone || row.email ? (
-                      <p className="text-[10px] text-muted-foreground">
-                        Données existantes : {[row.code_postal, row.telephone, row.email].filter(Boolean).join(' · ')}
-                      </p>
-                    ) : null}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 text-xs"
-                      onClick={() => handleValidateCorrection(index)}
-                    >
-                      <CheckCircle2 className="h-3 w-3 mr-1" /> Valider
-                    </Button>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex gap-2 pt-2 border-t">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setShowInvalidPanel(false);
-                    handleImport();
-                  }}
-                >
-                  Ignorer toutes les invalides
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Preview table */}
         <Card>
@@ -725,16 +620,11 @@ export default function BulkImportPage() {
           </CardContent>
         </Card>
 
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between">
           <Button variant="outline" onClick={() => setStep('mapping')}>
             <ArrowLeft className="h-4 w-4 mr-1" /> Retour
           </Button>
-          <Button
-            onClick={handleImport}
-            disabled={importing || validCount === 0}
-            className="bg-green-600 hover:bg-green-700 text-white"
-            size="lg"
-          >
+          <Button onClick={handleImport} disabled={importing || validCount === 0}>
             {importing ? (
               <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Import en cours...</>
             ) : (
