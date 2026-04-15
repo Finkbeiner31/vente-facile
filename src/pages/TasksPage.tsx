@@ -34,7 +34,10 @@ interface Task {
 
 const initialTasks: Task[] = [];
 
-const isOverdue = (dateStr: string) => new Date(dateStr) < new Date('2026-04-08');
+const isOverdue = (dateStr: string | null) => {
+  if (!dateStr) return false;
+  return new Date(dateStr + 'T00:00:00') < new Date(new Date().toDateString());
+};
 
 const formatDate = (raw: string) => {
   const d = new Date(raw);

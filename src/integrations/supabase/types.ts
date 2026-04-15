@@ -913,6 +913,7 @@ export type Database = {
         Row: {
           competitor_info: string | null
           contact_id: string | null
+          contact_met: string | null
           created_at: string
           customer_id: string
           customer_needs: string | null
@@ -936,6 +937,7 @@ export type Database = {
         Insert: {
           competitor_info?: string | null
           contact_id?: string | null
+          contact_met?: string | null
           created_at?: string
           customer_id: string
           customer_needs?: string | null
@@ -959,6 +961,7 @@ export type Database = {
         Update: {
           competitor_info?: string | null
           contact_id?: string | null
+          contact_met?: string | null
           created_at?: string
           customer_id?: string
           customer_needs?: string | null
