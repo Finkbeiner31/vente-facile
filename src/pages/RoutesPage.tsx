@@ -65,9 +65,56 @@ export default function RoutesPage() {
   // Tracks user-customized planned stops per day key
   const [customPlanned, setCustomPlanned] = useState<Record<string, { customer: CustomerForRouting; priority: number; customerType?: string; lastVisitDate?: string | null }[]>>({});
 
-  const { session, startSession } = useTourSession();
+  const isToday = (() => {
+    const now = new Date();
+    const dow = now.getDay();
+    const currentWeek = getCurrentWeekNumber();
+    return dow === selectedDay && currentWeek === selectedWeek;
+  })();
 
-  const dayKey = `${selectedWeek}-${selectedDay}`;
+  const persistStopsMutation = useMutation({
+    mutationFn: async (newStops: { customer: CustomerForRouting; priority: number }[]) => {
+      if (!activeUserId) throw new Error('Non connecté');
+      const today = new Date().toISOString().split('T')[0];
+
+      // Find or create the daily tour
+      let { data: tour } = await supabase
+        .from('daily_tours')
+        .select('id')
+        .eq('user_id', activeUserId)
+        .eq('tour_date', today)
+        .maybeSingle();
+
+      if (!tour) {
+        const { data: created, error: createErr } = await supabase
+          .from('daily_tours')
+          .insert({ user_id: activeUserId, tour_date: today, status: 'planned', zone_id: todayZoneId })
+          .select('id')
+          .single();
+        if (createErr) throw createErr;
+        tour = created;
+      }
+
+      // Delete existing stops
+      await supabase.from('daily_tour_stops').delete().eq('daily_tour_id', tour!.id);
+
+      // Recreate stops
+      if (newStops.length > 0) {
+        const stops = newStops
+          .filter(s => !s.customer.id.startsWith('prospect-'))
+          .map((s, i) => ({
+            daily_tour_id: tour!.id,
+            customer_id: s.customer.id,
+            stop_order: i,
+            status: 'planned',
+          }));
+        if (stops.length > 0) {
+          const { error } = await supabase.from('daily_tour_stops').insert(stops);
+          if (error) throw error;
+        }
+      }
+    },
+  });
 
   const { data: planning = [] } = useQuery({
     queryKey: ['weekly-zone-planning', activeUserId, selectedWeek],
