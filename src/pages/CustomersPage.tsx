@@ -110,43 +110,51 @@ export default function CustomersPage() {
   const { data: revenueMap } = useAllCustomerRevenues();
 
   const { data: customers = [], isLoading, isError } = useQuery({
-    queryKey: ['customers', activeUserId],
+    queryKey: ['customers', activeUserId, role],
     queryFn: async () => {
       if (!activeUserId) return [];
-      
-      // Fetch clients where user is principal OR exceptional commercial
-      const { data: principalClients, error: e1 } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('assigned_rep_id', activeUserId)
-        .order('annual_revenue_potential', { ascending: false, nullsFirst: false });
-      if (e1) throw e1;
 
-      const { data: exceptionalClients, error: e2 } = await (supabase as any)
-        .from('customers')
-        .select('*')
-        .eq('exceptional_commercial_id', activeUserId)
-        .eq('management_mode', 'exceptional');
-      if (e2) throw e2;
+      let allData: any[] = [];
 
-      // Merge, deduplicate, and exclude principal clients in exceptional mode (they go to the exceptional commercial)
-      const allData = [...(principalClients || []), ...(exceptionalClients || [])];
-      const seen = new Set<string>();
-      const deduped = allData.filter(c => {
-        if (seen.has(c.id)) return false;
-        seen.add(c.id);
-        return true;
-      });
+      if (role === 'admin' || role === 'manager') {
+        // Admin and Manager: load ALL customers (RLS already allows it)
+        const { data, error } = await supabase
+          .from('customers')
+          .select('*')
+          .order('annual_revenue_potential', { ascending: false, nullsFirst: false });
+        if (error) throw error;
+        allData = data || [];
+      } else {
+        // Commercial / other roles: load only own scope
+        const { data: principalClients, error: e1 } = await supabase
+          .from('customers')
+          .select('*')
+          .eq('assigned_rep_id', activeUserId)
+          .order('annual_revenue_potential', { ascending: false, nullsFirst: false });
+        if (e1) throw e1;
 
-      // For operational visibility: if a client is exceptional and this user is the principal (not exceptional), hide it
-      const filtered = deduped.filter(c => {
-        if ((c as any).management_mode === 'exceptional' && (c as any).exceptional_commercial_id && (c as any).exceptional_commercial_id !== activeUserId) {
-          return false; // principal commercial should not see exceptional clients operationally
-        }
-        return true;
-      });
+        const { data: exceptionalClients, error: e2 } = await (supabase as any)
+          .from('customers')
+          .select('*')
+          .eq('exceptional_commercial_id', activeUserId)
+          .eq('management_mode', 'exceptional');
+        if (e2) throw e2;
 
-      return filtered.map((customer: any): CustomerListItem => {
+        const merged = [...(principalClients || []), ...(exceptionalClients || [])];
+        const seen = new Set<string>();
+        allData = merged.filter(c => {
+          if (seen.has(c.id)) return false;
+          seen.add(c.id);
+          return true;
+        }).filter(c => {
+          if ((c as any).management_mode === 'exceptional' && (c as any).exceptional_commercial_id && (c as any).exceptional_commercial_id !== activeUserId) {
+            return false;
+          }
+          return true;
+        });
+      }
+
+      return allData.map((customer: any): CustomerListItem => {
         const revenue = Number(customer.annual_revenue_potential || 0);
         return {
           id: customer.id,
