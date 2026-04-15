@@ -23,9 +23,7 @@ import MapPage from "@/pages/MapPage";
 import PromotionsPage from "@/pages/PromotionsPage";
 import NotFound from "./pages/NotFound.tsx";
 
-const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1 } },
-});
+const queryClient = new QueryClient();
 
 function ImpersonationWrapper({ children }: { children: React.ReactNode }) {
   const { user, role, profile } = useAuth();
