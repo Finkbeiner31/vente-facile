@@ -10,7 +10,6 @@ import {
   Settings,
   LogOut,
   Flame,
-  ChevronDown,
   Upload,
   DollarSign,
   BarChart3,
@@ -32,23 +31,24 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar';
 import { Button } from '@/components/ui/button';
+import { canAccessModule, getRoleLabel, type AppRole, type ModuleId } from '@/lib/permissions';
 
-const mainNav = [
-  { title: 'Tableau de bord', url: '/', icon: LayoutDashboard },
-  { title: 'Clients', url: '/clients', icon: Users },
-  { title: 'Carte clients', url: '/carte', icon: Map },
-  { title: 'Tournées', url: '/tournees', icon: MapPin },
-  { title: 'Rapports de visite', url: '/rapports', icon: FileText },
-  { title: 'Tâches', url: '/taches', icon: CheckSquare },
-  { title: 'Opportunités', url: '/opportunites', icon: TrendingUp },
-  { title: 'Promotions', url: '/promotions', icon: Tag },
+const mainNav: { title: string; url: string; icon: any; module: ModuleId }[] = [
+  { title: 'Tableau de bord', url: '/', icon: LayoutDashboard, module: 'dashboard' },
+  { title: 'Clients', url: '/clients', icon: Users, module: 'clients' },
+  { title: 'Carte clients', url: '/carte', icon: Map, module: 'map' },
+  { title: 'Tournées', url: '/tournees', icon: MapPin, module: 'routes' },
+  { title: 'Rapports de visite', url: '/rapports', icon: FileText, module: 'reports' },
+  { title: 'Tâches', url: '/taches', icon: CheckSquare, module: 'tasks' },
+  { title: 'Opportunités', url: '/opportunites', icon: TrendingUp, module: 'opportunities' },
+  { title: 'Promotions', url: '/promotions', icon: Tag, module: 'promotions' },
 ];
 
-const adminNav = [
-  { title: 'Administration', url: '/admin', icon: Settings },
-  { title: 'Import clients', url: '/admin/import', icon: Upload, adminOnly: true },
-  { title: 'Import CA mensuel', url: '/admin/import-ca', icon: DollarSign, adminOnly: true },
-  { title: 'Historique CA', url: '/admin/historique-ca', icon: BarChart3, adminOnly: true },
+const adminNav: { title: string; url: string; icon: any; module: ModuleId }[] = [
+  { title: 'Administration', url: '/admin', icon: Settings, module: 'admin' },
+  { title: 'Import clients', url: '/admin/import', icon: Upload, module: 'admin_import' },
+  { title: 'Import CA mensuel', url: '/admin/import-ca', icon: DollarSign, module: 'admin_import_ca' },
+  { title: 'Historique CA', url: '/admin/historique-ca', icon: BarChart3, module: 'admin_history_ca' },
 ];
 
 export function AppSidebar() {
@@ -56,8 +56,11 @@ export function AppSidebar() {
   const collapsed = state === 'collapsed';
   const { signOut, profile, role: realRole } = useAuth();
   const { effectiveRole, effectiveFullName, isImpersonating } = useImpersonation();
-  const role = isImpersonating ? effectiveRole : realRole;
+  const role = (isImpersonating ? effectiveRole : realRole) as AppRole | null;
   const displayName = isImpersonating ? effectiveFullName : profile?.full_name;
+
+  const visibleMainNav = mainNav.filter(item => canAccessModule(role, item.module));
+  const visibleAdminNav = adminNav.filter(item => canAccessModule(role, item.module));
 
   return (
     <Sidebar collapsible="icon">
@@ -84,7 +87,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Navigation</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {mainNav.map((item) => (
+              {visibleMainNav.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink
@@ -103,14 +106,12 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {(role === 'admin' || role === 'manager') && (
+        {visibleAdminNav.length > 0 && (
           <SidebarGroup>
             <SidebarGroupLabel>Gestion</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {adminNav
-                  .filter(item => !('adminOnly' in item && item.adminOnly) || role === 'admin')
-                  .map((item) => (
+                {visibleAdminNav.map((item) => (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild>
                       <NavLink
@@ -136,8 +137,8 @@ export function AppSidebar() {
             <p className="text-sm font-medium text-sidebar-foreground">
               {displayName || profile?.full_name || 'Utilisateur'}
             </p>
-            <p className="text-xs text-muted-foreground capitalize">
-              {role === 'sales_rep' ? 'Commercial' : role === 'manager' ? 'Responsable' : role === 'admin' ? 'Admin' : 'Observateur'}
+            <p className="text-xs text-muted-foreground">
+              {getRoleLabel(role)}
             </p>
           </div>
         )}

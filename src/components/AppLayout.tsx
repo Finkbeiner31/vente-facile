@@ -6,13 +6,12 @@ import { MobileBottomBar } from '@/components/MobileBottomBar';
 import { useAuth } from '@/contexts/AuthContext';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { Navigate, useLocation } from 'react-router-dom';
-import { Loader2, X } from 'lucide-react';
+import { Loader2, X, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-
-const ADMIN_ROUTES = ['/admin', '/admin/import', '/admin/import-ca', '/admin/historique-ca'];
+import { canAccessRoute, type AppRole } from '@/lib/permissions';
 
 export default function AppLayout() {
-  const { session, loading } = useAuth();
+  const { session, loading, role: authRole } = useAuth();
   const { isImpersonating, impersonatedUser, stopImpersonation, effectiveRole } = useImpersonation();
   const location = useLocation();
 
@@ -26,9 +25,11 @@ export default function AppLayout() {
 
   if (!session) return <Navigate to="/login" replace />;
 
-  // Block admin routes when impersonating a non-admin user
-  const isAdminRoute = ADMIN_ROUTES.some(r => location.pathname === r || location.pathname.startsWith(r + '/'));
-  if (isAdminRoute && isImpersonating && effectiveRole !== 'admin' && effectiveRole !== 'manager') {
+  // Use effective role (impersonated or real)
+  const activeRole: AppRole | null = (isImpersonating ? effectiveRole : authRole) as AppRole | null;
+
+  // Route-level permission check
+  if (!canAccessRoute(activeRole, location.pathname)) {
     return <Navigate to="/" replace />;
   }
 
