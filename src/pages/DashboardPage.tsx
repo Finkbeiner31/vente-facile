@@ -32,13 +32,16 @@ const todayStr = () => format(new Date(), 'yyyy-MM-dd');
    DASHBOARD PAGE
    ═══════════════════════════════════════════════════════════════ */
 export default function DashboardPage() {
-  const { profile, user, loading: authLoading } = useAuth();
-  const { effectiveUserId, isImpersonating, impersonatedUser } = useImpersonation();
+  const { profile, user, loading: authLoading, role: authRole } = useAuth();
+  const { effectiveUserId, isImpersonating, impersonatedUser, effectiveRole } = useImpersonation();
   const { session, startSession } = useTourSession();
   const [tourMode, setTourMode] = useState(false);
   const [confirmRegenerate, setConfirmRegenerate] = useState(false);
   
   const activeUserId = effectiveUserId || user?.id;
+  const role = (isImpersonating ? effectiveRole : authRole) as AppRole | null;
+  const readOnly = isReadOnly(role);
+  const canRunTour = canPerformAction(role, 'run_tournee');
 
   /* ── Daily Tour (auto-generated from planning) ── */
   const { dailyTour, isLoading: dailyTourLoading, autoGenerate, regenerate, isRegenerating, isGenerating } = useDailyTour(activeUserId);
