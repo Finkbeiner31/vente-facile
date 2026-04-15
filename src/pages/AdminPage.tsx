@@ -1006,28 +1006,43 @@ export default function AdminPage() {
       </Dialog>
 
       {/* ===== DELETE CONFIRMATION MODAL ===== */}
-      <Dialog open={!!showDeleteModal} onOpenChange={open => !open && setShowDeleteModal(null)}>
+      <Dialog open={!!showDeleteModal} onOpenChange={open => { if (!open) { setShowDeleteModal(null); setDeleteConfirmName(''); } }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
-              <Trash2 className="h-5 w-5" />
+              <AlertTriangle className="h-5 w-5" />
               Supprimer ce profil
             </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Voulez-vous supprimer le profil de <strong>{deleteTargetUser?.full_name}</strong> ?
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Les données associées (clients, visites, CA) seront conservées.
-            Si ce profil a des données, il sera désactivé au lieu d'être supprimé.
-          </p>
+          <div className="space-y-3">
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+              <p className="text-sm font-medium">
+                Vous êtes sur le point de supprimer le profil de <strong>{deleteTargetUser?.full_name}</strong>.
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Cette action est irréversible. Les données associées (clients, visites, CA) seront conservées.
+                Si ce profil a des données liées, il sera désactivé au lieu d'être supprimé.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">
+                Pour confirmer, tapez <strong>{deleteTargetUser?.full_name}</strong> ci-dessous :
+              </Label>
+              <Input
+                placeholder={deleteTargetUser?.full_name || ''}
+                value={deleteConfirmName}
+                onChange={e => setDeleteConfirmName(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
+          </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setShowDeleteModal(null)}>Annuler</Button>
+            <Button variant="ghost" onClick={() => { setShowDeleteModal(null); setDeleteConfirmName(''); }}>Annuler</Button>
             <Button variant="destructive"
               onClick={() => showDeleteModal && manageUserMutation.mutate({ userId: showDeleteModal, action: 'delete' })}
-              disabled={manageUserMutation.isPending}>
+              disabled={manageUserMutation.isPending || deleteConfirmName !== deleteTargetUser?.full_name}>
               {manageUserMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
-              Confirmer
+              Supprimer définitivement
             </Button>
           </DialogFooter>
         </DialogContent>
