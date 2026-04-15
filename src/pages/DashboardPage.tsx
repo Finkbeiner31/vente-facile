@@ -523,3 +523,75 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   ADMIN / MANAGER OVERVIEW PANEL
+   Shows team-level and management KPIs at the top of dashboard
+   ═══════════════════════════════════════════════════════════════ */
+function AdminManagerOverview({ role }: { role: AppRole }) {
+  const { data: stats } = useQuery({
+    queryKey: ['admin-overview-stats', role],
+    queryFn: async () => {
+      const today = format(new Date(), 'yyyy-MM-dd');
+      
+      const [
+        { count: totalCustomers },
+        { count: totalProspects },
+        { count: pendingConversions },
+        { count: todayReports },
+        { count: activeUsers },
+      ] = await Promise.all([
+        supabase.from('customers').select('*', { count: 'exact', head: true }).eq('customer_type', 'client_actif'),
+        supabase.from('customers').select('*', { count: 'exact', head: true }).in('customer_type', ['prospect', 'prospect_qualifie']),
+        supabase.from('conversion_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+        supabase.from('visit_reports').select('*', { count: 'exact', head: true }).eq('visit_date', today),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_active', true),
+      ]);
+
+      return {
+        totalCustomers: totalCustomers || 0,
+        totalProspects: totalProspects || 0,
+        pendingConversions: pendingConversions || 0,
+        todayReports: todayReports || 0,
+        activeUsers: activeUsers || 0,
+      };
+    },
+  });
+
+  return (
+    <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+      <Card>
+        <CardContent className="p-3 text-center">
+          <p className="text-lg font-bold text-primary">{stats?.activeUsers ?? '–'}</p>
+          <p className="text-[10px] text-muted-foreground">Utilisateurs actifs</p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="p-3 text-center">
+          <p className="text-lg font-bold">{stats?.totalCustomers ?? '–'}</p>
+          <p className="text-[10px] text-muted-foreground">Clients actifs</p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="p-3 text-center">
+          <p className="text-lg font-bold">{stats?.totalProspects ?? '–'}</p>
+          <p className="text-[10px] text-muted-foreground">Prospects</p>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="p-3 text-center">
+          <p className="text-lg font-bold text-accent">{stats?.todayReports ?? '–'}</p>
+          <p className="text-[10px] text-muted-foreground">Rapports aujourd'hui</p>
+        </CardContent>
+      </Card>
+      {role === 'admin' && (
+        <Card className={stats?.pendingConversions ? 'border-warning/40' : ''}>
+          <CardContent className="p-3 text-center">
+            <p className="text-lg font-bold text-warning">{stats?.pendingConversions ?? '–'}</p>
+            <p className="text-[10px] text-muted-foreground">Conversions en attente</p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
