@@ -208,6 +208,7 @@ export default function AdminPage() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
       setShowDeleteModal(null);
+      setDeleteConfirmName('');
       if (data.result === 'deleted') {
         setSelectedUserId(null);
         toast.success('Profil supprimé');
