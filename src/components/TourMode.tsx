@@ -36,11 +36,6 @@ interface TourModeProps {
 
 type StopStatus = 'planned' | 'in_progress' | 'completed' | 'skipped';
 
-const demoLastReports: Record<string, any> = {
-  '1': { date: '25 mars 2026', contactMet: 'M. Martin', summary: 'Commande de 12 pneus passée', nextAction: 'Livraison à confirmer', notes: 'Client satisfait', outcome: 'productive' },
-  '3': { date: '18 mars 2026', contactMet: 'Mme Dupont', summary: 'Présentation du nouveau catalogue', nextAction: 'Envoyer devis personnalisé', notes: 'Intéressé par les pneus hiver', outcome: 'followup' },
-  '5': { date: '12 mars 2026', contactMet: 'M. Leclerc', summary: 'Discussion tarifs flotte', nextAction: 'Revoir les prix volume', notes: 'Flotte de 25 véhicules', outcome: 'productive' },
-};
 
 export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
   const { session, updateSession, endSession } = useTourSession();
