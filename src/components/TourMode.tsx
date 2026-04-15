@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { toast } from 'sonner';
+import { useQuery } from '@tanstack/react-query';
 import { TourReportSheet } from './TourReportSheet';
 import { DaySummarySheet } from './DaySummarySheet';
 import { LastReportCard } from './LastReportCard';
