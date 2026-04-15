@@ -541,8 +541,8 @@ function AdminManagerOverview({ role }: { role: AppRole }) {
         { count: todayReports },
         { count: activeUsers },
       ] = await Promise.all([
-        supabase.from('customers').select('*', { count: 'exact', head: true }).eq('customer_type', 'client_actif'),
-        supabase.from('customers').select('*', { count: 'exact', head: true }).in('customer_type', ['prospect', 'prospect_qualifie']),
+        supabase.from('customers').select('*', { count: 'exact', head: true }).eq('customer_type', 'client_actif').eq('account_status', 'active'),
+        supabase.from('customers').select('*', { count: 'exact', head: true }).in('customer_type', ['prospect', 'prospect_qualifie']).eq('account_status', 'active'),
         supabase.from('conversion_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
         supabase.from('visit_reports').select('*', { count: 'exact', head: true }).eq('visit_date', today),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_active', true),
