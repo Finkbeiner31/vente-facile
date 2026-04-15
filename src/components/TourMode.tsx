@@ -222,7 +222,24 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
     insertStop({ customer, priority }, position);
   };
 
-  const handleEndTour = () => {
+  const handleEndTour = async () => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const { data: tours } = await supabase
+        .from('daily_tours')
+        .select('id')
+        .eq('user_id', activeUserId!)
+        .eq('tour_date', today)
+        .limit(1);
+      if (tours?.[0]?.id) {
+        const tourId = tours[0].id;
+        await supabase.from('daily_tours')
+          .update({ status: 'completed' })
+          .eq('id', tourId);
+      }
+    } catch (e) {
+      console.warn('Could not sync tour:', e);
+    }
     endSession();
     onExit();
   };
