@@ -161,7 +161,7 @@ export default function BulkImportPage() {
   };
 
   const getMappedRows = (): MappedRow[] => {
-    return rawData.map(row => {
+    return rawData.map((row, idx) => {
       const mapped: MappedRow = {};
       for (const field of CRM_FIELDS) {
         if (field.key === 'statut') {
@@ -175,6 +175,12 @@ export default function BulkImportPage() {
         }
         const col = mapping[field.key];
         mapped[field.key] = col ? String(row[col] ?? '').trim() : '';
+      }
+      // Apply corrections
+      const corr = corrections[idx];
+      if (corr) {
+        if (corr.entreprise !== undefined) mapped.entreprise = corr.entreprise;
+        if (corr.ville !== undefined) mapped.ville = corr.ville;
       }
       return mapped;
     });
