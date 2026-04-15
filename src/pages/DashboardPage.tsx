@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import { Link } from 'react-router-dom';
 import { TourMode } from '@/components/TourMode';
 import { useDailyTour } from '@/hooks/useDailyTour';
+import { isReadOnly, canPerformAction, getRoleLabel, type AppRole } from '@/lib/permissions';
 import { getCurrentWeekNumber, getTodayDow } from '@/lib/weekCycleUtils';
 
 import { Card, CardContent } from '@/components/ui/card';
