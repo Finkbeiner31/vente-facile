@@ -486,6 +486,11 @@ export default function RoutesPage() {
             availableCustomers={zoneCustomers}
             onUpdatePlanned={(newStops) => {
               setCustomPlanned(prev => ({ ...prev, [dayKey]: newStops }));
+              const todayDow = new Date().getDay();
+              const isToday = selectedDay === todayDow && selectedWeek === getCurrentWeekNumber();
+              if (isToday) {
+                persistStopsMutation.mutate(newStops);
+              }
             }}
           />
 
