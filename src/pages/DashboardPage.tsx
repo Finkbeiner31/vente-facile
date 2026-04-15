@@ -346,24 +346,28 @@ export default function DashboardPage() {
           )}
 
           {/* Main CTA */}
-          {session?.active ? (
+          {readOnly ? (
+            <div className="text-center py-2">
+              <p className="text-xs text-muted-foreground">Mode lecture seule — aucune action disponible</p>
+            </div>
+          ) : session?.active ? (
             <Button className="w-full h-12 font-bold text-sm gap-2" onClick={() => setTourMode(true)}>
               <RotateCcw className="h-4 w-4" />
               Reprendre ma tournée ({sessionCompletedCount}/{session.stops.length})
             </Button>
-          ) : totalPlanned > 0 ? (
+          ) : totalPlanned > 0 && canRunTour ? (
             <Button className="w-full h-12 font-bold text-sm gap-2" onClick={handleLaunchTour}>
               <Play className="h-4 w-4" />
               Démarrer ma tournée
             </Button>
-          ) : (
+          ) : canRunTour ? (
             <Link to="/tournees" className="block">
               <Button variant="outline" className="w-full h-12 font-bold text-sm gap-2">
                 <Calendar className="h-4 w-4" />
                 Planifier ma tournée
               </Button>
             </Link>
-          )}
+          ) : null}
         </CardContent>
       </Card>
 
