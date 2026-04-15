@@ -87,6 +87,9 @@ export default function BulkImportPage() {
   const [result, setResult] = useState<ImportResult | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [statutMode, setStatutMode] = useState<StatutMode>('client_actif');
+  const [showInvalidPanel, setShowInvalidPanel] = useState(false);
+  const [corrections, setCorrections] = useState<Record<number, { entreprise?: string; ville?: string }>>({});
+  const [correctedIndices, setCorrectedIndices] = useState<Set<number>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const parseFile = useCallback(async (file: File) => {
