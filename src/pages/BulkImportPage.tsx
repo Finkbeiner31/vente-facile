@@ -68,6 +68,7 @@ const ALIASES: Record<string, string[]> = {
 
 interface ImportResult {
   created: number;
+  duplicates: number;
   errors: number;
   errorDetails: { row: number; reason: string }[];
 }
@@ -90,6 +91,7 @@ export default function BulkImportPage() {
   const [showInvalidPanel, setShowInvalidPanel] = useState(false);
   const [corrections, setCorrections] = useState<Record<number, { entreprise?: string; ville?: string }>>({});
   const [correctedIndices, setCorrectedIndices] = useState<Set<number>>(new Set());
+  const [ignoredIndices, setIgnoredIndices] = useState<Set<number>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const parseFile = useCallback(async (file: File) => {
@@ -192,13 +194,29 @@ export default function BulkImportPage() {
     if (!user) return;
     setImporting(true);
     const mappedRows = getMappedRows();
-    const res: ImportResult = { created: 0, errors: 0, errorDetails: [] };
+    const res: ImportResult = { created: 0, duplicates: 0, errors: 0, errorDetails: [] };
+
+    // Fetch existing customers for duplicate check
+    const { data: existingCustomers } = await supabase
+      .from('customers')
+      .select('company_name, city');
+    const existingSet = new Set(
+      (existingCustomers || []).map(c => `${(c.company_name || '').toLowerCase()}|${(c.city || '').toLowerCase()}`)
+    );
 
     for (let i = 0; i < mappedRows.length; i++) {
       const r = mappedRows[i];
+      if (ignoredIndices.has(i)) continue;
       if (isRowInvalid(r)) {
         res.errors++;
         res.errorDetails.push({ row: i + 1, reason: 'Entreprise ou Ville manquante' });
+        continue;
+      }
+
+      // Duplicate check
+      const dupeKey = `${r.entreprise.toLowerCase()}|${r.ville.toLowerCase()}`;
+      if (existingSet.has(dupeKey)) {
+        res.duplicates++;
         continue;
       }
 
@@ -233,8 +251,9 @@ export default function BulkImportPage() {
           continue;
         }
         res.created++;
+        // Add to existing set to catch intra-file duplicates
+        existingSet.add(dupeKey);
 
-        // Create contact if provided
         if (r.contact_nom && created?.id) {
           const parts = r.contact_nom.trim().split(/\s+/);
           const first_name = parts[0] || '';
@@ -550,10 +569,10 @@ export default function BulkImportPage() {
   // ── ÉTAPE 3 : APERÇU & IMPORT ──
   if (step === 'preview') {
     const mappedRows = getMappedRows();
-    const previewRows = mappedRows.slice(0, 5);
-    const invalidRows = mappedRows.map((row, i) => ({ row, index: i })).filter(r => isRowInvalid(r.row));
+    const invalidRows = mappedRows.map((row, i) => ({ row, index: i })).filter(r => !ignoredIndices.has(r.index) && isRowInvalid(r.row));
     const invalidCount = invalidRows.length;
-    const validCount = mappedRows.length - invalidCount;
+    const validCount = mappedRows.filter((row, i) => !ignoredIndices.has(i) && !isRowInvalid(row)).length;
+    const previewRows = mappedRows.slice(0, 5);
 
     const handleCorrection = (idx: number, field: 'entreprise' | 'ville', value: string) => {
       setCorrections(prev => ({
@@ -666,8 +685,11 @@ export default function BulkImportPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
+                    const newIgnored = new Set(ignoredIndices);
+                    invalidRows.forEach(r => newIgnored.add(r.index));
+                    setIgnoredIndices(newIgnored);
                     setShowInvalidPanel(false);
-                    handleImport();
+                    toast.success('Lignes invalides ignorées');
                   }}
                 >
                   Ignorer toutes les invalides
@@ -754,12 +776,19 @@ export default function BulkImportPage() {
         <p className="text-sm text-muted-foreground">{fileName}</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardContent className="p-6 text-center">
             <CheckCircle2 className="mx-auto h-10 w-10 text-accent mb-3" />
             <p className="text-3xl font-bold">{result?.created || 0}</p>
             <p className="text-sm text-muted-foreground">clients importés</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6 text-center">
+            <AlertTriangle className="mx-auto h-10 w-10 text-yellow-500 mb-3" />
+            <p className="text-3xl font-bold">{result?.duplicates || 0}</p>
+            <p className="text-sm text-muted-foreground">doublons ignorés</p>
           </CardContent>
         </Card>
         <Card>
