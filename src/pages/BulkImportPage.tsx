@@ -776,12 +776,19 @@ export default function BulkImportPage() {
         <p className="text-sm text-muted-foreground">{fileName}</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardContent className="p-6 text-center">
             <CheckCircle2 className="mx-auto h-10 w-10 text-accent mb-3" />
             <p className="text-3xl font-bold">{result?.created || 0}</p>
             <p className="text-sm text-muted-foreground">clients importés</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6 text-center">
+            <AlertTriangle className="mx-auto h-10 w-10 text-yellow-500 mb-3" />
+            <p className="text-3xl font-bold">{result?.duplicates || 0}</p>
+            <p className="text-sm text-muted-foreground">doublons ignorés</p>
           </CardContent>
         </Card>
         <Card>
