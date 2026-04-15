@@ -569,10 +569,9 @@ export default function BulkImportPage() {
   // ── ÉTAPE 3 : APERÇU & IMPORT ──
   if (step === 'preview') {
     const mappedRows = getMappedRows();
-    const previewRows = mappedRows.slice(0, 5);
-    const invalidRows = mappedRows.map((row, i) => ({ row, index: i })).filter(r => isRowInvalid(r.row));
+    const invalidRows = mappedRows.map((row, i) => ({ row, index: i })).filter(r => !ignoredIndices.has(r.index) && isRowInvalid(r.row));
     const invalidCount = invalidRows.length;
-    const validCount = mappedRows.length - invalidCount;
+    const validCount = mappedRows.filter((row, i) => !ignoredIndices.has(i) && !isRowInvalid(row)).length;
 
     const handleCorrection = (idx: number, field: 'entreprise' | 'ville', value: string) => {
       setCorrections(prev => ({
