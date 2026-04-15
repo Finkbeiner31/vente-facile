@@ -70,12 +70,13 @@ export default function RoutesPage() {
   const dayKey = `${selectedWeek}-${selectedDay}`;
 
   const { data: planning = [] } = useQuery({
-    queryKey: ['weekly-zone-planning', activeUserId],
+    queryKey: ['weekly-zone-planning', activeUserId, selectedWeek],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('weekly_zone_planning')
         .select('*')
-        .eq('user_id', activeUserId!);
+        .eq('user_id', activeUserId!)
+        .eq('week_number', selectedWeek);
       if (error) throw error;
       return (data || []) as ZonePlanning[];
     },
@@ -83,9 +84,9 @@ export default function RoutesPage() {
   });
 
   const todayZoneId = useMemo(() => {
-    const p = planning.find(p => p.day_of_week === selectedDay && (p as any).week_number === selectedWeek);
+    const p = planning.find(p => p.day_of_week === selectedDay);
     return p?.zone_id || null;
-  }, [planning, selectedDay, selectedWeek]);
+  }, [planning, selectedDay]);
 
   const todayZone = zones.find(z => z.id === todayZoneId);
 
@@ -213,7 +214,7 @@ export default function RoutesPage() {
   });
 
   const getZoneForDay = (day: number) => {
-    const p = planning.find(p => p.day_of_week === day && (p as any).week_number === selectedWeek);
+    const p = planning.find(p => p.day_of_week === day);
     return p?.zone_id || undefined;
   };
 
