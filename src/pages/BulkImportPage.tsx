@@ -12,6 +12,8 @@ import {
   Upload, Download, FileSpreadsheet, AlertTriangle, CheckCircle2,
   XCircle, Loader2, ArrowLeft, ArrowRight, Info, Wand2,
 } from 'lucide-react';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
