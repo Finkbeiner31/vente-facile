@@ -116,6 +116,9 @@ export default function RoutesPage() {
     },
   });
 
+  const { session, startSession } = useTourSession();
+  const dayKey = `${selectedWeek}-${selectedDay}`;
+
   const { data: planning = [] } = useQuery({
     queryKey: ['weekly-zone-planning', activeUserId, selectedWeek],
     queryFn: async () => {
