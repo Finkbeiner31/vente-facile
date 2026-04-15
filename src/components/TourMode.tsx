@@ -154,6 +154,8 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
         promotion_id: data.promotionId || null,
       };
 
+      console.log('[TourMode] Saving report:', { customerId, activeUserId, reportPayload });
+
       const { data: saved, error } = await supabase
         .from('visit_reports')
         .insert(reportPayload)
@@ -161,10 +163,12 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
         .single();
 
       if (error) {
+        console.error('[TourMode] Report save failed:', error);
         toast.error("Impossible d'enregistrer le rapport de visite");
         return; // Don't mark as completed if save failed
       }
 
+      console.log('[TourMode] Report saved:', saved.id);
       toast.success('Rapport enregistré');
 
       // Update customer last_visit_date
@@ -243,38 +247,7 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
     insertStop({ customer, priority }, position);
   };
 
-  const handleEndTour = async () => {
-    // Persist final stop statuses to daily_tour
-    if (activeUserId) {
-      const today = new Date().toISOString().split('T')[0];
-      const { data: tour } = await supabase
-        .from('daily_tours')
-        .select('id')
-        .eq('user_id', activeUserId)
-        .eq('tour_date', today)
-        .maybeSingle();
-
-      if (tour) {
-        // Upsert stop statuses
-        const stopUpdates = stops
-          .filter(s => !s.customer.id.startsWith('prospect-'))
-          .map((s, i) => ({
-            daily_tour_id: tour.id,
-            customer_id: s.customer.id,
-            stop_order: i,
-            status: statuses[i] || 'planned',
-          }));
-
-        if (stopUpdates.length > 0) {
-          await supabase.from('daily_tour_stops').delete().eq('daily_tour_id', tour.id);
-          await supabase.from('daily_tour_stops').insert(stopUpdates);
-        }
-
-        // Mark tour as completed
-        await supabase.from('daily_tours').update({ status: 'completed' }).eq('id', tour.id);
-      }
-    }
-
+  const handleEndTour = () => {
     endSession();
     onExit();
   };

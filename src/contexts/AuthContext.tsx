@@ -41,14 +41,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // Set up listener FIRST (synchronous, no await inside)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      async (_event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {
-          // Fire-and-forget to avoid deadlock
-          fetchProfile(session.user.id).then(() => setLoading(false));
+          await fetchProfile(session.user.id);
         } else {
           setProfile(null);
           setRole(null);
@@ -57,15 +55,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    // Then restore session from storage
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        fetchProfile(session.user.id).then(() => setLoading(false));
-      } else {
-        setLoading(false);
+        await fetchProfile(session.user.id);
       }
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
