@@ -102,13 +102,136 @@ export default function BulkImportPage() {
   }, [existingCustomers]);
 
   const handleDownloadTemplate = () => {
-    const blob = generateTemplate();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'modele_import_clients.xlsx';
-    a.click();
-    URL.revokeObjectURL(url);
+    const XLSX = await import('xlsx');
+    void 0; // replaced below
+  };
+
+  const handleDownloadTemplateReal = () => {
+    import('xlsx').then(XLSX => {
+      const wb = XLSX.utils.book_new();
+
+      // ── Feuille 1 : Import Clients ──
+      const headers = [
+        'entreprise', 'ville', 'statut', 'code_postal', 'telephone', 'email',
+        'metier', 'nb_vehicules', 'potentiel', 'commercial_code',
+        'adresse', 'siret', 'contact_nom', 'notes',
+      ];
+      const descriptions = [
+        'Nom de l\'entreprise', 'Ville du site', 'client_actif ou prospect',
+        'Code postal', 'N° téléphone', 'Adresse email',
+        'ATELIER / NEGOCE / MIXTE / AUTRE', 'Nombre de véhicules', 'A / B / C',
+        'Code commercial', 'Adresse complète', 'N° SIRET', 'Nom du contact principal',
+        'Notes libres',
+      ];
+      const examples = [
+        ['TRANSPORTS DUPONT', 'TOULOUSE', 'client_actif', '31000', '0561234567', 'contact@dupont.fr', 'ATELIER', 12, 'A', 'COM01', '', '', '', ''],
+        ['GARAGE MARTIN', 'MURET', 'client_actif', '31600', '0561987654', 'martin@garage.fr', 'MIXTE', 5, 'B', 'COM03', '', '', '', ''],
+        ['TRANSPORTS NOUVEAUX', 'CARCASSONNE', 'prospect', '11000', '0468123456', '', 'NEGOCE', 8, 'B', 'COM03', '', '', '', ''],
+      ];
+
+      const wsData: (string | number)[][] = [
+        ['VENTE FACILE — Modèle import clients'],
+        ['Colonnes ORANGES = obligatoires'],
+        headers,
+        descriptions,
+        ...examples,
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+      // Merge title row
+      ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 13 } }];
+
+      // Column widths
+      ws['!cols'] = [
+        { wch: 22 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 22 },
+        { wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 16 },
+        { wch: 24 }, { wch: 16 }, { wch: 18 }, { wch: 20 },
+      ];
+
+      // Styles (requires bookType xlsb won't work, but SheetJS community supports basic cell styling)
+      // Title row style
+      const titleCell = ws['A1'];
+      if (titleCell) {
+        titleCell.s = { font: { bold: true, sz: 14, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '1F2937' } }, alignment: { horizontal: 'center' } };
+      }
+      // Subtitle
+      const subCell = ws['A2'];
+      if (subCell) {
+        subCell.s = { font: { italic: true, sz: 10, color: { rgb: '92400E' } }, fill: { fgColor: { rgb: 'FEF3C7' } } };
+      }
+
+      // Header styles
+      const orangeCols = [0, 1, 2]; // obligatoires
+      const greenCols = [3, 4, 5, 6, 7, 8, 9]; // recommandées
+      const greyCols = [10, 11, 12, 13]; // optionnelles
+
+      headers.forEach((_, ci) => {
+        const cellRef = XLSX.utils.encode_cell({ r: 2, c: ci });
+        const cell = ws[cellRef];
+        if (!cell) return;
+        let fillColor = 'D1D5DB'; // grey
+        if (orangeCols.includes(ci)) fillColor = 'F97316';
+        else if (greenCols.includes(ci)) fillColor = '22C55E';
+        cell.s = {
+          font: { bold: true, sz: 11, color: { rgb: orangeCols.includes(ci) ? 'FFFFFF' : '000000' } },
+          fill: { fgColor: { rgb: fillColor } },
+          alignment: { horizontal: 'center' },
+        };
+      });
+
+      // Description row style
+      descriptions.forEach((_, ci) => {
+        const cellRef = XLSX.utils.encode_cell({ r: 3, c: ci });
+        const cell = ws[cellRef];
+        if (cell) {
+          cell.s = { font: { italic: true, sz: 9, color: { rgb: '6B7280' } }, fill: { fgColor: { rgb: 'F9FAFB' } } };
+        }
+      });
+
+      XLSX.utils.book_append_sheet(wb, ws, 'Import Clients');
+
+      // ── Feuille 2 : Valeurs acceptées ──
+      const refData = [
+        ['Champ', 'Valeur', 'Description'],
+        ['statut', 'client_actif', 'Client actif avec CA'],
+        ['statut', 'prospect', 'Prospect à convertir'],
+        ['', '', ''],
+        ['metier', 'ATELIER', 'Atelier mécanique'],
+        ['metier', 'NEGOCE', 'Négoce pièces'],
+        ['metier', 'MIXTE', 'Atelier + Négoce'],
+        ['metier', 'AUTRE', 'Autre activité'],
+        ['', '', ''],
+        ['potentiel', 'A', 'Fort potentiel (≥5k€/mois)'],
+        ['potentiel', 'B', 'Potentiel moyen (2-5k€/mois)'],
+        ['potentiel', 'C', 'Faible potentiel (<2k€/mois)'],
+        ['', '', ''],
+        ['commercial_code', 'COM01', 'Commercial 1'],
+        ['commercial_code', 'COM02', 'Commercial 2'],
+        ['commercial_code', 'COM03', 'Commercial 3'],
+        ['commercial_code', 'COM04', 'Commercial 4'],
+      ];
+      const ws2 = XLSX.utils.aoa_to_sheet(refData);
+      ws2['!cols'] = [{ wch: 18 }, { wch: 14 }, { wch: 28 }];
+
+      // Header style for ref sheet
+      ['A1', 'B1', 'C1'].forEach(ref => {
+        const cell = ws2[ref];
+        if (cell) {
+          cell.s = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '3B82F6' } } };
+        }
+      });
+
+      XLSX.utils.book_append_sheet(wb, ws2, 'Valeurs acceptées');
+
+      const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true });
+      const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'modele_import_clients.xlsx';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
   };
 
   const handleImport = async () => {
