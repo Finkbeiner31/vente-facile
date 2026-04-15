@@ -22,6 +22,7 @@ import Papa from 'papaparse';
 import { generateTemplate } from '@/lib/importUtils';
 
 type Step = 'upload' | 'mapping' | 'preview' | 'result';
+type StatutMode = 'column' | 'client_actif' | 'prospect';
 
 interface CrmField {
   key: string;
@@ -85,6 +86,7 @@ export default function BulkImportPage() {
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [dragOver, setDragOver] = useState(false);
+  const [statutMode, setStatutMode] = useState<StatutMode>('client_actif');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const parseFile = useCallback(async (file: File) => {
@@ -159,6 +161,15 @@ export default function BulkImportPage() {
     return rawData.map(row => {
       const mapped: MappedRow = {};
       for (const field of CRM_FIELDS) {
+        if (field.key === 'statut') {
+          if (statutMode === 'client_actif') mapped.statut = 'client_actif';
+          else if (statutMode === 'prospect') mapped.statut = 'prospect';
+          else {
+            const col = mapping['statut'];
+            mapped.statut = col ? String(row[col] ?? '').trim() : '';
+          }
+          continue;
+        }
         const col = mapping[field.key];
         mapped[field.key] = col ? String(row[col] ?? '').trim() : '';
       }
@@ -356,7 +367,10 @@ export default function BulkImportPage() {
   // ── ÉTAPE 2 : MAPPING ──
   if (step === 'mapping') {
     const previewRows = rawData.slice(0, 3);
-    const requiredMapped = CRM_FIELDS.filter(f => f.required).every(f => mapping[f.key]);
+    const requiredMapped = CRM_FIELDS.filter(f => f.required).every(f => {
+      if (f.key === 'statut') return statutMode !== 'column' || !!mapping['statut'];
+      return !!mapping[f.key];
+    });
 
     return (
       <div className="space-y-6 animate-fade-in">
@@ -414,35 +428,96 @@ export default function BulkImportPage() {
         <Card>
           <CardContent className="p-4">
             <div className="grid gap-3">
-              {CRM_FIELDS.map(field => (
-                <div key={field.key} className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{field.label}</span>
-                    {field.required && <Badge variant="destructive" className="text-[9px] px-1.5 py-0">Obligatoire</Badge>}
-                    {field.hint && <span className="text-[10px] text-muted-foreground">({field.hint})</span>}
+              {CRM_FIELDS.map(field => {
+                if (field.key === 'statut') {
+                  return (
+                    <div key="statut" className="space-y-2 border rounded-lg p-3 bg-muted/30">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">{field.label}</span>
+                        <Badge variant="destructive" className="text-[9px] px-1.5 py-0">Obligatoire</Badge>
+                      </div>
+                      <RadioGroup
+                        value={statutMode}
+                        onValueChange={(v) => setStatutMode(v as StatutMode)}
+                        className="space-y-2"
+                      >
+                        <div className="flex items-center gap-2">
+                          <RadioGroupItem value="client_actif" id="statut-actif" />
+                          <Label htmlFor="statut-actif" className="text-sm cursor-pointer">
+                            Tous les clients sont des <strong>clients actifs</strong>
+                          </Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <RadioGroupItem value="prospect" id="statut-prospect" />
+                          <Label htmlFor="statut-prospect" className="text-sm cursor-pointer">
+                            Tous les clients sont des <strong>prospects</strong>
+                          </Label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <RadioGroupItem value="column" id="statut-column" />
+                          <Label htmlFor="statut-column" className="text-sm cursor-pointer">
+                            Mapper une colonne du fichier
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                      {statutMode === 'column' && (
+                        <div className="ml-6 mt-1">
+                          <Select
+                            value={mapping['statut'] || '__none__'}
+                            onValueChange={v => setMapping(prev => {
+                              const next = { ...prev };
+                              if (v === '__none__') delete next['statut'];
+                              else next['statut'] = v;
+                              return next;
+                            })}
+                          >
+                            <SelectTrigger className={`text-sm ${mapping['statut'] ? '' : 'text-muted-foreground'}`}>
+                              <SelectValue placeholder="— Non mappé —" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="__none__">— Non mappé —</SelectItem>
+                              {fileColumns.map(col => (
+                                <SelectItem key={col} value={col}>{col}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-[10px] text-muted-foreground mt-1">Valeurs acceptées : client_actif ou prospect</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+
+                return (
+                  <div key={field.key} className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{field.label}</span>
+                      {field.required && <Badge variant="destructive" className="text-[9px] px-1.5 py-0">Obligatoire</Badge>}
+                      {field.hint && <span className="text-[10px] text-muted-foreground">({field.hint})</span>}
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                    <Select
+                      value={mapping[field.key] || '__none__'}
+                      onValueChange={v => setMapping(prev => {
+                        const next = { ...prev };
+                        if (v === '__none__') delete next[field.key];
+                        else next[field.key] = v;
+                        return next;
+                      })}
+                    >
+                      <SelectTrigger className={`text-sm ${mapping[field.key] ? '' : 'text-muted-foreground'}`}>
+                        <SelectValue placeholder="— Non mappé —" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">— Non mappé —</SelectItem>
+                        {fileColumns.map(col => (
+                          <SelectItem key={col} value={col}>{col}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                  <Select
-                    value={mapping[field.key] || '__none__'}
-                    onValueChange={v => setMapping(prev => {
-                      const next = { ...prev };
-                      if (v === '__none__') delete next[field.key];
-                      else next[field.key] = v;
-                      return next;
-                    })}
-                  >
-                    <SelectTrigger className={`text-sm ${mapping[field.key] ? '' : 'text-muted-foreground'}`}>
-                      <SelectValue placeholder="— Non mappé —" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">— Non mappé —</SelectItem>
-                      {fileColumns.map(col => (
-                        <SelectItem key={col} value={col}>{col}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
