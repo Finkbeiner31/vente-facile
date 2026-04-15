@@ -9,7 +9,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { toast } from 'sonner';
-import { useQuery } from '@tanstack/react-query';
 import { TourReportSheet } from './TourReportSheet';
 import { DaySummarySheet } from './DaySummarySheet';
 import { LastReportCard } from './LastReportCard';
@@ -36,6 +35,11 @@ interface TourModeProps {
 
 type StopStatus = 'planned' | 'in_progress' | 'completed' | 'skipped';
 
+const demoLastReports: Record<string, any> = {
+  '1': { date: '25 mars 2026', contactMet: 'M. Martin', summary: 'Commande de 12 pneus passée', nextAction: 'Livraison à confirmer', notes: 'Client satisfait', outcome: 'productive' },
+  '3': { date: '18 mars 2026', contactMet: 'Mme Dupont', summary: 'Présentation du nouveau catalogue', nextAction: 'Envoyer devis personnalisé', notes: 'Intéressé par les pneus hiver', outcome: 'followup' },
+  '5': { date: '12 mars 2026', contactMet: 'M. Leclerc', summary: 'Discussion tarifs flotte', nextAction: 'Revoir les prix volume', notes: 'Flotte de 25 véhicules', outcome: 'productive' },
+};
 
 export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
   const { session, updateSession, endSession } = useTourSession();
@@ -54,31 +58,6 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
   const [addUnplannedOpen, setAddUnplannedOpen] = useState(false);
   const [promotionsOpen, setPromotionsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const currentCustomerId = session?.stops[session?.currentIndex ?? 0]?.customer?.id ?? null;
-
-  const { data: lastReportData } = useQuery({
-    queryKey: ['last-report-tour', currentCustomerId],
-    queryFn: async () => {
-      if (!currentCustomerId || currentCustomerId.startsWith('prospect-')) return null;
-      const { data, error } = await supabase
-        .from('visit_reports')
-        .select('visit_date, summary, next_actions, quick_outcome')
-        .eq('customer_id', currentCustomerId)
-        .order('visit_date', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (error || !data) return null;
-      return {
-        date: new Date(data.visit_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }),
-        contactMet: null,
-        summary: data.summary,
-        nextAction: data.next_actions,
-        notes: null,
-        outcome: data.quick_outcome,
-      };
-    },
-    enabled: !!currentCustomerId && !currentCustomerId.startsWith('prospect-'),
-  });
 
   if (!session) return null;
 
@@ -271,7 +250,7 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
     );
   }
 
-  const lastReport = lastReportData ?? null;
+  const lastReport = demoLastReports[current.customer.id] || null;
   const visitStartDate = visitStartTime ? new Date(visitStartTime) : null;
 
   return (
