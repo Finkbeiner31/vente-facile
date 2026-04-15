@@ -487,22 +487,13 @@ export default function AdminPage() {
                         <p className="text-[10px] text-muted-foreground truncate">{u.email}</p>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        <Badge variant="outline" className={`text-[9px] ${roleBadgeColors[u.role] || ''}`}>
-                          {roleLabels[u.role] || u.role}
-                        </Badge>
-                        {isAdmin && u.role !== 'admin' && (
-                          <button
-                            onClick={e => { e.stopPropagation(); setShowDeleteModal(u.id); }}
-                            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                            title="Supprimer / Désactiver"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                ))}
+                         <Badge variant="outline" className={`text-[9px] ${roleBadgeColors[u.role] || ''}`}>
+                           {roleLabels[u.role] || u.role}
+                         </Badge>
+                       </div>
+                     </div>
+                   </button>
+                 ))}
               </div>
 
               {/* Selected user detail */}
