@@ -572,6 +572,7 @@ export default function BulkImportPage() {
     const invalidRows = mappedRows.map((row, i) => ({ row, index: i })).filter(r => !ignoredIndices.has(r.index) && isRowInvalid(r.row));
     const invalidCount = invalidRows.length;
     const validCount = mappedRows.filter((row, i) => !ignoredIndices.has(i) && !isRowInvalid(row)).length;
+    const previewRows = mappedRows.slice(0, 5);
 
     const handleCorrection = (idx: number, field: 'entreprise' | 'ville', value: string) => {
       setCorrections(prev => ({
