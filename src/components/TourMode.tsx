@@ -54,6 +54,31 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
   const [addUnplannedOpen, setAddUnplannedOpen] = useState(false);
   const [promotionsOpen, setPromotionsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const currentCustomerId = session?.stops[session?.currentIndex ?? 0]?.customer?.id ?? null;
+
+  const { data: lastReportData } = useQuery({
+    queryKey: ['last-report-tour', currentCustomerId],
+    queryFn: async () => {
+      if (!currentCustomerId || currentCustomerId.startsWith('prospect-')) return null;
+      const { data, error } = await supabase
+        .from('visit_reports')
+        .select('visit_date, summary, next_actions, quick_outcome')
+        .eq('customer_id', currentCustomerId)
+        .order('visit_date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error || !data) return null;
+      return {
+        date: new Date(data.visit_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }),
+        contactMet: null,
+        summary: data.summary,
+        nextAction: data.next_actions,
+        notes: null,
+        outcome: data.quick_outcome,
+      };
+    },
+    enabled: !!currentCustomerId && !currentCustomerId.startsWith('prospect-'),
+  });
 
   if (!session) return null;
 
