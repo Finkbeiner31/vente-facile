@@ -390,8 +390,8 @@ export default function BulkImportPage() {
               <Info className="h-5 w-5 text-primary mt-0.5 shrink-0" />
               <div className="text-sm text-muted-foreground space-y-1">
                 <p className="font-medium text-foreground">Colonnes attendues</p>
-                <p>statut*, entreprise*, ville*, adresse, code_postal, nb_vehicules, frequence_visite, contact_principal, telephone, email, notes, commercial_assigne, zone</p>
-                <p className="text-xs">* champs obligatoires</p>
+                <p>entreprise*, ville*, statut*, code_postal, telephone, email, metier, nb_vehicules, potentiel, commercial_code, adresse, siret, contact_nom, notes</p>
+                <p className="text-xs">* champs obligatoires — voir l'onglet "Valeurs acceptées" du modèle</p>
               </div>
             </div>
           </CardContent>
