@@ -68,6 +68,7 @@ const ALIASES: Record<string, string[]> = {
 
 interface ImportResult {
   created: number;
+  duplicates: number;
   errors: number;
   errorDetails: { row: number; reason: string }[];
 }
