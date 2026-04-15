@@ -685,8 +685,11 @@ export default function BulkImportPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
+                    const newIgnored = new Set(ignoredIndices);
+                    invalidRows.forEach(r => newIgnored.add(r.index));
+                    setIgnoredIndices(newIgnored);
                     setShowInvalidPanel(false);
-                    handleImport();
+                    toast.success('Lignes invalides ignorées');
                   }}
                 >
                   Ignorer toutes les invalides
