@@ -8,9 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Users, Shield, Settings as SettingsIcon, Truck, Plus, Edit, Trash2, Save,
   Loader2, ArrowRightCircle, MapPin, Building2, Calendar, UserPlus, Power, LogIn,
-  Clock,
+  Clock, MoreHorizontal, AlertTriangle,
 } from 'lucide-react';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { useNavigate } from 'react-router-dom';
