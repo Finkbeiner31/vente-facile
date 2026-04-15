@@ -91,7 +91,7 @@ export default function BulkImportPage() {
   const [showInvalidPanel, setShowInvalidPanel] = useState(false);
   const [corrections, setCorrections] = useState<Record<number, { entreprise?: string; ville?: string }>>({});
   const [correctedIndices, setCorrectedIndices] = useState<Set<number>>(new Set());
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [ignoredIndices, setIgnoredIndices] = useState<Set<number>>(new Set());
 
   const parseFile = useCallback(async (file: File) => {
     setFileName(file.name);
