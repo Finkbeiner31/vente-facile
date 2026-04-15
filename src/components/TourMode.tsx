@@ -271,7 +271,7 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
     );
   }
 
-  const lastReport = demoLastReports[current.customer.id] || null;
+  const lastReport = lastReportData ?? null;
   const visitStartDate = visitStartTime ? new Date(visitStartTime) : null;
 
   return (
