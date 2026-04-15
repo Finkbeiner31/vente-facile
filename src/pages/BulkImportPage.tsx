@@ -102,11 +102,6 @@ export default function BulkImportPage() {
   }, [existingCustomers]);
 
   const handleDownloadTemplate = () => {
-    const XLSX = await import('xlsx');
-    void 0; // replaced below
-  };
-
-  const handleDownloadTemplateReal = () => {
     import('xlsx').then(XLSX => {
       const wb = XLSX.utils.book_new();
 
