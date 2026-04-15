@@ -450,7 +450,8 @@ export default function DashboardPage() {
         )}
       </section>
 
-      {/* ═══ C. TÂCHES URGENTES ═══ */}
+      {/* ═══ C. TÂCHES URGENTES (hidden for observateur) ═══ */}
+      {!readOnly && (
       <section>
         <div className="flex items-center justify-between mb-2">
           <h2 className="font-heading text-sm font-semibold flex items-center gap-1.5">
@@ -488,14 +489,17 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             ))}
+            {canPerformAction(role, 'create_task') && (
             <Link to="/taches" className="block">
               <Button variant="ghost" size="sm" className="w-full text-xs h-8 gap-1 text-muted-foreground">
                 <Plus className="h-3 w-3" /> Ajouter une tâche
               </Button>
             </Link>
+            )}
           </div>
         )}
       </section>
+      )}
 
       {/* ═══ D. ALERTES INTELLIGENTES ═══ */}
       {alerts.length > 0 && (
