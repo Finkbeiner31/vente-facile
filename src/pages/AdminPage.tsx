@@ -546,24 +546,7 @@ export default function AdminPage() {
                           </Badge>
                           {isAdmin && selectedUser.role !== 'admin' && (
                             <>
-                              {selectedUser.is_active ? (
-                                <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground"
-                                  onClick={() => manageUserMutation.mutate({ userId: selectedUser.id, action: 'deactivate' })}
-                                  disabled={manageUserMutation.isPending}>
-                                  <Power className="h-3.5 w-3.5 mr-1" />Désactiver
-                                </Button>
-                              ) : (
-                                <Button variant="ghost" size="sm" className="h-7 text-xs text-primary"
-                                  onClick={() => manageUserMutation.mutate({ userId: selectedUser.id, action: 'reactivate' })}
-                                  disabled={manageUserMutation.isPending}>
-                                  <Power className="h-3.5 w-3.5 mr-1" />Réactiver
-                                </Button>
-                              )}
-                              <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive ml-auto"
-                                onClick={() => setShowDeleteModal(selectedUser.id)}>
-                                <Trash2 className="h-3.5 w-3.5 mr-1" />Supprimer
-                              </Button>
-                              <Button variant="outline" size="sm" className="h-7 text-xs"
+                              <Button variant="outline" size="sm" className="h-7 text-xs ml-auto"
                                 onClick={() => {
                                   startImpersonation({
                                     id: selectedUser.id,
@@ -575,6 +558,37 @@ export default function AdminPage() {
                                 }}>
                                 <LogIn className="h-3.5 w-3.5 mr-1" />Se connecter en tant que
                               </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  {selectedUser.is_active ? (
+                                    <DropdownMenuItem
+                                      onClick={() => manageUserMutation.mutate({ userId: selectedUser.id, action: 'deactivate' })}
+                                      disabled={manageUserMutation.isPending}
+                                    >
+                                      <Power className="h-4 w-4 mr-2" />Désactiver
+                                    </DropdownMenuItem>
+                                  ) : (
+                                    <DropdownMenuItem
+                                      onClick={() => manageUserMutation.mutate({ userId: selectedUser.id, action: 'reactivate' })}
+                                      disabled={manageUserMutation.isPending}
+                                    >
+                                      <Power className="h-4 w-4 mr-2" />Réactiver
+                                    </DropdownMenuItem>
+                                  )}
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    className="text-destructive focus:text-destructive"
+                                    onClick={() => setShowDeleteModal(selectedUser.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />Supprimer
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </>
                           )}
                         </div>
