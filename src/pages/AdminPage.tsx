@@ -8,9 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
   Users, Shield, Settings as SettingsIcon, Truck, Plus, Edit, Trash2, Save,
   Loader2, ArrowRightCircle, MapPin, Building2, Calendar, UserPlus, Power, LogIn,
-  Clock,
+  Clock, MoreHorizontal, AlertTriangle,
 } from 'lucide-react';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { useNavigate } from 'react-router-dom';
@@ -156,6 +159,7 @@ export default function AdminPage() {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState<string | null>(null);
+  const [deleteConfirmName, setDeleteConfirmName] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [createForm, setCreateForm] = useState({ firstName: '', lastName: '', email: '', phone: '', role: 'sales_rep', password: '' });
   const queryClient = useQueryClient();
@@ -204,6 +208,7 @@ export default function AdminPage() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['admin-users'] });
       setShowDeleteModal(null);
+      setDeleteConfirmName('');
       if (data.result === 'deleted') {
         setSelectedUserId(null);
         toast.success('Profil supprimé');
@@ -484,22 +489,13 @@ export default function AdminPage() {
                         <p className="text-[10px] text-muted-foreground truncate">{u.email}</p>
                       </div>
                       <div className="flex items-center gap-1.5 shrink-0">
-                        <Badge variant="outline" className={`text-[9px] ${roleBadgeColors[u.role] || ''}`}>
-                          {roleLabels[u.role] || u.role}
-                        </Badge>
-                        {isAdmin && u.role !== 'admin' && (
-                          <button
-                            onClick={e => { e.stopPropagation(); setShowDeleteModal(u.id); }}
-                            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                            title="Supprimer / Désactiver"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                ))}
+                         <Badge variant="outline" className={`text-[9px] ${roleBadgeColors[u.role] || ''}`}>
+                           {roleLabels[u.role] || u.role}
+                         </Badge>
+                       </div>
+                     </div>
+                   </button>
+                 ))}
               </div>
 
               {/* Selected user detail */}
@@ -552,24 +548,7 @@ export default function AdminPage() {
                           </Badge>
                           {isAdmin && selectedUser.role !== 'admin' && (
                             <>
-                              {selectedUser.is_active ? (
-                                <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground"
-                                  onClick={() => manageUserMutation.mutate({ userId: selectedUser.id, action: 'deactivate' })}
-                                  disabled={manageUserMutation.isPending}>
-                                  <Power className="h-3.5 w-3.5 mr-1" />Désactiver
-                                </Button>
-                              ) : (
-                                <Button variant="ghost" size="sm" className="h-7 text-xs text-primary"
-                                  onClick={() => manageUserMutation.mutate({ userId: selectedUser.id, action: 'reactivate' })}
-                                  disabled={manageUserMutation.isPending}>
-                                  <Power className="h-3.5 w-3.5 mr-1" />Réactiver
-                                </Button>
-                              )}
-                              <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive ml-auto"
-                                onClick={() => setShowDeleteModal(selectedUser.id)}>
-                                <Trash2 className="h-3.5 w-3.5 mr-1" />Supprimer
-                              </Button>
-                              <Button variant="outline" size="sm" className="h-7 text-xs"
+                              <Button variant="outline" size="sm" className="h-7 text-xs ml-auto"
                                 onClick={() => {
                                   startImpersonation({
                                     id: selectedUser.id,
@@ -581,6 +560,37 @@ export default function AdminPage() {
                                 }}>
                                 <LogIn className="h-3.5 w-3.5 mr-1" />Se connecter en tant que
                               </Button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  {selectedUser.is_active ? (
+                                    <DropdownMenuItem
+                                      onClick={() => manageUserMutation.mutate({ userId: selectedUser.id, action: 'deactivate' })}
+                                      disabled={manageUserMutation.isPending}
+                                    >
+                                      <Power className="h-4 w-4 mr-2" />Désactiver
+                                    </DropdownMenuItem>
+                                  ) : (
+                                    <DropdownMenuItem
+                                      onClick={() => manageUserMutation.mutate({ userId: selectedUser.id, action: 'reactivate' })}
+                                      disabled={manageUserMutation.isPending}
+                                    >
+                                      <Power className="h-4 w-4 mr-2" />Réactiver
+                                    </DropdownMenuItem>
+                                  )}
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    className="text-destructive focus:text-destructive"
+                                    onClick={() => setShowDeleteModal(selectedUser.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />Supprimer
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </>
                           )}
                         </div>
@@ -997,28 +1007,43 @@ export default function AdminPage() {
       </Dialog>
 
       {/* ===== DELETE CONFIRMATION MODAL ===== */}
-      <Dialog open={!!showDeleteModal} onOpenChange={open => !open && setShowDeleteModal(null)}>
+      <Dialog open={!!showDeleteModal} onOpenChange={open => { if (!open) { setShowDeleteModal(null); setDeleteConfirmName(''); } }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
-              <Trash2 className="h-5 w-5" />
+              <AlertTriangle className="h-5 w-5" />
               Supprimer ce profil
             </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Voulez-vous supprimer le profil de <strong>{deleteTargetUser?.full_name}</strong> ?
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Les données associées (clients, visites, CA) seront conservées.
-            Si ce profil a des données, il sera désactivé au lieu d'être supprimé.
-          </p>
+          <div className="space-y-3">
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+              <p className="text-sm font-medium">
+                Vous êtes sur le point de supprimer le profil de <strong>{deleteTargetUser?.full_name}</strong>.
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Cette action est irréversible. Les données associées (clients, visites, CA) seront conservées.
+                Si ce profil a des données liées, il sera désactivé au lieu d'être supprimé.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">
+                Pour confirmer, tapez <strong>{deleteTargetUser?.full_name}</strong> ci-dessous :
+              </Label>
+              <Input
+                placeholder={deleteTargetUser?.full_name || ''}
+                value={deleteConfirmName}
+                onChange={e => setDeleteConfirmName(e.target.value)}
+                autoComplete="off"
+              />
+            </div>
+          </div>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setShowDeleteModal(null)}>Annuler</Button>
+            <Button variant="ghost" onClick={() => { setShowDeleteModal(null); setDeleteConfirmName(''); }}>Annuler</Button>
             <Button variant="destructive"
               onClick={() => showDeleteModal && manageUserMutation.mutate({ userId: showDeleteModal, action: 'delete' })}
-              disabled={manageUserMutation.isPending}>
+              disabled={manageUserMutation.isPending || deleteConfirmName !== deleteTargetUser?.full_name}>
               {manageUserMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
-              Confirmer
+              Supprimer définitivement
             </Button>
           </DialogFooter>
         </DialogContent>
