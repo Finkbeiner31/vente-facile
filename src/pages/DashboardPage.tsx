@@ -306,8 +306,14 @@ export default function DashboardPage() {
         <h1 className="font-heading text-xl md:text-2xl font-bold">Bonjour, {firstName} 👋</h1>
         <p className="text-xs text-muted-foreground">
           {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+          {readOnly && <span className="ml-2 text-primary font-medium">({getRoleLabel(role)} — lecture seule)</span>}
         </p>
       </div>
+
+      {/* ═══ ADMIN/MANAGER OVERVIEW SECTION ═══ */}
+      {(role === 'admin' || role === 'manager') && (
+        <AdminManagerOverview role={role} />
+      )}
 
       {/* ═══ A. MA JOURNÉE ═══ */}
       <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-transparent">
