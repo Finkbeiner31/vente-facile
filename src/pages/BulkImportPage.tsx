@@ -105,6 +105,7 @@ export default function BulkImportPage() {
   const [previewTab, setPreviewTab] = useState<'new' | 'duplicates' | 'errors'>('new');
   const [excludedRows, setExcludedRows] = useState<Set<number>>(new Set());
   const [dragging, setDragging] = useState(false);
+  const [showResultErrors, setShowResultErrors] = useState(false);
 
   // Mapping step state
   const [rawHeaders, setRawHeaders] = useState<string[]>([]);
@@ -900,6 +901,45 @@ export default function BulkImportPage() {
         </Card>
       </div>
 
+      {result && result.errorDetails.length > 0 && (
+        <Card>
+          <CardContent className="p-5 space-y-3">
+            <Button
+              variant="outline"
+              className="text-destructive border-destructive/30 hover:bg-destructive/5"
+              onClick={() => setShowResultErrors(!showResultErrors)}
+            >
+              <XCircle className="h-4 w-4 mr-2" />
+              {showResultErrors ? 'Masquer' : 'Voir'} les {result.errorDetails.length} erreur{result.errorDetails.length > 1 ? 's' : ''}
+            </Button>
+
+            {showResultErrors && (
+              <div className="relative w-full overflow-x-auto border rounded-md">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="whitespace-nowrap">Ligne</TableHead>
+                      <TableHead className="whitespace-nowrap">Entreprise</TableHead>
+                      <TableHead className="whitespace-nowrap">Ville</TableHead>
+                      <TableHead className="whitespace-nowrap">Erreur</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {result.errorDetails.map((err, i) => (
+                      <TableRow key={i}>
+                        <TableCell className="font-mono text-xs whitespace-nowrap">{err.rowIndex + 1}</TableCell>
+                        <TableCell className="whitespace-nowrap">{err.entreprise || '—'}</TableCell>
+                        <TableCell className="whitespace-nowrap">{err.ville || '—'}</TableCell>
+                        <TableCell className="text-destructive text-xs">{err.message}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
       <div className="flex justify-end gap-2">
         <Button variant="outline" onClick={() => { setStep('upload'); setRows([]); setResult(null); setRawHeaders([]); setRawData([]); }}>
           Nouvel import
