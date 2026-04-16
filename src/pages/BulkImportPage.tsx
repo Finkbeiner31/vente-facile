@@ -103,7 +103,9 @@ export default function BulkImportPage() {
   const [columnMapping, setColumnMapping] = useState<ColumnMapping>({
     entreprise: NONE, ville: NONE, statut: NONE, code_postal: NONE, telephone: NONE, email: NONE,
   });
-  const [statutMode, setStatutMode] = useState<StatutMode>('all_active');
+  const [showErrorPanel, setShowErrorPanel] = useState(false);
+  const [errorEdits, setErrorEdits] = useState<Record<number, { entreprise: string; ville: string }>>({});
+  const [dismissedErrors, setDismissedErrors] = useState(false);
 
   const { data: existingCustomers = [] } = useQuery({
     queryKey: ['customers-for-import'],
