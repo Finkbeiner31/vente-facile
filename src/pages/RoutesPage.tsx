@@ -70,13 +70,12 @@ export default function RoutesPage() {
   const dayKey = `${selectedWeek}-${selectedDay}`;
 
   const { data: planning = [] } = useQuery({
-    queryKey: ['weekly-zone-planning', activeUserId, selectedWeek],
+    queryKey: ['weekly-zone-planning', activeUserId],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('weekly_zone_planning')
         .select('*')
-        .eq('user_id', activeUserId!)
-        .eq('week_number', selectedWeek);
+        .eq('user_id', activeUserId!);
       if (error) throw error;
       return (data || []) as ZonePlanning[];
     },
@@ -207,7 +206,7 @@ export default function RoutesPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['weekly-zone-planning', activeUserId, selectedWeek] });
+      queryClient.invalidateQueries({ queryKey: ['weekly-zone-planning', activeUserId] });
       toast.success('Planning mis à jour');
     },
     onError: () => toast.error('Impossible d\'enregistrer la zone pour ce jour'),
