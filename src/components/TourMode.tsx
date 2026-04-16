@@ -133,7 +133,6 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
         promotion_id: data.promotionId || null,
       };
 
-      console.log('[TourMode] Saving report:', { customerId, activeUserId, reportPayload });
 
       const { data: saved, error } = await supabase
         .from('visit_reports')
