@@ -710,6 +710,96 @@ export default function BulkImportPage() {
             )}
           </Button>
         </div>
+
+        {/* Error correction Sheet */}
+        <Sheet open={showErrorPanel} onOpenChange={setShowErrorPanel}>
+          <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle className="flex items-center gap-2">
+                <XCircle className="h-5 w-5 text-destructive" />
+                Lignes invalides ({errorCount})
+              </SheetTitle>
+            </SheetHeader>
+            <div className="mt-4 space-y-3">
+              {errorCount > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-destructive border-destructive/30 hover:bg-destructive/5"
+                  onClick={handleDismissAllErrors}
+                >
+                  <SkipForward className="h-4 w-4 mr-1" /> Ignorer toutes les invalides
+                </Button>
+              )}
+              {errorRows.map(row => (
+                <Card key={row.rowIndex} className="border-destructive/20">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-muted-foreground">Ligne {row.rowIndex + 1}</span>
+                      <div className="flex flex-wrap gap-1">
+                        {row.errors.map((err, j) => (
+                          <Badge key={j} variant="destructive" className="text-[10px]">{err}</Badge>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div><span className="text-muted-foreground">Statut:</span> {row.data.statut || '—'}</div>
+                      <div><span className="text-muted-foreground">Tél:</span> {row.data.telephone || '—'}</div>
+                      <div><span className="text-muted-foreground">Email:</span> {row.data.email || '—'}</div>
+                      <div><span className="text-muted-foreground">CP:</span> {row.data.code_postal || '—'}</div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Entreprise <span className="text-destructive">*</span></Label>
+                        <Input
+                          className="h-8 text-sm"
+                          placeholder="Nom de l'entreprise"
+                          defaultValue={row.data.entreprise}
+                          onChange={e => setErrorEdits(prev => ({
+                            ...prev,
+                            [row.rowIndex]: { ...prev[row.rowIndex], entreprise: e.target.value, ville: prev[row.rowIndex]?.ville ?? row.data.ville }
+                          }))}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Ville <span className="text-destructive">*</span></Label>
+                        <Input
+                          className="h-8 text-sm"
+                          placeholder="Ville"
+                          defaultValue={row.data.ville}
+                          onChange={e => setErrorEdits(prev => ({
+                            ...prev,
+                            [row.rowIndex]: { ...prev[row.rowIndex], ville: e.target.value, entreprise: prev[row.rowIndex]?.entreprise ?? row.data.entreprise }
+                          }))}
+                        />
+                      </div>
+                    </div>
+
+                    <Button
+                      size="sm"
+                      className="w-full h-8"
+                      disabled={
+                        !(errorEdits[row.rowIndex]?.entreprise || row.data.entreprise) ||
+                        !(errorEdits[row.rowIndex]?.ville || row.data.ville)
+                      }
+                      onClick={() => handleFixRow(row.rowIndex)}
+                    >
+                      <CheckCircle2 className="h-3 w-3 mr-1" /> Valider
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+              {errorRows.length === 0 && (
+                <div className="text-center py-8 text-sm text-muted-foreground">
+                  <CheckCircle2 className="mx-auto h-8 w-8 text-accent mb-2" />
+                  Toutes les lignes sont valides !
+                </div>
+              )}
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
     );
   }
