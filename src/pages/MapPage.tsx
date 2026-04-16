@@ -172,8 +172,13 @@ export default function MapPage() {
   const [optimizerOpen, setOptimizerOpen] = useState(false);
   const routePolylineRef = useRef<google.maps.Polyline | null>(null);
   const { data: revenueMap } = useAllCustomerRevenues();
+  const queryClient = useQueryClient();
 
   const isAdmin = role === 'admin' || role === 'manager';
+
+  // Geocoding state
+  const [geocoding, setGeocoding] = useState(false);
+  const [geocodeProgress, setGeocodeProgress] = useState({ total: 0, done: 0, success: 0, fail: 0 });
 
   // Fetch ALL customers (with and without coords) so we can report missing geolocation
   const { data: allCustomers = [], isLoading } = useQuery({
