@@ -133,7 +133,6 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
         promotion_id: data.promotionId || null,
       };
 
-      console.log('[TourMode] Saving report:', { customerId, activeUserId, reportPayload });
 
       const { data: saved, error } = await supabase
         .from('visit_reports')
@@ -142,12 +141,12 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
         .single();
 
       if (error) {
-        console.error('[TourMode] Report save failed:', error);
+        toast.error("Impossible d'enregistrer le rapport de visite");
         toast.error("Impossible d'enregistrer le rapport de visite");
         return; // Don't mark as completed if save failed
       }
 
-      console.log('[TourMode] Report saved:', saved.id);
+      toast.success('Rapport enregistré');
       toast.success('Rapport enregistré');
 
       // Update customer last_visit_date
