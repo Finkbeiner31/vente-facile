@@ -427,6 +427,22 @@ export default function MapPage() {
         </div>
       )}
 
+      {/* ── Missing geolocation banner ── */}
+      {missingCoords.length > 0 && (
+        <div className="flex items-center gap-2 px-3 py-1.5 border-b bg-warning/10 text-warning text-xs z-10 shrink-0">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <span>{missingCoords.length} client{missingCoords.length > 1 ? 's' : ''} non géolocalisé{missingCoords.length > 1 ? 's' : ''} (adresse à géocoder)</span>
+        </div>
+      )}
+
+      {/* ── Empty state when all loaded but none geolocated ── */}
+      {!isLoading && allCustomers.length > 0 && customers.length === 0 && (
+        <div className="flex items-center gap-2 px-3 py-2 border-b bg-muted/50 text-sm z-10 shrink-0">
+          <MapPin className="h-4 w-4 text-muted-foreground" />
+          <span>Les clients existent mais ne sont pas encore géolocalisés. Vérifiez les adresses dans la fiche client.</span>
+        </div>
+      )}
+
       {/* ── Main area: list + map ── */}
       <div className="flex-1 flex overflow-hidden relative">
         {/* ── List panel ── */}
