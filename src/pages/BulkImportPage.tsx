@@ -362,6 +362,43 @@ export default function BulkImportPage() {
       }
     }
 
+    // ── Zone recalculation for imported clients ──
+    try {
+      const { data: allZones } = await (supabase as any)
+        .from('commercial_zones')
+        .select('*');
+      const zonesParsed = (allZones || []).map((z: any) => ({
+        ...z,
+        cities: z.cities || [],
+        postal_codes: z.postal_codes || [],
+        polygon_coordinates: z.polygon_coordinates || null,
+      }));
+
+      if (zonesParsed.length > 0) {
+        // Fetch freshly imported clients (by current user, created recently)
+        const { data: importedClients } = await supabase
+          .from('customers')
+          .select('id, latitude, longitude, postal_code, city, assignment_mode, zone')
+          .eq('assigned_rep_id', user.id)
+          .is('zone', null);
+
+        for (const c of importedClients || []) {
+          const result = computeZoneAssignment(c, zonesParsed);
+          if (result.zone) {
+            await (supabase as any).from('customers').update({
+              zone: result.zone,
+              assignment_mode: 'automatic',
+              assignment_source: result.assignment_source,
+              zone_status: result.zone_status,
+            }).eq('id', c.id);
+            res.zoneAssigned++;
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Zone recalculation error:', err);
+    }
+
     setResult(res);
     setStep('result');
     setImporting(false);
