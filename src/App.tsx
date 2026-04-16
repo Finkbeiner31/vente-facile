@@ -26,7 +26,10 @@ import NotFound from "./pages/NotFound.tsx";
 const queryClient = new QueryClient();
 
 function ImpersonationWrapper({ children }: { children: React.ReactNode }) {
-  const { user, role, profile } = useAuth();
+  const auth = useContext(AuthContextRaw);
+  const user = auth?.user ?? null;
+  const role = auth?.role ?? null;
+  const profile = auth?.profile ?? null;
   return (
     <ImpersonationProvider 
       realUserId={user?.id ?? null} 
