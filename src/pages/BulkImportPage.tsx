@@ -21,6 +21,7 @@ import {
   parseCSV, parseXLSX, validateRows, generateTemplate,
   type ImportRow, type ValidatedRow,
 } from '@/lib/importUtils';
+import { computeZoneAssignment } from '@/lib/zoneAssignment';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
