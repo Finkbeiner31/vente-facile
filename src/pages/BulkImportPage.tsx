@@ -26,6 +26,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
+import { Input } from '@/components/ui/input';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
 type ImportMode = 'create_only' | 'update_only' | 'create_and_update';
 type Step = 'upload' | 'mapping' | 'preview' | 'result';
