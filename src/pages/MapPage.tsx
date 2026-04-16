@@ -36,6 +36,8 @@ interface MapCustomer {
   phone: string | null;
   sales_potential: string | null;
   visit_frequency: string | null;
+  address: string | null;
+  postal_code: string | null;
 }
 
 type FilterType = 'tous' | 'clients' | 'prospects';
