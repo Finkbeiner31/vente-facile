@@ -292,17 +292,17 @@ export default function BulkImportPage() {
   const handleImport = async () => {
     if (!user) return;
     setImporting(true);
-    const res: ImportResult = { created: 0, updated: 0, skipped: 0, errors: 0 };
+    const res: ImportResult = { created: 0, updated: 0, skipped: 0, errors: 0, errorDetails: [] };
 
     for (const row of rows) {
-      if (row.errors.length > 0) { res.errors++; continue; }
+      if (row.errors.length > 0) { res.errors++; res.errorDetails.push({ rowIndex: row.rowIndex, entreprise: row.data.entreprise, ville: row.data.ville, message: row.errors.join(', ') }); continue; }
       if (excludedRows.has(row.rowIndex)) { res.skipped++; continue; }
 
       const d = row.data;
       const companyName = d.entreprise.trim();
       const city = d.ville.trim();
 
-      if (!companyName || !city) { res.errors++; continue; }
+      if (!companyName || !city) { res.errors++; res.errorDetails.push({ rowIndex: row.rowIndex, entreprise: companyName || '(vide)', ville: city || '(vide)', message: 'Entreprise ou ville manquante' }); continue; }
 
       try {
         // Real-time duplicate check against DB
@@ -325,7 +325,7 @@ export default function BulkImportPage() {
                 customer_type: d.statut.toLowerCase(),
               })
               .eq('id', existingMatch.id);
-            if (error) { res.errors++; } else { res.updated++; }
+            if (error) { res.errors++; res.errorDetails.push({ rowIndex: row.rowIndex, entreprise: companyName, ville: city, message: error.message }); } else { res.updated++; }
             continue;
           }
         }
@@ -347,9 +347,10 @@ export default function BulkImportPage() {
             visit_frequency: 'mensuelle',
           });
 
-        if (error) { res.errors++; } else { res.created++; }
-      } catch {
+        if (error) { res.errors++; res.errorDetails.push({ rowIndex: row.rowIndex, entreprise: companyName, ville: city, message: error.message }); } else { res.created++; }
+      } catch (err: any) {
         res.errors++;
+        res.errorDetails.push({ rowIndex: row.rowIndex, entreprise: d.entreprise, ville: d.ville, message: err?.message || 'Erreur inconnue' });
       }
     }
 
