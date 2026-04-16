@@ -118,10 +118,7 @@ export function validateRows(
       errors.push(`Fréquence invalide: "${data.frequence_visite}"`);
     }
 
-    // Email validation
-    if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
-      errors.push('Email invalide');
-    }
+    // Email: not validated — cleaned at import time
 
     // Duplicate detection within file
     const key = `${data.entreprise.toLowerCase()}|${data.ville.toLowerCase()}`;
