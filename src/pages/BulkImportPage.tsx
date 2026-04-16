@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/table';
 import {
   Upload, Download, FileSpreadsheet, AlertTriangle, CheckCircle2,
-  XCircle, Loader2, ArrowLeft, Info, Eye, SkipForward,
+  XCircle, Loader2, ArrowLeft, Info, Eye, SkipForward, Wand2,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -22,9 +22,23 @@ import {
   type ImportRow, type ValidatedRow,
 } from '@/lib/importUtils';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
+import * as XLSX from 'xlsx';
+import Papa from 'papaparse';
 
 type ImportMode = 'create_only' | 'update_only' | 'create_and_update';
-type Step = 'upload' | 'preview' | 'result';
+type Step = 'upload' | 'mapping' | 'preview' | 'result';
+type StatutMode = 'all_active' | 'all_prospect' | 'map_column';
+
+interface ColumnMapping {
+  entreprise: string;
+  ville: string;
+  statut: string;
+  code_postal: string;
+  telephone: string;
+  email: string;
+}
 
 interface ImportResult {
   created: number;
@@ -32,6 +46,37 @@ interface ImportResult {
   skipped: number;
   errors: number;
 }
+
+const NONE = '__none__';
+
+const AUTO_DETECT_MAP: Record<string, keyof ColumnMapping> = {
+  'raison sociale': 'entreprise',
+  'entreprise': 'entreprise',
+  'société': 'entreprise',
+  'societe': 'entreprise',
+  'nom': 'entreprise',
+  'company': 'entreprise',
+  'ville': 'ville',
+  'city': 'ville',
+  'statut': 'statut',
+  'status': 'statut',
+  'code postal': 'code_postal',
+  'code_postal': 'code_postal',
+  'cp': 'code_postal',
+  'zip': 'code_postal',
+  'postal': 'code_postal',
+  'téléphone': 'telephone',
+  'telephone': 'telephone',
+  'tél': 'telephone',
+  'tel': 'telephone',
+  'gsm': 'telephone',
+  'mobile': 'telephone',
+  'phone': 'telephone',
+  'email': 'email',
+  'e-mail': 'email',
+  'mail': 'email',
+  'courriel': 'email',
+};
 
 const splitName = (full: string) => {
   const parts = full.trim().split(/\s+/);
@@ -50,7 +95,14 @@ export default function BulkImportPage() {
   const [previewTab, setPreviewTab] = useState<'new' | 'duplicates' | 'errors'>('new');
   const [excludedRows, setExcludedRows] = useState<Set<number>>(new Set());
 
-  // Fetch existing customers for duplicate detection
+  // Mapping step state
+  const [rawHeaders, setRawHeaders] = useState<string[]>([]);
+  const [rawData, setRawData] = useState<Record<string, string>[]>([]);
+  const [columnMapping, setColumnMapping] = useState<ColumnMapping>({
+    entreprise: NONE, ville: NONE, statut: NONE, code_postal: NONE, telephone: NONE, email: NONE,
+  });
+  const [statutMode, setStatutMode] = useState<StatutMode>('all_active');
+
   const { data: existingCustomers = [] } = useQuery({
     queryKey: ['customers-for-import'],
     queryFn: async () => {
@@ -73,33 +125,107 @@ export default function BulkImportPage() {
     setFileName(file.name);
 
     try {
-      let parsed: ImportRow[];
+      let headers: string[] = [];
+      let data: Record<string, string>[] = [];
+
       if (file.name.endsWith('.csv')) {
         const text = await file.text();
-        parsed = parseCSV(text);
+        const result = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true, delimiter: '' });
+        headers = result.meta.fields || [];
+        data = result.data;
       } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
         const buffer = await file.arrayBuffer();
-        parsed = parseXLSX(buffer);
+        const wb = XLSX.read(buffer, { type: 'array' });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, { defval: '' });
+        if (jsonData.length > 0) {
+          headers = Object.keys(jsonData[0]);
+        }
+        data = jsonData;
       } else {
         toast.error('Format non supporté. Utilisez .csv ou .xlsx');
         return;
       }
 
-      if (parsed.length === 0) {
+      if (headers.length === 0 || data.length === 0) {
         toast.error('Le fichier est vide ou mal formaté.');
         return;
       }
 
-      const validated = validateRows(parsed, existingCustomers);
-      setRows(validated);
-      setStep('preview');
+      setRawHeaders(headers);
+      setRawData(data);
+      setColumnMapping({ entreprise: NONE, ville: NONE, statut: NONE, code_postal: NONE, telephone: NONE, email: NONE });
+      setStatutMode('all_active');
+      setStep('mapping');
     } catch {
       toast.error('Erreur lors de la lecture du fichier.');
     }
 
-    // Reset input for re-upload
     e.target.value = '';
-  }, [existingCustomers]);
+  }, []);
+
+  const handleAutoDetect = () => {
+    const newMapping = { ...columnMapping };
+    const used = new Set<string>();
+
+    for (const header of rawHeaders) {
+      const normalized = header.trim().toLowerCase().replace(/[_\-]/g, ' ').replace(/é/g, 'e');
+      const target = AUTO_DETECT_MAP[normalized];
+      if (target && newMapping[target] === NONE && !used.has(target)) {
+        newMapping[target] = header;
+        used.add(target);
+      }
+    }
+
+    setColumnMapping(newMapping);
+    if (newMapping.statut !== NONE) {
+      setStatutMode('map_column');
+    }
+    toast.success('Colonnes détectées automatiquement');
+  };
+
+  const handleMappingNext = () => {
+    if (columnMapping.entreprise === NONE) {
+      toast.error('La colonne "Entreprise" est obligatoire');
+      return;
+    }
+    if (columnMapping.ville === NONE) {
+      toast.error('La colonne "Ville" est obligatoire');
+      return;
+    }
+
+    // Transform raw data using the mapping
+    const mapped: ImportRow[] = rawData.map(raw => {
+      let statut = '';
+      if (statutMode === 'all_active') statut = 'client_actif';
+      else if (statutMode === 'all_prospect') statut = 'prospect';
+      else if (statutMode === 'map_column' && columnMapping.statut !== NONE) statut = String(raw[columnMapping.statut] ?? '').trim();
+
+      return {
+        statut,
+        entreprise: columnMapping.entreprise !== NONE ? String(raw[columnMapping.entreprise] ?? '').trim() : '',
+        adresse: '',
+        code_postal: columnMapping.code_postal !== NONE ? String(raw[columnMapping.code_postal] ?? '').trim() : '',
+        ville: columnMapping.ville !== NONE ? String(raw[columnMapping.ville] ?? '').trim() : '',
+        nb_vehicules: '',
+        frequence_visite: '',
+        contact_principal: '',
+        telephone: columnMapping.telephone !== NONE ? String(raw[columnMapping.telephone] ?? '').trim() : '',
+        email: columnMapping.email !== NONE ? String(raw[columnMapping.email] ?? '').trim() : '',
+        notes: '',
+        commercial_assigne: '',
+        zone: '',
+      };
+    });
+
+    const validated = validateRows(mapped, existingCustomers);
+    setRows(validated);
+    setStep('preview');
+  };
+
+  const updateMapping = (field: keyof ColumnMapping, value: string) => {
+    setColumnMapping(prev => ({ ...prev, [field]: value }));
+  };
 
   const handleDownloadTemplate = () => {
     const blob = generateTemplate();
@@ -117,14 +243,12 @@ export default function BulkImportPage() {
     const res: ImportResult = { created: 0, updated: 0, skipped: 0, errors: 0 };
 
     for (const row of rows) {
-      // Skip rows with errors or excluded by user
       if (row.errors.length > 0) { res.errors++; continue; }
       if (excludedRows.has(row.rowIndex)) { res.skipped++; continue; }
 
       const d = row.data;
       const isExisting = row.isDuplicate && row.duplicateOf?.includes('existant en base');
 
-      // Mode logic
       if (mode === 'create_only' && isExisting) { res.skipped++; continue; }
       if (mode === 'update_only' && !isExisting) { res.skipped++; continue; }
 
@@ -145,7 +269,6 @@ export default function BulkImportPage() {
 
       try {
         if (isExisting && (mode === 'update_only' || mode === 'create_and_update')) {
-          // Find existing customer
           const existing = existingCustomers.find(c =>
             c.company_name.toLowerCase() === d.entreprise.trim().toLowerCase() &&
             c.city.toLowerCase() === d.ville.trim().toLowerCase()
@@ -158,7 +281,6 @@ export default function BulkImportPage() {
             if (error) { res.errors++; } else { res.updated++; }
           } else { res.skipped++; }
         } else {
-          // Create
           const { data: created, error } = await supabase
             .from('customers')
             .insert({ ...customerData, assigned_rep_id: user.id })
@@ -168,7 +290,6 @@ export default function BulkImportPage() {
           if (error) { res.errors++; continue; }
           res.created++;
 
-          // Create primary contact if provided
           if (d.contact_principal.trim() && created?.id) {
             const { first_name, last_name } = splitName(d.contact_principal);
             await supabase.from('contacts').insert({
@@ -198,9 +319,7 @@ export default function BulkImportPage() {
   const duplicateCount = duplicateRows.length;
   const newCount = newRows.length;
   const importableCount = newCount + duplicateRows.filter(r => !excludedRows.has(r.rowIndex)).length;
-  const validCount = rows.filter(r => r.errors.length === 0).length;
 
-  // Guard: admin only
   if (role !== 'admin') {
     return (
       <div className="flex items-center justify-center py-20">
@@ -282,6 +401,116 @@ export default function BulkImportPage() {
     );
   }
 
+  // ── MAPPING STEP ──
+  if (step === 'mapping') {
+    const mappingFields: { key: keyof ColumnMapping; label: string; required: boolean }[] = [
+      { key: 'entreprise', label: 'Entreprise', required: true },
+      { key: 'ville', label: 'Ville', required: true },
+      { key: 'code_postal', label: 'Code postal', required: false },
+      { key: 'telephone', label: 'Téléphone', required: false },
+      { key: 'email', label: 'Email', required: false },
+    ];
+
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h1 className="font-heading text-2xl font-bold">Correspondance des colonnes</h1>
+            <p className="text-sm text-muted-foreground">
+              {fileName} · {rawHeaders.length} colonnes détectées · {rawData.length} lignes
+            </p>
+          </div>
+          <Button variant="ghost" onClick={() => { setStep('upload'); setRawHeaders([]); setRawData([]); }}>
+            <ArrowLeft className="h-4 w-4 mr-1" /> Retour
+          </Button>
+        </div>
+
+        <Card>
+          <CardContent className="p-5 space-y-5">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium">Associez les colonnes de votre fichier aux champs attendus</p>
+              <Button variant="outline" size="sm" onClick={handleAutoDetect}>
+                <Wand2 className="h-4 w-4 mr-1" /> Détecter automatiquement
+              </Button>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              {mappingFields.map(({ key, label, required }) => (
+                <div key={key} className="space-y-1.5">
+                  <Label className="text-sm">
+                    {label} {required && <span className="text-destructive">*</span>}
+                  </Label>
+                  <Select value={columnMapping[key]} onValueChange={v => updateMapping(key, v)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="— Sélectionner —" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NONE}>— Non mappé —</SelectItem>
+                      {rawHeaders.map(h => (
+                        <SelectItem key={h} value={h}>{h}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ))}
+            </div>
+
+            {/* Statut special handling */}
+            <div className="space-y-2 border-t pt-4">
+              <Label className="text-sm font-medium">Statut</Label>
+              <RadioGroup value={statutMode} onValueChange={v => setStatutMode(v as StatutMode)} className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="all_active" id="stat_active" />
+                  <Label htmlFor="stat_active" className="text-sm font-normal cursor-pointer">Tous clients actifs</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="all_prospect" id="stat_prospect" />
+                  <Label htmlFor="stat_prospect" className="text-sm font-normal cursor-pointer">Tous prospects</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="map_column" id="stat_map" />
+                  <Label htmlFor="stat_map" className="text-sm font-normal cursor-pointer">Mapper une colonne</Label>
+                </div>
+              </RadioGroup>
+              {statutMode === 'map_column' && (
+                <Select value={columnMapping.statut} onValueChange={v => updateMapping('statut', v)}>
+                  <SelectTrigger className="mt-1 w-full sm:w-[300px]">
+                    <SelectValue placeholder="— Sélectionner la colonne statut —" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE}>— Non mappé —</SelectItem>
+                    {rawHeaders.map(h => (
+                      <SelectItem key={h} value={h}>{h}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            {/* Preview of detected columns */}
+            <div className="border-t pt-4">
+              <p className="text-xs text-muted-foreground mb-2">Colonnes détectées dans le fichier :</p>
+              <div className="flex flex-wrap gap-1.5">
+                {rawHeaders.map(h => (
+                  <Badge key={h} variant="secondary" className="text-xs">{h}</Badge>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => { setStep('upload'); setRawHeaders([]); setRawData([]); }}>
+            Annuler
+          </Button>
+          <Button onClick={handleMappingNext}>
+            <Eye className="h-4 w-4 mr-1" /> Suivant — Aperçu des données
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   // ── PREVIEW STEP ──
   if (step === 'preview') {
     return (
@@ -291,8 +520,8 @@ export default function BulkImportPage() {
             <h1 className="font-heading text-2xl font-bold">Aperçu de l'import</h1>
             <p className="text-sm text-muted-foreground">{fileName} · {rows.length} lignes détectées</p>
           </div>
-          <Button variant="ghost" onClick={() => { setStep('upload'); setRows([]); setExcludedRows(new Set()); }}>
-            <ArrowLeft className="h-4 w-4 mr-1" /> Retour
+          <Button variant="ghost" onClick={() => { setStep('mapping'); setRows([]); setExcludedRows(new Set()); }}>
+            <ArrowLeft className="h-4 w-4 mr-1" /> Retour au mapping
           </Button>
         </div>
 
@@ -313,7 +542,6 @@ export default function BulkImportPage() {
           </CardContent>
         </Card>
 
-        {/* 3-tab classification */}
         <Tabs value={previewTab} onValueChange={v => setPreviewTab(v as any)}>
           <TabsList className="w-full">
             <TabsTrigger value="new" className="flex-1 text-xs gap-1">
@@ -328,7 +556,6 @@ export default function BulkImportPage() {
           </TabsList>
         </Tabs>
 
-        {/* Preview table */}
         <div className="border rounded-lg overflow-auto max-h-[50vh]">
           <Table>
             <TableHeader>
@@ -337,8 +564,8 @@ export default function BulkImportPage() {
                 <TableHead>Statut</TableHead>
                 <TableHead>Entreprise</TableHead>
                 <TableHead>Ville</TableHead>
-                <TableHead>Contact</TableHead>
                 <TableHead>Téléphone</TableHead>
+                <TableHead>Email</TableHead>
                 <TableHead className="min-w-[200px]">Validation</TableHead>
                 {previewTab === 'duplicates' && <TableHead className="w-[140px]">Action</TableHead>}
               </TableRow>
@@ -358,8 +585,8 @@ export default function BulkImportPage() {
                   </TableCell>
                   <TableCell className="font-medium text-sm">{row.data.entreprise || '—'}</TableCell>
                   <TableCell className="text-sm">{row.data.ville || '—'}</TableCell>
-                  <TableCell className="text-sm">{row.data.contact_principal || '—'}</TableCell>
                   <TableCell className="text-sm">{row.data.telephone || '—'}</TableCell>
+                  <TableCell className="text-sm">{row.data.email || '—'}</TableCell>
                   <TableCell>
                     {row.errors.length > 0 ? (
                       <div className="space-y-0.5">
@@ -392,16 +619,14 @@ export default function BulkImportPage() {
                             Réintégrer
                           </Button>
                         ) : (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 text-[10px]"
-                              onClick={() => setExcludedRows(prev => new Set(prev).add(row.rowIndex))}
-                            >
-                              <SkipForward className="h-3 w-3 mr-0.5" /> Ignorer
-                            </Button>
-                          </>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-[10px]"
+                            onClick={() => setExcludedRows(prev => new Set(prev).add(row.rowIndex))}
+                          >
+                            <SkipForward className="h-3 w-3 mr-0.5" /> Ignorer
+                          </Button>
                         )}
                       </div>
                     </TableCell>
@@ -419,9 +644,8 @@ export default function BulkImportPage() {
           </Table>
         </div>
 
-        {/* Import button */}
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => { setStep('upload'); setRows([]); setExcludedRows(new Set()); }}>
+          <Button variant="outline" onClick={() => { setStep('upload'); setRows([]); setExcludedRows(new Set()); setRawHeaders([]); setRawData([]); }}>
             Annuler
           </Button>
           <Button onClick={handleImport} disabled={importing || importableCount === 0}>
@@ -476,7 +700,7 @@ export default function BulkImportPage() {
       </div>
 
       <div className="flex justify-end gap-2">
-        <Button variant="outline" onClick={() => { setStep('upload'); setRows([]); setResult(null); }}>
+        <Button variant="outline" onClick={() => { setStep('upload'); setRows([]); setResult(null); setRawHeaders([]); setRawData([]); }}>
           Nouvel import
         </Button>
         <Button asChild variant="default">
