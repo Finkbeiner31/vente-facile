@@ -184,7 +184,7 @@ export default function MapPage() {
   const { data: allCustomers = [], isLoading } = useQuery({
     queryKey: ['customers-map', activeUserId, role],
     queryFn: async () => {
-      const selectFields = 'id, company_name, customer_type, city, latitude, longitude, number_of_vehicles, annual_revenue_potential, last_visit_date, phone, sales_potential, visit_frequency';
+      const selectFields = 'id, company_name, customer_type, city, latitude, longitude, number_of_vehicles, annual_revenue_potential, last_visit_date, phone, sales_potential, visit_frequency, address, postal_code';
       
       if (isAdmin) {
         // Admins/managers see ALL customers (RLS already allows it)
