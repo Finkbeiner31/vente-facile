@@ -164,7 +164,6 @@ export function NewReportSheet({ open, onOpenChange, onSaved }: NewReportSheetPr
           visit_date: visitDate,
           visit_status: 'completed',
           quick_outcome: outcome,
-          contact_met: contactMet || null,
           summary: notes || null,
           next_actions: nextAction || null,
           follow_up_date: nextActionDate || null,

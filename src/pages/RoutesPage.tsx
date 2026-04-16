@@ -65,45 +65,17 @@ export default function RoutesPage() {
   // Tracks user-customized planned stops per day key
   const [customPlanned, setCustomPlanned] = useState<Record<string, { customer: CustomerForRouting; priority: number; customerType?: string; lastVisitDate?: string | null }[]>>({});
 
-  const persistStopsMutation = useMutation({
-    mutationFn: async (newStops: { customer: CustomerForRouting; priority: number }[]) => {
-      if (!activeUserId) return;
-      const today = new Date().toISOString().split('T')[0];
-      const { data: tours } = await supabase
-        .from('daily_tours')
-        .select('id')
-        .eq('user_id', activeUserId)
-        .eq('tour_date', today)
-        .limit(1);
-      const tourId = tours?.[0]?.id;
-      if (!tourId) return;
-      await supabase.from('daily_tour_stops').delete().eq('daily_tour_id', tourId);
-      const rows = newStops.map((s, i) => ({
-        daily_tour_id: tourId,
-        customer_id: s.customer.id,
-        stop_order: i,
-        status: 'planned' as const,
-      }));
-      if (rows.length > 0) {
-        const { error } = await supabase.from('daily_tour_stops').insert(rows);
-        if (error) throw error;
-      }
-    },
-    onError: () => toast.error('Erreur de synchronisation des stops'),
-  });
-
   const { session, startSession } = useTourSession();
 
   const dayKey = `${selectedWeek}-${selectedDay}`;
 
   const { data: planning = [] } = useQuery({
-    queryKey: ['weekly-zone-planning', activeUserId, selectedWeek],
+    queryKey: ['weekly-zone-planning', activeUserId],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('weekly_zone_planning')
         .select('*')
-        .eq('user_id', activeUserId!)
-        .eq('week_number', selectedWeek);
+        .eq('user_id', activeUserId!);
       if (error) throw error;
       return (data || []) as ZonePlanning[];
     },
@@ -234,7 +206,7 @@ export default function RoutesPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['weekly-zone-planning', activeUserId, selectedWeek] });
+      queryClient.invalidateQueries({ queryKey: ['weekly-zone-planning', activeUserId] });
       toast.success('Planning mis à jour');
     },
     onError: () => toast.error('Impossible d\'enregistrer la zone pour ce jour'),
@@ -513,11 +485,6 @@ export default function RoutesPage() {
             availableCustomers={zoneCustomers}
             onUpdatePlanned={(newStops) => {
               setCustomPlanned(prev => ({ ...prev, [dayKey]: newStops }));
-              const todayDow = new Date().getDay();
-              const isToday = selectedDay === todayDow && selectedWeek === getCurrentWeekNumber();
-              if (isToday) {
-                persistStopsMutation.mutate(newStops);
-              }
             }}
           />
 
