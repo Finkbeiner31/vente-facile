@@ -21,6 +21,7 @@ import {
   parseCSV, parseXLSX, validateRows, generateTemplate,
   type ImportRow, type ValidatedRow,
 } from '@/lib/importUtils';
+import { computeZoneAssignment } from '@/lib/zoneAssignment';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
@@ -55,6 +56,7 @@ interface ImportResult {
   skipped: number;
   errors: number;
   errorDetails: ImportErrorDetail[];
+  zoneAssigned: number;
 }
 
 const NONE = '__none__';
@@ -299,7 +301,7 @@ export default function BulkImportPage() {
   const handleImport = async () => {
     if (!user) return;
     setImporting(true);
-    const res: ImportResult = { created: 0, updated: 0, skipped: 0, errors: 0, errorDetails: [] };
+    const res: ImportResult = { created: 0, updated: 0, skipped: 0, errors: 0, errorDetails: [], zoneAssigned: 0 };
 
     for (const row of rows) {
       if (row.errors.length > 0) { res.errors++; res.errorDetails.push({ rowIndex: row.rowIndex, entreprise: row.data.entreprise, ville: row.data.ville, message: row.errors.join(', ') }); continue; }
@@ -359,6 +361,43 @@ export default function BulkImportPage() {
         res.errors++;
         res.errorDetails.push({ rowIndex: row.rowIndex, entreprise: d.entreprise, ville: d.ville, message: err?.message || 'Erreur inconnue' });
       }
+    }
+
+    // ── Zone recalculation for imported clients ──
+    try {
+      const { data: allZones } = await (supabase as any)
+        .from('commercial_zones')
+        .select('*');
+      const zonesParsed = (allZones || []).map((z: any) => ({
+        ...z,
+        cities: z.cities || [],
+        postal_codes: z.postal_codes || [],
+        polygon_coordinates: z.polygon_coordinates || null,
+      }));
+
+      if (zonesParsed.length > 0) {
+        // Fetch freshly imported clients (by current user, created recently)
+        const { data: importedClients } = await supabase
+          .from('customers')
+          .select('id, latitude, longitude, postal_code, city, assignment_mode, zone')
+          .eq('assigned_rep_id', user.id)
+          .is('zone', null);
+
+        for (const c of importedClients || []) {
+          const result = computeZoneAssignment(c, zonesParsed);
+          if (result.zone) {
+            await (supabase as any).from('customers').update({
+              zone: result.zone,
+              assignment_mode: 'automatic',
+              assignment_source: result.assignment_source,
+              zone_status: result.zone_status,
+            }).eq('id', c.id);
+            res.zoneAssigned++;
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Zone recalculation error:', err);
     }
 
     setResult(res);
@@ -876,7 +915,7 @@ export default function BulkImportPage() {
         <p className="text-sm text-muted-foreground">{fileName}</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-5">
         <Card>
           <CardContent className="p-5 text-center">
             <CheckCircle2 className="mx-auto h-8 w-8 text-accent mb-2" />
@@ -903,6 +942,13 @@ export default function BulkImportPage() {
             <XCircle className="mx-auto h-8 w-8 text-destructive mb-2" />
             <p className="text-2xl font-bold">{result?.errors || 0}</p>
             <p className="text-xs text-muted-foreground">Erreurs</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5 text-center">
+            <Wand2 className="mx-auto h-8 w-8 text-primary mb-2" />
+            <p className="text-2xl font-bold">{result?.zoneAssigned || 0}</p>
+            <p className="text-xs text-muted-foreground">Assignés à une zone</p>
           </CardContent>
         </Card>
       </div>
