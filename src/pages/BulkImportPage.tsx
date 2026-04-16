@@ -572,6 +572,30 @@ export default function BulkImportPage() {
           </CardContent>
         </Card>
 
+        {/* Summary badges - error badge is clickable */}
+        <div className="flex flex-wrap gap-2 items-center">
+          <Badge variant="secondary" className="gap-1 py-1 px-3">
+            <CheckCircle2 className="h-3 w-3" /> {newCount} nouveaux
+          </Badge>
+          <Badge variant="secondary" className="gap-1 py-1 px-3">
+            <AlertTriangle className="h-3 w-3" /> {duplicateCount} doublons
+          </Badge>
+          {errorCount > 0 && !dismissedErrors && (
+            <Badge
+              variant="destructive"
+              className="gap-1 py-1 px-3 cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => setShowErrorPanel(true)}
+            >
+              <Edit3 className="h-3 w-3" /> {errorCount} invalides — Corriger
+            </Badge>
+          )}
+          {dismissedErrors && (
+            <Badge variant="outline" className="gap-1 py-1 px-3 text-muted-foreground">
+              <XCircle className="h-3 w-3" /> Invalides ignorées
+            </Badge>
+          )}
+        </div>
+
         <Tabs value={previewTab} onValueChange={v => setPreviewTab(v as any)}>
           <TabsList className="w-full">
             <TabsTrigger value="new" className="flex-1 text-xs gap-1">
