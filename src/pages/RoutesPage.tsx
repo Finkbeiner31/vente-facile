@@ -70,12 +70,13 @@ export default function RoutesPage() {
   const dayKey = `${selectedWeek}-${selectedDay}`;
 
   const { data: planning = [] } = useQuery({
-    queryKey: ['weekly-zone-planning', activeUserId],
+    queryKey: ['weekly-zone-planning', activeUserId, selectedWeek],
     queryFn: async () => {
       const { data, error } = await (supabase as any)
         .from('weekly_zone_planning')
         .select('*')
-        .eq('user_id', activeUserId!);
+        .eq('user_id', activeUserId!)
+        .eq('week_number', selectedWeek);
       if (error) throw error;
       return (data || []) as ZonePlanning[];
     },
