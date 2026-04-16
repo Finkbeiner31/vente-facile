@@ -232,6 +232,36 @@ export default function BulkImportPage() {
     setColumnMapping(prev => ({ ...prev, [field]: value }));
   };
 
+  const handleFixRow = (rowIndex: number) => {
+    const edit = errorEdits[rowIndex];
+    if (!edit) return;
+    setRows(prev => prev.map(r => {
+      if (r.rowIndex !== rowIndex) return r;
+      const newData = { ...r.data };
+      if (edit.entreprise) newData.entreprise = edit.entreprise;
+      if (edit.ville) newData.ville = edit.ville;
+      // Re-validate this single row
+      const errors: string[] = [];
+      if (!newData.entreprise) errors.push('Entreprise manquante');
+      if (!newData.ville) errors.push('Ville manquante');
+      return { ...r, data: newData, errors };
+    }));
+    setErrorEdits(prev => { const n = { ...prev }; delete n[rowIndex]; return n; });
+    toast.success(`Ligne ${rowIndex + 1} corrigée`);
+  };
+
+  const handleDismissAllErrors = () => {
+    const errorIndices = rows.filter(r => r.errors.length > 0).map(r => r.rowIndex);
+    setExcludedRows(prev => {
+      const next = new Set(prev);
+      errorIndices.forEach(i => next.add(i));
+      return next;
+    });
+    setDismissedErrors(true);
+    setShowErrorPanel(false);
+    toast.info(`${errorIndices.length} lignes invalides ignorées`);
+  };
+
   const handleDownloadTemplate = () => {
     const blob = generateTemplate();
     const url = URL.createObjectURL(blob);
