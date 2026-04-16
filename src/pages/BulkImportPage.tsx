@@ -472,6 +472,37 @@ export default function BulkImportPage() {
           </Button>
         </div>
 
+        {/* Aperçu des 3 premières lignes */}
+        <Card>
+          <CardContent className="p-5 space-y-3">
+            <p className="text-sm font-medium flex items-center gap-2">
+              <Eye className="h-4 w-4" /> Aperçu du fichier (3 premières lignes)
+            </p>
+            <div className="relative w-full overflow-x-auto border rounded-md">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    {rawHeaders.map(h => (
+                      <TableHead key={h} className="whitespace-nowrap text-xs">{h}</TableHead>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rawData.slice(0, 3).map((row, i) => (
+                    <TableRow key={i}>
+                      {rawHeaders.map(h => (
+                        <TableCell key={h} className="whitespace-nowrap text-xs py-2">
+                          {String(row[h] ?? '').substring(0, 60) || <span className="text-muted-foreground italic">vide</span>}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardContent className="p-5 space-y-5">
             <div className="flex items-center justify-between">
