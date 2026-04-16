@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/table';
 import {
   Upload, Download, FileSpreadsheet, AlertTriangle, CheckCircle2,
-  XCircle, Loader2, ArrowLeft, Info, Eye, SkipForward, Wand2,
+  XCircle, Loader2, ArrowLeft, Info, Eye, SkipForward, Wand2, Edit3, X,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -26,6 +26,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import * as XLSX from 'xlsx';
 import Papa from 'papaparse';
+import { Input } from '@/components/ui/input';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 
 type ImportMode = 'create_only' | 'update_only' | 'create_and_update';
 type Step = 'upload' | 'mapping' | 'preview' | 'result';
@@ -102,6 +104,9 @@ export default function BulkImportPage() {
     entreprise: NONE, ville: NONE, statut: NONE, code_postal: NONE, telephone: NONE, email: NONE,
   });
   const [statutMode, setStatutMode] = useState<StatutMode>('all_active');
+  const [showErrorPanel, setShowErrorPanel] = useState(false);
+  const [errorEdits, setErrorEdits] = useState<Record<number, { entreprise: string; ville: string }>>({});
+  const [dismissedErrors, setDismissedErrors] = useState(false);
 
   const { data: existingCustomers = [] } = useQuery({
     queryKey: ['customers-for-import'],
@@ -225,6 +230,36 @@ export default function BulkImportPage() {
 
   const updateMapping = (field: keyof ColumnMapping, value: string) => {
     setColumnMapping(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleFixRow = (rowIndex: number) => {
+    const edit = errorEdits[rowIndex];
+    if (!edit) return;
+    setRows(prev => prev.map(r => {
+      if (r.rowIndex !== rowIndex) return r;
+      const newData = { ...r.data };
+      if (edit.entreprise) newData.entreprise = edit.entreprise;
+      if (edit.ville) newData.ville = edit.ville;
+      // Re-validate this single row
+      const errors: string[] = [];
+      if (!newData.entreprise) errors.push('Entreprise manquante');
+      if (!newData.ville) errors.push('Ville manquante');
+      return { ...r, data: newData, errors };
+    }));
+    setErrorEdits(prev => { const n = { ...prev }; delete n[rowIndex]; return n; });
+    toast.success(`Ligne ${rowIndex + 1} corrigée`);
+  };
+
+  const handleDismissAllErrors = () => {
+    const errorIndices = rows.filter(r => r.errors.length > 0).map(r => r.rowIndex);
+    setExcludedRows(prev => {
+      const next = new Set(prev);
+      errorIndices.forEach(i => next.add(i));
+      return next;
+    });
+    setDismissedErrors(true);
+    setShowErrorPanel(false);
+    toast.info(`${errorIndices.length} lignes invalides ignorées`);
   };
 
   const handleDownloadTemplate = () => {
@@ -537,6 +572,30 @@ export default function BulkImportPage() {
           </CardContent>
         </Card>
 
+        {/* Summary badges - error badge is clickable */}
+        <div className="flex flex-wrap gap-2 items-center">
+          <Badge variant="secondary" className="gap-1 py-1 px-3">
+            <CheckCircle2 className="h-3 w-3" /> {newCount} nouveaux
+          </Badge>
+          <Badge variant="secondary" className="gap-1 py-1 px-3">
+            <AlertTriangle className="h-3 w-3" /> {duplicateCount} doublons
+          </Badge>
+          {errorCount > 0 && !dismissedErrors && (
+            <Badge
+              variant="destructive"
+              className="gap-1 py-1 px-3 cursor-pointer hover:opacity-80 transition-opacity"
+              onClick={() => setShowErrorPanel(true)}
+            >
+              <Edit3 className="h-3 w-3" /> {errorCount} invalides — Corriger
+            </Badge>
+          )}
+          {dismissedErrors && (
+            <Badge variant="outline" className="gap-1 py-1 px-3 text-muted-foreground">
+              <XCircle className="h-3 w-3" /> Invalides ignorées
+            </Badge>
+          )}
+        </div>
+
         <Tabs value={previewTab} onValueChange={v => setPreviewTab(v as any)}>
           <TabsList className="w-full">
             <TabsTrigger value="new" className="flex-1 text-xs gap-1">
@@ -651,6 +710,96 @@ export default function BulkImportPage() {
             )}
           </Button>
         </div>
+
+        {/* Error correction Sheet */}
+        <Sheet open={showErrorPanel} onOpenChange={setShowErrorPanel}>
+          <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
+            <SheetHeader>
+              <SheetTitle className="flex items-center gap-2">
+                <XCircle className="h-5 w-5 text-destructive" />
+                Lignes invalides ({errorCount})
+              </SheetTitle>
+            </SheetHeader>
+            <div className="mt-4 space-y-3">
+              {errorCount > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-destructive border-destructive/30 hover:bg-destructive/5"
+                  onClick={handleDismissAllErrors}
+                >
+                  <SkipForward className="h-4 w-4 mr-1" /> Ignorer toutes les invalides
+                </Button>
+              )}
+              {errorRows.map(row => (
+                <Card key={row.rowIndex} className="border-destructive/20">
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-muted-foreground">Ligne {row.rowIndex + 1}</span>
+                      <div className="flex flex-wrap gap-1">
+                        {row.errors.map((err, j) => (
+                          <Badge key={j} variant="destructive" className="text-[10px]">{err}</Badge>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div><span className="text-muted-foreground">Statut:</span> {row.data.statut || '—'}</div>
+                      <div><span className="text-muted-foreground">Tél:</span> {row.data.telephone || '—'}</div>
+                      <div><span className="text-muted-foreground">Email:</span> {row.data.email || '—'}</div>
+                      <div><span className="text-muted-foreground">CP:</span> {row.data.code_postal || '—'}</div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Entreprise <span className="text-destructive">*</span></Label>
+                        <Input
+                          className="h-8 text-sm"
+                          placeholder="Nom de l'entreprise"
+                          defaultValue={row.data.entreprise}
+                          onChange={e => setErrorEdits(prev => ({
+                            ...prev,
+                            [row.rowIndex]: { ...prev[row.rowIndex], entreprise: e.target.value, ville: prev[row.rowIndex]?.ville ?? row.data.ville }
+                          }))}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Ville <span className="text-destructive">*</span></Label>
+                        <Input
+                          className="h-8 text-sm"
+                          placeholder="Ville"
+                          defaultValue={row.data.ville}
+                          onChange={e => setErrorEdits(prev => ({
+                            ...prev,
+                            [row.rowIndex]: { ...prev[row.rowIndex], ville: e.target.value, entreprise: prev[row.rowIndex]?.entreprise ?? row.data.entreprise }
+                          }))}
+                        />
+                      </div>
+                    </div>
+
+                    <Button
+                      size="sm"
+                      className="w-full h-8"
+                      disabled={
+                        !(errorEdits[row.rowIndex]?.entreprise || row.data.entreprise) ||
+                        !(errorEdits[row.rowIndex]?.ville || row.data.ville)
+                      }
+                      onClick={() => handleFixRow(row.rowIndex)}
+                    >
+                      <CheckCircle2 className="h-3 w-3 mr-1" /> Valider
+                    </Button>
+                  </CardContent>
+                </Card>
+              ))}
+              {errorRows.length === 0 && (
+                <div className="text-center py-8 text-sm text-muted-foreground">
+                  <CheckCircle2 className="mx-auto h-8 w-8 text-accent mb-2" />
+                  Toutes les lignes sont valides !
+                </div>
+              )}
+            </div>
+          </SheetContent>
+        </Sheet>
       </div>
     );
   }
