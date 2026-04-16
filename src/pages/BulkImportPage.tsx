@@ -247,61 +247,55 @@ export default function BulkImportPage() {
       if (excludedRows.has(row.rowIndex)) { res.skipped++; continue; }
 
       const d = row.data;
-      const isExisting = row.isDuplicate && row.duplicateOf?.includes('existant en base');
+      const companyName = d.entreprise.trim();
+      const city = d.ville.trim();
 
-      if (mode === 'create_only' && isExisting) { res.skipped++; continue; }
-      if (mode === 'update_only' && !isExisting) { res.skipped++; continue; }
-
-      const vehicles = parseInt(d.nb_vehicules) || 0;
-      const customerData = {
-        company_name: d.entreprise.trim(),
-        city: d.ville.trim(),
-        address: d.adresse.trim() || null,
-        postal_code: d.code_postal.trim() || null,
-        phone: d.telephone.trim() || null,
-        email: d.email.trim() || null,
-        notes: d.notes.trim() || null,
-        customer_type: d.statut.toLowerCase(),
-        number_of_vehicles: vehicles,
-        visit_frequency: d.frequence_visite.toLowerCase() || 'mensuelle',
-        sales_potential: vehicles * 3500 >= 60000 ? 'A' : vehicles * 3500 >= 24000 ? 'B' : 'C',
-      };
+      if (!companyName || !city) { res.errors++; continue; }
 
       try {
-        if (isExisting && (mode === 'update_only' || mode === 'create_and_update')) {
-          const existing = existingCustomers.find(c =>
-            c.company_name.toLowerCase() === d.entreprise.trim().toLowerCase() &&
-            c.city.toLowerCase() === d.ville.trim().toLowerCase()
-          );
-          if (existing) {
+        // Real-time duplicate check against DB
+        const { data: existingMatch } = await supabase
+          .from('customers')
+          .select('id')
+          .ilike('company_name', companyName)
+          .ilike('city', city)
+          .maybeSingle();
+
+        if (existingMatch) {
+          if (mode === 'create_only') { res.skipped++; continue; }
+          if (mode === 'update_only' || mode === 'create_and_update') {
             const { error } = await supabase
               .from('customers')
-              .update(customerData)
-              .eq('id', existing.id);
+              .update({
+                postal_code: d.code_postal.trim() || null,
+                phone: d.telephone.trim() || null,
+                email: d.email.trim() || null,
+                customer_type: d.statut.toLowerCase(),
+              })
+              .eq('id', existingMatch.id);
             if (error) { res.errors++; } else { res.updated++; }
-          } else { res.skipped++; }
-        } else {
-          const { data: created, error } = await supabase
-            .from('customers')
-            .insert({ ...customerData, assigned_rep_id: user.id })
-            .select('id')
-            .single();
-
-          if (error) { res.errors++; continue; }
-          res.created++;
-
-          if (d.contact_principal.trim() && created?.id) {
-            const { first_name, last_name } = splitName(d.contact_principal);
-            await supabase.from('contacts').insert({
-              customer_id: created.id,
-              first_name,
-              last_name,
-              phone: d.telephone.trim() || null,
-              email: d.email.trim() || null,
-              is_primary: true,
-            });
+            continue;
           }
         }
+
+        if (mode === 'update_only') { res.skipped++; continue; }
+
+        // Insert new customer
+        const { error } = await supabase
+          .from('customers')
+          .insert({
+            company_name: companyName,
+            city,
+            postal_code: d.code_postal.trim() || null,
+            phone: d.telephone.trim() || null,
+            email: d.email.trim() || null,
+            customer_type: d.statut.toLowerCase(),
+            account_status: 'active',
+            assigned_rep_id: user.id,
+            visit_frequency: 'mensuelle',
+          });
+
+        if (error) { res.errors++; } else { res.created++; }
       } catch {
         res.errors++;
       }
@@ -310,6 +304,7 @@ export default function BulkImportPage() {
     setResult(res);
     setStep('result');
     setImporting(false);
+    toast.success(`${res.created} clients importés, ${res.skipped} doublons ignorés, ${res.errors} erreurs`);
   };
 
   const errorRows = rows.filter(r => r.errors.length > 0);
