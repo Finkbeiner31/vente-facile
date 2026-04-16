@@ -207,7 +207,7 @@ export default function RoutesPage() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['weekly-zone-planning', activeUserId] });
+      queryClient.invalidateQueries({ queryKey: ['weekly-zone-planning', activeUserId, selectedWeek] });
       toast.success('Planning mis à jour');
     },
     onError: () => toast.error('Impossible d\'enregistrer la zone pour ce jour'),
