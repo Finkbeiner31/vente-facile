@@ -149,7 +149,7 @@ function getPotential(c: MapCustomer): string {
 // ── Component ──
 
 export default function MapPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, role } = useAuth();
   const { effectiveUserId } = useImpersonation();
   const activeUserId = effectiveUserId || user?.id;
   const isMobile = useIsMobile();
@@ -171,24 +171,43 @@ export default function MapPage() {
   const routePolylineRef = useRef<google.maps.Polyline | null>(null);
   const { data: revenueMap } = useAllCustomerRevenues();
 
-  // Fetch customers with coordinates
-  const { data: customers = [], isLoading } = useQuery({
-    queryKey: ['customers-map', activeUserId],
+  const isAdmin = role === 'admin' || role === 'manager';
+
+  // Fetch ALL customers (with and without coords) so we can report missing geolocation
+  const { data: allCustomers = [], isLoading } = useQuery({
+    queryKey: ['customers-map', activeUserId, role],
     queryFn: async () => {
-      let query = supabase
-        .from('customers')
-        .select('id, company_name, customer_type, city, latitude, longitude, number_of_vehicles, annual_revenue_potential, last_visit_date, phone, sales_potential, visit_frequency')
-        .not('latitude', 'is', null)
-        .not('longitude', 'is', null);
-      if (activeUserId) {
-        query = query.eq('assigned_rep_id', activeUserId);
+      const selectFields = 'id, company_name, customer_type, city, latitude, longitude, number_of_vehicles, annual_revenue_potential, last_visit_date, phone, sales_potential, visit_frequency';
+      
+      if (isAdmin) {
+        // Admins/managers see ALL customers (RLS already allows it)
+        const { data, error } = await supabase
+          .from('customers')
+          .select(selectFields);
+        if (error) throw error;
+        return (data || []) as (MapCustomer & { latitude: number | null; longitude: number | null })[];
+      } else {
+        // Sales reps: own clients only
+        const { data, error } = await supabase
+          .from('customers')
+          .select(selectFields)
+          .eq('assigned_rep_id', activeUserId!);
+        if (error) throw error;
+        return (data || []) as (MapCustomer & { latitude: number | null; longitude: number | null })[];
       }
-      const { data, error } = await query;
-      if (error) throw error;
-      return (data || []) as MapCustomer[];
     },
     enabled: !loading && !!activeUserId,
   });
+
+  // Split into geolocated vs not
+  const customers = useMemo(() =>
+    allCustomers.filter(c => c.latitude != null && c.longitude != null) as MapCustomer[],
+    [allCustomers]
+  );
+  const missingCoords = useMemo(() =>
+    allCustomers.filter(c => c.latitude == null || c.longitude == null),
+    [allCustomers]
+  );
 
   // Compute performance status per customer for marker colors
   const perfMap = useMemo(() => {
@@ -405,6 +424,22 @@ export default function MapPage() {
             <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#3B82F6] inline-block" />Prospect</span>
             <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full border-2 border-dashed border-[#EF4444] inline-block" />Retard</span>
           </div>
+        </div>
+      )}
+
+      {/* ── Missing geolocation banner ── */}
+      {missingCoords.length > 0 && (
+        <div className="flex items-center gap-2 px-3 py-1.5 border-b bg-warning/10 text-warning text-xs z-10 shrink-0">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <span>{missingCoords.length} client{missingCoords.length > 1 ? 's' : ''} non géolocalisé{missingCoords.length > 1 ? 's' : ''} (adresse à géocoder)</span>
+        </div>
+      )}
+
+      {/* ── Empty state when all loaded but none geolocated ── */}
+      {!isLoading && allCustomers.length > 0 && customers.length === 0 && (
+        <div className="flex items-center gap-2 px-3 py-2 border-b bg-muted/50 text-sm z-10 shrink-0">
+          <MapPin className="h-4 w-4 text-muted-foreground" />
+          <span>Les clients existent mais ne sont pas encore géolocalisés. Vérifiez les adresses dans la fiche client.</span>
         </div>
       )}
 
