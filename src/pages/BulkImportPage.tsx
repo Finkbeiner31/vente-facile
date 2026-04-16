@@ -88,6 +88,12 @@ const AUTO_DETECT_MAP: Record<string, keyof ColumnMapping> = {
   'courriel': 'email',
 };
 
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const cleanEmail = (raw: string): string | null => {
+  const first = raw.split(/[;,]/)[0].trim();
+  return first && EMAIL_RE.test(first) ? first : null;
+};
+
 const splitName = (full: string) => {
   const parts = full.trim().split(/\s+/);
   if (parts.length <= 1) return { first_name: parts[0] || '', last_name: '' };
@@ -322,7 +328,7 @@ export default function BulkImportPage() {
               .update({
                 postal_code: d.code_postal.trim() || null,
                 phone: d.telephone.trim() || null,
-                email: d.email.trim() || null,
+                email: cleanEmail(d.email),
                 customer_type: d.statut.toLowerCase(),
               })
               .eq('id', existingMatch.id);
@@ -341,7 +347,7 @@ export default function BulkImportPage() {
             city,
             postal_code: d.code_postal.trim() || null,
             phone: d.telephone.trim() || null,
-            email: d.email.trim() || null,
+            email: cleanEmail(d.email),
             customer_type: d.statut.toLowerCase(),
             account_status: 'active',
             assigned_rep_id: user.id,
