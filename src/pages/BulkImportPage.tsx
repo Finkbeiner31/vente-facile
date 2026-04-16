@@ -42,11 +42,19 @@ interface ColumnMapping {
   email: string;
 }
 
+interface ImportErrorDetail {
+  rowIndex: number;
+  entreprise: string;
+  ville: string;
+  message: string;
+}
+
 interface ImportResult {
   created: number;
   updated: number;
   skipped: number;
   errors: number;
+  errorDetails: ImportErrorDetail[];
 }
 
 const NONE = '__none__';
@@ -97,6 +105,7 @@ export default function BulkImportPage() {
   const [previewTab, setPreviewTab] = useState<'new' | 'duplicates' | 'errors'>('new');
   const [excludedRows, setExcludedRows] = useState<Set<number>>(new Set());
   const [dragging, setDragging] = useState(false);
+  const [showResultErrors, setShowResultErrors] = useState(false);
 
   // Mapping step state
   const [rawHeaders, setRawHeaders] = useState<string[]>([]);
@@ -284,17 +293,17 @@ export default function BulkImportPage() {
   const handleImport = async () => {
     if (!user) return;
     setImporting(true);
-    const res: ImportResult = { created: 0, updated: 0, skipped: 0, errors: 0 };
+    const res: ImportResult = { created: 0, updated: 0, skipped: 0, errors: 0, errorDetails: [] };
 
     for (const row of rows) {
-      if (row.errors.length > 0) { res.errors++; continue; }
+      if (row.errors.length > 0) { res.errors++; res.errorDetails.push({ rowIndex: row.rowIndex, entreprise: row.data.entreprise, ville: row.data.ville, message: row.errors.join(', ') }); continue; }
       if (excludedRows.has(row.rowIndex)) { res.skipped++; continue; }
 
       const d = row.data;
       const companyName = d.entreprise.trim();
       const city = d.ville.trim();
 
-      if (!companyName || !city) { res.errors++; continue; }
+      if (!companyName || !city) { res.errors++; res.errorDetails.push({ rowIndex: row.rowIndex, entreprise: companyName || '(vide)', ville: city || '(vide)', message: 'Entreprise ou ville manquante' }); continue; }
 
       try {
         // Real-time duplicate check against DB
@@ -317,7 +326,7 @@ export default function BulkImportPage() {
                 customer_type: d.statut.toLowerCase(),
               })
               .eq('id', existingMatch.id);
-            if (error) { res.errors++; } else { res.updated++; }
+            if (error) { res.errors++; res.errorDetails.push({ rowIndex: row.rowIndex, entreprise: companyName, ville: city, message: error.message }); } else { res.updated++; }
             continue;
           }
         }
@@ -339,9 +348,10 @@ export default function BulkImportPage() {
             visit_frequency: 'mensuelle',
           });
 
-        if (error) { res.errors++; } else { res.created++; }
-      } catch {
+        if (error) { res.errors++; res.errorDetails.push({ rowIndex: row.rowIndex, entreprise: companyName, ville: city, message: error.message }); } else { res.created++; }
+      } catch (err: any) {
         res.errors++;
+        res.errorDetails.push({ rowIndex: row.rowIndex, entreprise: d.entreprise, ville: d.ville, message: err?.message || 'Erreur inconnue' });
       }
     }
 
@@ -891,6 +901,45 @@ export default function BulkImportPage() {
         </Card>
       </div>
 
+      {result && result.errorDetails.length > 0 && (
+        <Card>
+          <CardContent className="p-5 space-y-3">
+            <Button
+              variant="outline"
+              className="text-destructive border-destructive/30 hover:bg-destructive/5"
+              onClick={() => setShowResultErrors(!showResultErrors)}
+            >
+              <XCircle className="h-4 w-4 mr-2" />
+              {showResultErrors ? 'Masquer' : 'Voir'} les {result.errorDetails.length} erreur{result.errorDetails.length > 1 ? 's' : ''}
+            </Button>
+
+            {showResultErrors && (
+              <div className="relative w-full overflow-x-auto border rounded-md">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="whitespace-nowrap">Ligne</TableHead>
+                      <TableHead className="whitespace-nowrap">Entreprise</TableHead>
+                      <TableHead className="whitespace-nowrap">Ville</TableHead>
+                      <TableHead className="whitespace-nowrap">Erreur</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {result.errorDetails.map((err, i) => (
+                      <TableRow key={i}>
+                        <TableCell className="font-mono text-xs whitespace-nowrap">{err.rowIndex + 1}</TableCell>
+                        <TableCell className="whitespace-nowrap">{err.entreprise || '—'}</TableCell>
+                        <TableCell className="whitespace-nowrap">{err.ville || '—'}</TableCell>
+                        <TableCell className="text-destructive text-xs">{err.message}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
       <div className="flex justify-end gap-2">
         <Button variant="outline" onClick={() => { setStep('upload'); setRows([]); setResult(null); setRawHeaders([]); setRawData([]); }}>
           Nouvel import
