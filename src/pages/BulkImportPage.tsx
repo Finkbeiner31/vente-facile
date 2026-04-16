@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, DragEvent } from 'react';
+import { useState, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,238 +10,297 @@ import {
 } from '@/components/ui/table';
 import {
   Upload, Download, FileSpreadsheet, AlertTriangle, CheckCircle2,
-  XCircle, Loader2, ArrowLeft, ArrowRight, Info, Wand2,
+  XCircle, Loader2, ArrowLeft, Info, Eye, SkipForward,
 } from 'lucide-react';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import * as XLSX from 'xlsx';
-import Papa from 'papaparse';
-import { generateTemplate } from '@/lib/importUtils';
+import { Link } from 'react-router-dom';
+import {
+  parseCSV, parseXLSX, validateRows, generateTemplate,
+  type ImportRow, type ValidatedRow,
+} from '@/lib/importUtils';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-type Step = 'upload' | 'mapping' | 'preview' | 'result';
-type StatutMode = 'column' | 'client_actif' | 'prospect';
-
-interface CrmField {
-  key: string;
-  label: string;
-  required: boolean;
-  hint?: string;
-}
-
-const CRM_FIELDS: CrmField[] = [
-  { key: 'entreprise', label: 'Entreprise', required: true },
-  { key: 'ville', label: 'Ville', required: true },
-  { key: 'statut', label: 'Statut', required: true, hint: 'client_actif ou prospect' },
-  { key: 'code_postal', label: 'Code postal', required: false },
-  { key: 'telephone', label: 'Téléphone', required: false },
-  { key: 'email', label: 'Email', required: false },
-  { key: 'metier', label: 'Métier', required: false, hint: 'ATELIER / NEGOCE / MIXTE / AUTRE' },
-  { key: 'nb_vehicules', label: 'Nombre de véhicules', required: false },
-  { key: 'potentiel', label: 'Potentiel commercial', required: false, hint: 'A / B / C' },
-  { key: 'commercial_code', label: 'Code commercial', required: false, hint: 'COM01 / COM02 / COM03 / COM04' },
-  { key: 'adresse', label: 'Adresse', required: false },
-  { key: 'siret', label: 'SIRET', required: false },
-  { key: 'contact_nom', label: 'Contact principal', required: false },
-  { key: 'notes', label: 'Notes', required: false },
-];
-
-// Auto-detect mapping aliases
-const ALIASES: Record<string, string[]> = {
-  entreprise: ['entreprise', 'raison sociale', 'raison_sociale', 'societe', 'société', 'nom', 'company', 'company_name', 'nom_entreprise'],
-  ville: ['ville', 'city', 'commune', 'localite', 'localité'],
-  statut: ['statut', 'status', 'type', 'type_client', 'customer_type'],
-  code_postal: ['code_postal', 'code postal', 'cp', 'postal_code', 'zip', 'zipcode', 'codepostal'],
-  telephone: ['telephone', 'téléphone', 'tel', 'tél', 'phone', 'tel1', 'tel_1', 'mobile', 'portable'],
-  email: ['email', 'e-mail', 'mail', 'courriel', 'adresse_email'],
-  metier: ['metier', 'métier', 'activite', 'activité', 'type_activite', 'activity', 'activity_type', 'secteur'],
-  nb_vehicules: ['nb_vehicules', 'nb vehicules', 'vehicules', 'véhicules', 'nombre_vehicules', 'nb_vh', 'flotte', 'fleet', 'vehicles'],
-  potentiel: ['potentiel', 'potential', 'sales_potential', 'niveau', 'categorie', 'catégorie'],
-  commercial_code: ['commercial_code', 'commercial', 'code_commercial', 'rep', 'rep_code', 'vendeur', 'assigned'],
-  adresse: ['adresse', 'address', 'rue', 'adresse_complete', 'street'],
-  siret: ['siret', 'siren', 'siret_number', 'n_siret', 'numero_siret'],
-  contact_nom: ['contact_nom', 'contact', 'contact_principal', 'interlocuteur', 'nom_contact', 'contact_name', 'responsable'],
-  notes: ['notes', 'note', 'commentaire', 'commentaires', 'remarque', 'observations', 'description'],
-};
+type ImportMode = 'create_only' | 'update_only' | 'create_and_update';
+type Step = 'upload' | 'preview' | 'result';
 
 interface ImportResult {
   created: number;
+  updated: number;
+  skipped: number;
   errors: number;
-  errorDetails: { row: number; reason: string }[];
 }
 
-interface MappedRow {
-  [key: string]: string;
-}
+const splitName = (full: string) => {
+  const parts = full.trim().split(/\s+/);
+  if (parts.length <= 1) return { first_name: parts[0] || '', last_name: '' };
+  return { first_name: parts.slice(0, -1).join(' '), last_name: parts[parts.length - 1] };
+};
 
 export default function BulkImportPage() {
   const { user, role } = useAuth();
   const [step, setStep] = useState<Step>('upload');
-  const [rawData, setRawData] = useState<Record<string, string>[]>([]);
-  const [fileColumns, setFileColumns] = useState<string[]>([]);
-  const [mapping, setMapping] = useState<Record<string, string>>({});
-  const [fileName, setFileName] = useState('');
+  const [rows, setRows] = useState<ValidatedRow[]>([]);
+  const [mode, setMode] = useState<ImportMode>('create_only');
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
-  const [dragOver, setDragOver] = useState(false);
-  const [statutMode, setStatutMode] = useState<StatutMode>('client_actif');
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [fileName, setFileName] = useState('');
+  const [previewTab, setPreviewTab] = useState<'new' | 'duplicates' | 'errors'>('new');
+  const [excludedRows, setExcludedRows] = useState<Set<number>>(new Set());
 
-  const parseFile = useCallback(async (file: File) => {
+  // Fetch existing customers for duplicate detection
+  const { data: existingCustomers = [] } = useQuery({
+    queryKey: ['customers-for-import'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('customers')
+        .select('id, company_name, city, phone, email');
+      return (data || []).map(c => ({
+        id: c.id,
+        company_name: c.company_name,
+        city: c.city || '',
+        phone: c.phone || '',
+        email: c.email || '',
+      }));
+    },
+  });
+
+  const handleFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
     setFileName(file.name);
+
     try {
-      let data: Record<string, string>[];
+      let parsed: ImportRow[];
       if (file.name.endsWith('.csv')) {
         const text = await file.text();
-        const parsed = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true });
-        data = parsed.data;
+        parsed = parseCSV(text);
       } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
         const buffer = await file.arrayBuffer();
-        const wb = XLSX.read(buffer, { type: 'array' });
-        const sheet = wb.Sheets[wb.SheetNames[0]];
-        data = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, { defval: '' });
+        parsed = parseXLSX(buffer);
       } else {
         toast.error('Format non supporté. Utilisez .csv ou .xlsx');
         return;
       }
 
-      if (data.length === 0) {
+      if (parsed.length === 0) {
         toast.error('Le fichier est vide ou mal formaté.');
         return;
       }
 
-      const cols = Object.keys(data[0]);
-      setFileColumns(cols);
-      setRawData(data);
-      setMapping({});
-      setStep('mapping');
-      toast.success(`${data.length} lignes détectées`);
+      const validated = validateRows(parsed, existingCustomers);
+      setRows(validated);
+      setStep('preview');
     } catch {
       toast.error('Erreur lors de la lecture du fichier.');
     }
-  }, []);
 
-  const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) parseFile(file);
+    // Reset input for re-upload
     e.target.value = '';
-  }, [parseFile]);
+  }, [existingCustomers]);
 
-  const handleDrop = useCallback((e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setDragOver(false);
-    const file = e.dataTransfer.files[0];
-    if (file) parseFile(file);
-  }, [parseFile]);
+  const handleDownloadTemplate = () => {
+    import('xlsx').then(XLSX => {
+      const wb = XLSX.utils.book_new();
 
-  const handleAutoDetect = () => {
-    const newMapping: Record<string, string> = {};
-    const normalizedCols = fileColumns.map(c => c.trim().toLowerCase().replace(/[_\s]+/g, ' ').replace(/[éè]/g, 'e').replace(/[à]/g, 'a'));
+      // ── Feuille 1 : Import Clients ──
+      const headers = [
+        'entreprise', 'ville', 'statut', 'code_postal', 'telephone', 'email',
+        'metier', 'nb_vehicules', 'potentiel', 'commercial_code',
+        'adresse', 'siret', 'contact_nom', 'notes',
+      ];
+      const descriptions = [
+        'Nom de l\'entreprise', 'Ville du site', 'client_actif ou prospect',
+        'Code postal', 'N° téléphone', 'Adresse email',
+        'ATELIER / NEGOCE / MIXTE / AUTRE', 'Nombre de véhicules', 'A / B / C',
+        'Code commercial', 'Adresse complète', 'N° SIRET', 'Nom du contact principal',
+        'Notes libres',
+      ];
+      const examples = [
+        ['TRANSPORTS DUPONT', 'TOULOUSE', 'client_actif', '31000', '0561234567', 'contact@dupont.fr', 'ATELIER', 12, 'A', 'COM01', '', '', '', ''],
+        ['GARAGE MARTIN', 'MURET', 'client_actif', '31600', '0561987654', 'martin@garage.fr', 'MIXTE', 5, 'B', 'COM03', '', '', '', ''],
+        ['TRANSPORTS NOUVEAUX', 'CARCASSONNE', 'prospect', '11000', '0468123456', '', 'NEGOCE', 8, 'B', 'COM03', '', '', '', ''],
+      ];
 
-    for (const field of CRM_FIELDS) {
-      const aliases = ALIASES[field.key] || [field.key];
-      const normalizedAliases = aliases.map(a => a.toLowerCase().replace(/[_\s]+/g, ' ').replace(/[éè]/g, 'e').replace(/[à]/g, 'a'));
+      const wsData: (string | number)[][] = [
+        ['VENTE FACILE — Modèle import clients'],
+        ['Colonnes ORANGES = obligatoires'],
+        headers,
+        descriptions,
+        ...examples,
+      ];
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-      for (let i = 0; i < normalizedCols.length; i++) {
-        if (normalizedAliases.includes(normalizedCols[i])) {
-          newMapping[field.key] = fileColumns[i];
-          break;
-        }
+      // Merge title row
+      ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 13 } }];
+
+      // Column widths
+      ws['!cols'] = [
+        { wch: 22 }, { wch: 16 }, { wch: 14 }, { wch: 12 }, { wch: 14 }, { wch: 22 },
+        { wch: 12 }, { wch: 14 }, { wch: 10 }, { wch: 16 },
+        { wch: 24 }, { wch: 16 }, { wch: 18 }, { wch: 20 },
+      ];
+
+      // Styles (requires bookType xlsb won't work, but SheetJS community supports basic cell styling)
+      // Title row style
+      const titleCell = ws['A1'];
+      if (titleCell) {
+        titleCell.s = { font: { bold: true, sz: 14, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '1F2937' } }, alignment: { horizontal: 'center' } };
       }
-    }
-
-    setMapping(newMapping);
-    const matched = Object.keys(newMapping).length;
-    toast.success(`${matched} champ${matched > 1 ? 's' : ''} détecté${matched > 1 ? 's' : ''} automatiquement`);
-  };
-
-  const getMappedRows = (): MappedRow[] => {
-    return rawData.map(row => {
-      const mapped: MappedRow = {};
-      for (const field of CRM_FIELDS) {
-        if (field.key === 'statut') {
-          if (statutMode === 'client_actif') mapped.statut = 'client_actif';
-          else if (statutMode === 'prospect') mapped.statut = 'prospect';
-          else {
-            const col = mapping['statut'];
-            mapped.statut = col ? String(row[col] ?? '').trim() : '';
-          }
-          continue;
-        }
-        const col = mapping[field.key];
-        mapped[field.key] = col ? String(row[col] ?? '').trim() : '';
+      // Subtitle
+      const subCell = ws['A2'];
+      if (subCell) {
+        subCell.s = { font: { italic: true, sz: 10, color: { rgb: '92400E' } }, fill: { fgColor: { rgb: 'FEF3C7' } } };
       }
-      return mapped;
+
+      // Header styles
+      const orangeCols = [0, 1, 2]; // obligatoires
+      const greenCols = [3, 4, 5, 6, 7, 8, 9]; // recommandées
+      const greyCols = [10, 11, 12, 13]; // optionnelles
+
+      headers.forEach((_, ci) => {
+        const cellRef = XLSX.utils.encode_cell({ r: 2, c: ci });
+        const cell = ws[cellRef];
+        if (!cell) return;
+        let fillColor = 'D1D5DB'; // grey
+        if (orangeCols.includes(ci)) fillColor = 'F97316';
+        else if (greenCols.includes(ci)) fillColor = '22C55E';
+        cell.s = {
+          font: { bold: true, sz: 11, color: { rgb: orangeCols.includes(ci) ? 'FFFFFF' : '000000' } },
+          fill: { fgColor: { rgb: fillColor } },
+          alignment: { horizontal: 'center' },
+        };
+      });
+
+      // Description row style
+      descriptions.forEach((_, ci) => {
+        const cellRef = XLSX.utils.encode_cell({ r: 3, c: ci });
+        const cell = ws[cellRef];
+        if (cell) {
+          cell.s = { font: { italic: true, sz: 9, color: { rgb: '6B7280' } }, fill: { fgColor: { rgb: 'F9FAFB' } } };
+        }
+      });
+
+      XLSX.utils.book_append_sheet(wb, ws, 'Import Clients');
+
+      // ── Feuille 2 : Valeurs acceptées ──
+      const refData = [
+        ['Champ', 'Valeur', 'Description'],
+        ['statut', 'client_actif', 'Client actif avec CA'],
+        ['statut', 'prospect', 'Prospect à convertir'],
+        ['', '', ''],
+        ['metier', 'ATELIER', 'Atelier mécanique'],
+        ['metier', 'NEGOCE', 'Négoce pièces'],
+        ['metier', 'MIXTE', 'Atelier + Négoce'],
+        ['metier', 'AUTRE', 'Autre activité'],
+        ['', '', ''],
+        ['potentiel', 'A', 'Fort potentiel (≥5k€/mois)'],
+        ['potentiel', 'B', 'Potentiel moyen (2-5k€/mois)'],
+        ['potentiel', 'C', 'Faible potentiel (<2k€/mois)'],
+        ['', '', ''],
+        ['commercial_code', 'COM01', 'Commercial 1'],
+        ['commercial_code', 'COM02', 'Commercial 2'],
+        ['commercial_code', 'COM03', 'Commercial 3'],
+        ['commercial_code', 'COM04', 'Commercial 4'],
+      ];
+      const ws2 = XLSX.utils.aoa_to_sheet(refData);
+      ws2['!cols'] = [{ wch: 18 }, { wch: 14 }, { wch: 28 }];
+
+      // Header style for ref sheet
+      ['A1', 'B1', 'C1'].forEach(ref => {
+        const cell = ws2[ref];
+        if (cell) {
+          cell.s = { font: { bold: true, color: { rgb: 'FFFFFF' } }, fill: { fgColor: { rgb: '3B82F6' } } };
+        }
+      });
+
+      XLSX.utils.book_append_sheet(wb, ws2, 'Valeurs acceptées');
+
+      const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true });
+      const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'modele_import_clients.xlsx';
+      a.click();
+      URL.revokeObjectURL(url);
     });
   };
-
-  const isRowInvalid = (row: MappedRow) => !row.entreprise || !row.ville;
 
   const handleImport = async () => {
     if (!user) return;
     setImporting(true);
-    const mappedRows = getMappedRows();
-    const res: ImportResult = { created: 0, errors: 0, errorDetails: [] };
+    const res: ImportResult = { created: 0, updated: 0, skipped: 0, errors: 0 };
 
-    for (let i = 0; i < mappedRows.length; i++) {
-      const r = mappedRows[i];
-      if (isRowInvalid(r)) {
-        res.errors++;
-        res.errorDetails.push({ row: i + 1, reason: 'Entreprise ou Ville manquante' });
-        continue;
-      }
+    for (const row of rows) {
+      // Skip rows with errors or excluded by user
+      if (row.errors.length > 0) { res.errors++; continue; }
+      if (excludedRows.has(row.rowIndex)) { res.skipped++; continue; }
 
-      const vehicles = parseInt(r.nb_vehicules) || 0;
-      const statut = r.statut?.toLowerCase() || 'prospect';
-      const customerData: Record<string, unknown> = {
-        company_name: r.entreprise,
-        city: r.ville,
-        customer_type: ['client_actif', 'prospect'].includes(statut) ? statut : 'prospect',
-        postal_code: r.code_postal || null,
-        phone: r.telephone || null,
-        email: r.email || null,
-        activity_type: r.metier || null,
+      const d = row.data;
+      const isExisting = row.isDuplicate && row.duplicateOf?.includes('existant en base');
+
+      // Mode logic
+      if (mode === 'create_only' && isExisting) { res.skipped++; continue; }
+      if (mode === 'update_only' && !isExisting) { res.skipped++; continue; }
+
+      const vehicles = parseInt(d.nb_vehicules) || 0;
+      const customerData = {
+        company_name: d.entreprise.trim(),
+        city: d.ville.trim(),
+        address: d.adresse.trim() || null,
+        postal_code: d.code_postal.trim() || null,
+        phone: d.telephone.trim() || null,
+        email: d.email.trim() || null,
+        notes: d.notes.trim() || null,
+        customer_type: d.statut.toLowerCase(),
         number_of_vehicles: vehicles,
-        sales_potential: ['A', 'B', 'C'].includes(r.potentiel?.toUpperCase()) ? r.potentiel.toUpperCase() : 'C',
-        address: r.adresse || null,
-        notes: r.notes || null,
-        assigned_rep_id: user.id,
-        account_status: 'active',
+        visit_frequency: d.frequence_visite.toLowerCase() || 'mensuelle',
+        sales_potential: vehicles * 3500 >= 60000 ? 'A' : vehicles * 3500 >= 24000 ? 'B' : 'C',
       };
 
       try {
-        const { data: created, error } = await supabase
-          .from('customers')
-          .insert(customerData as any)
-          .select('id')
-          .single();
+        if (isExisting && (mode === 'update_only' || mode === 'create_and_update')) {
+          // Find existing customer
+          const existing = existingCustomers.find(c =>
+            c.company_name.toLowerCase() === d.entreprise.trim().toLowerCase() &&
+            c.city.toLowerCase() === d.ville.trim().toLowerCase()
+          );
+          if (existing) {
+            const { error } = await supabase
+              .from('customers')
+              .update(customerData)
+              .eq('id', existing.id);
+            if (error) { res.errors++; } else { res.updated++; }
+          } else { res.skipped++; }
+        } else {
+          // Create
+          const { data: created, error } = await supabase
+            .from('customers')
+            .insert({ ...customerData, assigned_rep_id: user.id })
+            .select('id')
+            .single();
 
-        if (error) {
-          res.errors++;
-          res.errorDetails.push({ row: i + 1, reason: error.message });
-          continue;
-        }
-        res.created++;
+          if (error) { res.errors++; continue; }
+          res.created++;
 
-        // Create contact if provided
-        if (r.contact_nom && created?.id) {
-          const parts = r.contact_nom.trim().split(/\s+/);
-          const first_name = parts[0] || '';
-          const last_name = parts.slice(1).join(' ') || '';
-          await supabase.from('contacts').insert({
-            customer_id: created.id,
-            first_name,
-            last_name,
-            phone: r.telephone || null,
-            email: r.email || null,
-            is_primary: true,
-          });
+          // Create primary contact if provided
+          if (d.contact_principal.trim() && created?.id) {
+            const { first_name, last_name } = splitName(d.contact_principal);
+            await supabase.from('contacts').insert({
+              customer_id: created.id,
+              first_name,
+              last_name,
+              phone: d.telephone.trim() || null,
+              email: d.email.trim() || null,
+              is_primary: true,
+            });
+          }
         }
       } catch {
         res.errors++;
-        res.errorDetails.push({ row: i + 1, reason: 'Erreur inattendue' });
       }
     }
 
@@ -250,15 +309,14 @@ export default function BulkImportPage() {
     setImporting(false);
   };
 
-  const handleDownloadTemplate = () => {
-    const blob = generateTemplate();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'modele_import_clients.xlsx';
-    a.click();
-    URL.revokeObjectURL(url);
-  };
+  const errorRows = rows.filter(r => r.errors.length > 0);
+  const duplicateRows = rows.filter(r => r.isDuplicate && r.errors.length === 0);
+  const newRows = rows.filter(r => !r.isDuplicate && r.errors.length === 0);
+  const errorCount = errorRows.length;
+  const duplicateCount = duplicateRows.length;
+  const newCount = newRows.length;
+  const importableCount = newCount + duplicateRows.filter(r => !excludedRows.has(r.rowIndex)).length;
+  const validCount = rows.filter(r => r.errors.length === 0).length;
 
   // Guard: admin only
   if (role !== 'admin') {
@@ -277,34 +335,7 @@ export default function BulkImportPage() {
     );
   }
 
-  // Step indicator
-  const steps = [
-    { key: 'upload', label: '1. Fichier', icon: Upload },
-    { key: 'mapping', label: '2. Correspondance', icon: Wand2 },
-    { key: 'preview', label: '3. Aperçu & Import', icon: CheckCircle2 },
-  ];
-
-  const renderStepper = () => (
-    <div className="flex items-center gap-2 mb-6">
-      {steps.map((s, i) => {
-        const isCurrent = s.key === step;
-        const isDone = steps.findIndex(st => st.key === step) > i;
-        return (
-          <div key={s.key} className="flex items-center gap-2">
-            {i > 0 && <div className={`h-px w-8 ${isDone ? 'bg-primary' : 'bg-border'}`} />}
-            <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
-              isCurrent ? 'bg-primary text-primary-foreground' : isDone ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
-            }`}>
-              <s.icon className="h-3.5 w-3.5" />
-              {s.label}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-
-  // ── ÉTAPE 1 : UPLOAD ──
+  // ── UPLOAD STEP ──
   if (step === 'upload') {
     return (
       <div className="space-y-6 animate-fade-in">
@@ -312,37 +343,29 @@ export default function BulkImportPage() {
           <h1 className="font-heading text-2xl font-bold">Import clients / prospects</h1>
           <p className="text-sm text-muted-foreground">Importez en masse depuis un fichier CSV ou Excel</p>
         </div>
-        {renderStepper()}
 
         <div className="grid gap-4 md:grid-cols-2">
-          <Card
-            className={`border-dashed border-2 transition-colors cursor-pointer ${
-              dragOver ? 'border-primary bg-primary/5' : 'hover:border-primary/50'
-            }`}
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <CardContent className="p-12 text-center">
-              <Upload className={`mx-auto h-12 w-12 mb-4 transition-colors ${dragOver ? 'text-primary' : 'text-muted-foreground'}`} />
-              <h3 className="font-medium mb-2">
-                {dragOver ? 'Déposez le fichier ici' : 'Glissez-déposez votre fichier'}
-              </h3>
+          <Card className="border-dashed border-2 hover:border-primary/50 transition-colors">
+            <CardContent className="p-8 text-center">
+              <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+              <h3 className="font-medium mb-2">Importer un fichier</h3>
               <p className="text-xs text-muted-foreground mb-4">
-                ou cliquez pour sélectionner — Formats : .csv, .xlsx
+                Formats acceptés : .csv, .xlsx
               </p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                onChange={handleFileInput}
-                className="hidden"
-              />
-              <Button variant="default" onClick={(e) => e.stopPropagation()}>
-                <FileSpreadsheet className="h-4 w-4 mr-2" />
-                Choisir un fichier
-              </Button>
+              <label>
+                <input
+                  type="file"
+                  accept=".csv,.xlsx,.xls"
+                  onChange={handleFile}
+                  className="hidden"
+                />
+                <Button asChild variant="default">
+                  <span>
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Choisir un fichier
+                  </span>
+                </Button>
+              </label>
             </CardContent>
           </Card>
 
@@ -360,275 +383,170 @@ export default function BulkImportPage() {
             </CardContent>
           </Card>
         </div>
+
+        <Card>
+          <CardContent className="p-5">
+            <div className="flex items-start gap-3">
+              <Info className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+              <div className="text-sm text-muted-foreground space-y-1">
+                <p className="font-medium text-foreground">Colonnes attendues</p>
+                <p>entreprise*, ville*, statut*, code_postal, telephone, email, metier, nb_vehicules, potentiel, commercial_code, adresse, siret, contact_nom, notes</p>
+                <p className="text-xs">* champs obligatoires — voir l'onglet "Valeurs acceptées" du modèle</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
-  // ── ÉTAPE 2 : MAPPING ──
-  if (step === 'mapping') {
-    const previewRows = rawData.slice(0, 3);
-    const requiredMapped = CRM_FIELDS.filter(f => f.required).every(f => {
-      if (f.key === 'statut') return statutMode !== 'column' || !!mapping['statut'];
-      return !!mapping[f.key];
-    });
-
+  // ── PREVIEW STEP ──
+  if (step === 'preview') {
     return (
-      <div className="space-y-6 animate-fade-in">
+      <div className="space-y-4 animate-fade-in">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
-            <h1 className="font-heading text-2xl font-bold">Correspondance des colonnes</h1>
-            <p className="text-sm text-muted-foreground">{fileName} · {rawData.length} lignes · {fileColumns.length} colonnes détectées</p>
+            <h1 className="font-heading text-2xl font-bold">Aperçu de l'import</h1>
+            <p className="text-sm text-muted-foreground">{fileName} · {rows.length} lignes détectées</p>
           </div>
-          <Button variant="ghost" onClick={() => { setStep('upload'); setRawData([]); setFileColumns([]); }}>
+          <Button variant="ghost" onClick={() => { setStep('upload'); setRows([]); setExcludedRows(new Set()); }}>
             <ArrowLeft className="h-4 w-4 mr-1" /> Retour
           </Button>
         </div>
-        {renderStepper()}
 
-        {/* Aperçu brut */}
+        {/* Import mode */}
         <Card>
-          <CardContent className="p-4">
-            <p className="text-sm font-medium mb-2 flex items-center gap-2">
-              <Info className="h-4 w-4 text-primary" /> Aperçu des 3 premières lignes du fichier
-            </p>
-            <div className="overflow-auto max-h-[200px] border rounded">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    {fileColumns.map(col => (
-                      <TableHead key={col} className="text-xs whitespace-nowrap">{col}</TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {previewRows.map((row, i) => (
-                    <TableRow key={i}>
-                      {fileColumns.map(col => (
-                        <TableCell key={col} className="text-xs whitespace-nowrap max-w-[200px] truncate">
-                          {String(row[col] ?? '')}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+          <CardContent className="p-4 flex items-center gap-4 flex-wrap">
+            <label className="text-sm font-medium">Mode d'import :</label>
+            <Select value={mode} onValueChange={v => setMode(v as ImportMode)}>
+              <SelectTrigger className="w-[260px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="create_only">Créer uniquement les nouveaux</SelectItem>
+                <SelectItem value="update_only">Mettre à jour les existants uniquement</SelectItem>
+                <SelectItem value="create_and_update">Créer et mettre à jour</SelectItem>
+              </SelectContent>
+            </Select>
           </CardContent>
         </Card>
 
-        {/* Bouton auto-detect */}
-        <div className="flex justify-end">
-          <Button variant="outline" onClick={handleAutoDetect}>
-            <Wand2 className="h-4 w-4 mr-2" />
-            Détecter automatiquement
-          </Button>
-        </div>
-
-        {/* Mapping form */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="grid gap-3">
-              {CRM_FIELDS.map(field => {
-                if (field.key === 'statut') {
-                  return (
-                    <div key="statut" className="space-y-2 border rounded-lg p-3 bg-muted/30">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">{field.label}</span>
-                        <Badge variant="destructive" className="text-[9px] px-1.5 py-0">Obligatoire</Badge>
-                      </div>
-                      <RadioGroup
-                        value={statutMode}
-                        onValueChange={(v) => setStatutMode(v as StatutMode)}
-                        className="space-y-2"
-                      >
-                        <div className="flex items-center gap-2">
-                          <RadioGroupItem value="client_actif" id="statut-actif" />
-                          <Label htmlFor="statut-actif" className="text-sm cursor-pointer">
-                            Tous les clients sont des <strong>clients actifs</strong>
-                          </Label>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <RadioGroupItem value="prospect" id="statut-prospect" />
-                          <Label htmlFor="statut-prospect" className="text-sm cursor-pointer">
-                            Tous les clients sont des <strong>prospects</strong>
-                          </Label>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <RadioGroupItem value="column" id="statut-column" />
-                          <Label htmlFor="statut-column" className="text-sm cursor-pointer">
-                            Mapper une colonne du fichier
-                          </Label>
-                        </div>
-                      </RadioGroup>
-                      {statutMode === 'column' && (
-                        <div className="ml-6 mt-1">
-                          <Select
-                            value={mapping['statut'] || '__none__'}
-                            onValueChange={v => setMapping(prev => {
-                              const next = { ...prev };
-                              if (v === '__none__') delete next['statut'];
-                              else next['statut'] = v;
-                              return next;
-                            })}
-                          >
-                            <SelectTrigger className={`text-sm ${mapping['statut'] ? '' : 'text-muted-foreground'}`}>
-                              <SelectValue placeholder="— Non mappé —" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__none__">— Non mappé —</SelectItem>
-                              {fileColumns.map(col => (
-                                <SelectItem key={col} value={col}>{col}</SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <p className="text-[10px] text-muted-foreground mt-1">Valeurs acceptées : client_actif ou prospect</p>
-                        </div>
-                      )}
-                    </div>
-                  );
-                }
-
-                return (
-                  <div key={field.key} className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{field.label}</span>
-                      {field.required && <Badge variant="destructive" className="text-[9px] px-1.5 py-0">Obligatoire</Badge>}
-                      {field.hint && <span className="text-[10px] text-muted-foreground">({field.hint})</span>}
-                    </div>
-                    <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                    <Select
-                      value={mapping[field.key] || '__none__'}
-                      onValueChange={v => setMapping(prev => {
-                        const next = { ...prev };
-                        if (v === '__none__') delete next[field.key];
-                        else next[field.key] = v;
-                        return next;
-                      })}
-                    >
-                      <SelectTrigger className={`text-sm ${mapping[field.key] ? '' : 'text-muted-foreground'}`}>
-                        <SelectValue placeholder="— Non mappé —" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__none__">— Non mappé —</SelectItem>
-                        {fileColumns.map(col => (
-                          <SelectItem key={col} value={col}>{col}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-
-        <div className="flex justify-between">
-          <Button variant="outline" onClick={() => { setStep('upload'); setRawData([]); setFileColumns([]); }}>
-            Annuler
-          </Button>
-          <Button
-            onClick={() => setStep('preview')}
-            disabled={!requiredMapped}
-          >
-            Aperçu de l'import
-            <ArrowRight className="h-4 w-4 ml-2" />
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // ── ÉTAPE 3 : APERÇU & IMPORT ──
-  if (step === 'preview') {
-    const mappedRows = getMappedRows();
-    const previewRows = mappedRows.slice(0, 5);
-    const invalidCount = mappedRows.filter(isRowInvalid).length;
-    const validCount = mappedRows.length - invalidCount;
-
-    return (
-      <div className="space-y-6 animate-fade-in">
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div>
-            <h1 className="font-heading text-2xl font-bold">Aperçu avant import</h1>
-            <p className="text-sm text-muted-foreground">{rawData.length} lignes au total</p>
-          </div>
-          <Button variant="ghost" onClick={() => setStep('mapping')}>
-            <ArrowLeft className="h-4 w-4 mr-1" /> Modifier le mapping
-          </Button>
-        </div>
-        {renderStepper()}
-
-        {/* Stats */}
-        <div className="flex gap-4 flex-wrap">
-          <Badge variant="secondary" className="text-sm px-3 py-1">
-            <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
-            {validCount} valides
-          </Badge>
-          {invalidCount > 0 && (
-            <Badge variant="destructive" className="text-sm px-3 py-1">
-              <XCircle className="h-3.5 w-3.5 mr-1.5" />
-              {invalidCount} invalides (entreprise ou ville manquante)
-            </Badge>
-          )}
-        </div>
+        {/* 3-tab classification */}
+        <Tabs value={previewTab} onValueChange={v => setPreviewTab(v as any)}>
+          <TabsList className="w-full">
+            <TabsTrigger value="new" className="flex-1 text-xs gap-1">
+              <CheckCircle2 className="h-3 w-3" /> Nouveaux ({newCount})
+            </TabsTrigger>
+            <TabsTrigger value="duplicates" className="flex-1 text-xs gap-1">
+              <AlertTriangle className="h-3 w-3" /> Doublons ({duplicateCount})
+            </TabsTrigger>
+            <TabsTrigger value="errors" className="flex-1 text-xs gap-1">
+              <XCircle className="h-3 w-3" /> Invalides ({errorCount})
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
 
         {/* Preview table */}
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm font-medium mb-2">Aperçu des 5 premières lignes transformées</p>
-            <div className="overflow-auto border rounded">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-10">#</TableHead>
-                    <TableHead>Entreprise</TableHead>
-                    <TableHead>Ville</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead>CP</TableHead>
-                    <TableHead>Téléphone</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Métier</TableHead>
-                    <TableHead>Véh.</TableHead>
-                    <TableHead>Pot.</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {previewRows.map((row, i) => {
-                    const invalid = isRowInvalid(row);
-                    return (
-                      <TableRow key={i} className={invalid ? 'bg-destructive/5' : ''}>
-                        <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
-                        <TableCell className={`text-sm font-medium ${!row.entreprise ? 'text-destructive' : ''}`}>
-                          {row.entreprise || '⚠ Vide'}
-                        </TableCell>
-                        <TableCell className={`text-sm ${!row.ville ? 'text-destructive' : ''}`}>
-                          {row.ville || '⚠ Vide'}
-                        </TableCell>
-                        <TableCell><Badge variant="secondary" className="text-[10px]">{row.statut || 'prospect'}</Badge></TableCell>
-                        <TableCell className="text-sm">{row.code_postal || '—'}</TableCell>
-                        <TableCell className="text-sm">{row.telephone || '—'}</TableCell>
-                        <TableCell className="text-sm">{row.email || '—'}</TableCell>
-                        <TableCell className="text-sm">{row.metier || '—'}</TableCell>
-                        <TableCell className="text-sm">{row.nb_vehicules || '—'}</TableCell>
-                        <TableCell className="text-sm">{row.potentiel || '—'}</TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="border rounded-lg overflow-auto max-h-[50vh]">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-12">#</TableHead>
+                <TableHead>Statut</TableHead>
+                <TableHead>Entreprise</TableHead>
+                <TableHead>Ville</TableHead>
+                <TableHead>Contact</TableHead>
+                <TableHead>Téléphone</TableHead>
+                <TableHead className="min-w-[200px]">Validation</TableHead>
+                {previewTab === 'duplicates' && <TableHead className="w-[140px]">Action</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(previewTab === 'new' ? newRows : previewTab === 'duplicates' ? duplicateRows : errorRows).map((row) => (
+                <TableRow
+                  key={row.rowIndex}
+                  className={`${
+                    row.errors.length > 0 ? 'bg-destructive/5' :
+                    row.isDuplicate ? (excludedRows.has(row.rowIndex) ? 'bg-muted/50 opacity-50' : 'bg-warning/5') : ''
+                  }`}
+                >
+                  <TableCell className="text-xs text-muted-foreground">{row.rowIndex + 1}</TableCell>
+                  <TableCell>
+                    <Badge variant="secondary" className="text-[10px]">{row.data.statut || '—'}</Badge>
+                  </TableCell>
+                  <TableCell className="font-medium text-sm">{row.data.entreprise || '—'}</TableCell>
+                  <TableCell className="text-sm">{row.data.ville || '—'}</TableCell>
+                  <TableCell className="text-sm">{row.data.contact_principal || '—'}</TableCell>
+                  <TableCell className="text-sm">{row.data.telephone || '—'}</TableCell>
+                  <TableCell>
+                    {row.errors.length > 0 ? (
+                      <div className="space-y-0.5">
+                        {row.errors.map((err, j) => (
+                          <p key={j} className="text-xs text-destructive flex items-center gap-1">
+                            <XCircle className="h-3 w-3 shrink-0" /> {err}
+                          </p>
+                        ))}
+                      </div>
+                    ) : row.isDuplicate ? (
+                      <p className="text-xs text-warning flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3 shrink-0" /> {row.duplicateOf}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-accent flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3 shrink-0" /> Prêt
+                      </p>
+                    )}
+                  </TableCell>
+                  {previewTab === 'duplicates' && (
+                    <TableCell>
+                      <div className="flex gap-1">
+                        {excludedRows.has(row.rowIndex) ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-[10px]"
+                            onClick={() => setExcludedRows(prev => { const next = new Set(prev); next.delete(row.rowIndex); return next; })}
+                          >
+                            Réintégrer
+                          </Button>
+                        ) : (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-[10px]"
+                              onClick={() => setExcludedRows(prev => new Set(prev).add(row.rowIndex))}
+                            >
+                              <SkipForward className="h-3 w-3 mr-0.5" /> Ignorer
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))}
+              {(previewTab === 'new' ? newRows : previewTab === 'duplicates' ? duplicateRows : errorRows).length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={previewTab === 'duplicates' ? 8 : 7} className="text-center text-sm text-muted-foreground py-8">
+                    Aucune ligne dans cette catégorie
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
 
-        <div className="flex justify-between">
-          <Button variant="outline" onClick={() => setStep('mapping')}>
-            <ArrowLeft className="h-4 w-4 mr-1" /> Retour
+        {/* Import button */}
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => { setStep('upload'); setRows([]); setExcludedRows(new Set()); }}>
+            Annuler
           </Button>
-          <Button onClick={handleImport} disabled={importing || validCount === 0}>
+          <Button onClick={handleImport} disabled={importing || importableCount === 0}>
             {importing ? (
               <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Import en cours...</>
             ) : (
-              <><Upload className="h-4 w-4 mr-2" /> Lancer l'import ({validCount} lignes)</>
+              <><Upload className="h-4 w-4 mr-2" /> Importer {importableCount} lignes</>
             )}
           </Button>
         </div>
@@ -636,7 +554,7 @@ export default function BulkImportPage() {
     );
   }
 
-  // ── RÉSULTAT ──
+  // ── RESULT STEP ──
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
@@ -644,53 +562,39 @@ export default function BulkImportPage() {
         <p className="text-sm text-muted-foreground">{fileName}</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
         <Card>
-          <CardContent className="p-6 text-center">
-            <CheckCircle2 className="mx-auto h-10 w-10 text-accent mb-3" />
-            <p className="text-3xl font-bold">{result?.created || 0}</p>
-            <p className="text-sm text-muted-foreground">clients importés</p>
+          <CardContent className="p-5 text-center">
+            <CheckCircle2 className="mx-auto h-8 w-8 text-accent mb-2" />
+            <p className="text-2xl font-bold">{result?.created || 0}</p>
+            <p className="text-xs text-muted-foreground">Créés</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-6 text-center">
-            <XCircle className="mx-auto h-10 w-10 text-destructive mb-3" />
-            <p className="text-3xl font-bold">{result?.errors || 0}</p>
-            <p className="text-sm text-muted-foreground">erreurs</p>
+          <CardContent className="p-5 text-center">
+            <Info className="mx-auto h-8 w-8 text-primary mb-2" />
+            <p className="text-2xl font-bold">{result?.updated || 0}</p>
+            <p className="text-xs text-muted-foreground">Mis à jour</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5 text-center">
+            <AlertTriangle className="mx-auto h-8 w-8 text-warning mb-2" />
+            <p className="text-2xl font-bold">{result?.skipped || 0}</p>
+            <p className="text-xs text-muted-foreground">Ignorés</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5 text-center">
+            <XCircle className="mx-auto h-8 w-8 text-destructive mb-2" />
+            <p className="text-2xl font-bold">{result?.errors || 0}</p>
+            <p className="text-xs text-muted-foreground">Erreurs</p>
           </CardContent>
         </Card>
       </div>
 
-      {result && result.errorDetails.length > 0 && (
-        <Card>
-          <CardContent className="p-4">
-            <p className="text-sm font-medium mb-2 flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-destructive" /> Détail des erreurs
-            </p>
-            <div className="overflow-auto max-h-[200px] border rounded">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-16">Ligne</TableHead>
-                    <TableHead>Raison</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {result.errorDetails.map((err, i) => (
-                    <TableRow key={i}>
-                      <TableCell className="text-sm font-mono">{err.row}</TableCell>
-                      <TableCell className="text-sm text-destructive">{err.reason}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       <div className="flex justify-end gap-2">
-        <Button variant="outline" onClick={() => { setStep('upload'); setRawData([]); setFileColumns([]); setResult(null); }}>
+        <Button variant="outline" onClick={() => { setStep('upload'); setRows([]); setResult(null); }}>
           Nouvel import
         </Button>
         <Button asChild variant="default">
