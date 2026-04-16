@@ -226,7 +226,21 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
     insertStop({ customer, priority }, position);
   };
 
-  const handleEndTour = () => {
+  const handleEndTour = async () => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const { data: tour } = await supabase
+        .from('daily_tours')
+        .select('id')
+        .eq('user_id', activeUserId!)
+        .eq('tour_date', today)
+        .maybeSingle();
+      if (tour) {
+        await supabase.from('daily_tours').update({ status: 'completed' }).eq('id', tour.id);
+      }
+    } catch {
+      // Continue anyway
+    }
     endSession();
     onExit();
   };
