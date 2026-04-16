@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/table';
 import {
   Upload, Download, FileSpreadsheet, AlertTriangle, CheckCircle2,
-  XCircle, Loader2, ArrowLeft, Info, Eye, SkipForward, Wand2,
+  XCircle, Loader2, ArrowLeft, Info, Eye, SkipForward, Wand2, Edit3, X,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
