@@ -96,6 +96,7 @@ export default function BulkImportPage() {
   const [fileName, setFileName] = useState('');
   const [previewTab, setPreviewTab] = useState<'new' | 'duplicates' | 'errors'>('new');
   const [excludedRows, setExcludedRows] = useState<Set<number>>(new Set());
+  const [dragging, setDragging] = useState(false);
 
   // Mapping step state
   const [rawHeaders, setRawHeaders] = useState<string[]>([]);
@@ -124,11 +125,8 @@ export default function BulkImportPage() {
     },
   });
 
-  const handleFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const processFile = useCallback(async (file: File) => {
     setFileName(file.name);
-
     try {
       let headers: string[] = [];
       let data: Record<string, string>[] = [];
@@ -165,9 +163,20 @@ export default function BulkImportPage() {
     } catch {
       toast.error('Erreur lors de la lecture du fichier.');
     }
-
-    e.target.value = '';
   }, []);
+
+  const handleFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) processFile(file);
+    e.target.value = '';
+  }, [processFile]);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) processFile(file);
+  }, [processFile]);
 
   const handleAutoDetect = () => {
     const newMapping = { ...columnMapping };
