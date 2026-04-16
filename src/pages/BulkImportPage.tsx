@@ -915,7 +915,7 @@ export default function BulkImportPage() {
         <p className="text-sm text-muted-foreground">{fileName}</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-5">
         <Card>
           <CardContent className="p-5 text-center">
             <CheckCircle2 className="mx-auto h-8 w-8 text-accent mb-2" />
@@ -942,6 +942,13 @@ export default function BulkImportPage() {
             <XCircle className="mx-auto h-8 w-8 text-destructive mb-2" />
             <p className="text-2xl font-bold">{result?.errors || 0}</p>
             <p className="text-xs text-muted-foreground">Erreurs</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5 text-center">
+            <Wand2 className="mx-auto h-8 w-8 text-primary mb-2" />
+            <p className="text-2xl font-bold">{result?.zoneAssigned || 0}</p>
+            <p className="text-xs text-muted-foreground">Assignés à une zone</p>
           </CardContent>
         </Card>
       </div>
