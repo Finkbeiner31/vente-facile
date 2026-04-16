@@ -55,6 +55,7 @@ interface ImportResult {
   skipped: number;
   errors: number;
   errorDetails: ImportErrorDetail[];
+  zoneAssigned: number;
 }
 
 const NONE = '__none__';
