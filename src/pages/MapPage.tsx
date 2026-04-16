@@ -489,18 +489,46 @@ export default function MapPage() {
       )}
 
       {/* ── Missing geolocation banner ── */}
-      {missingCoords.length > 0 && (
-        <div className="flex items-center gap-2 px-3 py-1.5 border-b bg-warning/10 text-warning text-xs z-10 shrink-0">
+      {missingCoords.length > 0 && !geocoding && (
+        <div className="flex items-center gap-2 px-3 py-1.5 border-b bg-warning/10 text-warning text-xs z-10 shrink-0 flex-wrap">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          <span>{missingCoords.length} client{missingCoords.length > 1 ? 's' : ''} non géolocalisé{missingCoords.length > 1 ? 's' : ''} (adresse à géocoder)</span>
+          <span>{missingCoords.length} client{missingCoords.length > 1 ? 's' : ''} non géolocalisé{missingCoords.length > 1 ? 's' : ''}</span>
+          {isAdmin && (
+            <Button variant="outline" size="sm" className="h-6 text-[10px] px-2 ml-auto border-warning/40 text-warning hover:bg-warning/10" onClick={handleBulkGeocode}>
+              <Navigation className="h-3 w-3 mr-1" />
+              Géolocaliser les clients
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* ── Geocoding progress ── */}
+      {geocoding && (
+        <div className="flex items-center gap-3 px-3 py-2 border-b bg-primary/5 text-xs z-10 shrink-0">
+          <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-1">
+              <span className="font-medium">Géolocalisation en cours… {geocodeProgress.done} / {geocodeProgress.total}</span>
+              <span className="text-muted-foreground">{geocodeProgress.success} succès – {geocodeProgress.fail} erreurs</span>
+            </div>
+            <div className="w-full bg-muted rounded-full h-1.5">
+              <div className="bg-primary h-1.5 rounded-full transition-all" style={{ width: `${geocodeProgress.total > 0 ? (geocodeProgress.done / geocodeProgress.total) * 100 : 0}%` }} />
+            </div>
+          </div>
         </div>
       )}
 
       {/* ── Empty state when all loaded but none geolocated ── */}
-      {!isLoading && allCustomers.length > 0 && customers.length === 0 && (
+      {!isLoading && !geocoding && allCustomers.length > 0 && customers.length === 0 && (
         <div className="flex items-center gap-2 px-3 py-2 border-b bg-muted/50 text-sm z-10 shrink-0">
           <MapPin className="h-4 w-4 text-muted-foreground" />
-          <span>Les clients existent mais ne sont pas encore géolocalisés. Vérifiez les adresses dans la fiche client.</span>
+          <span>Les clients existent mais ne sont pas encore géolocalisés.</span>
+          {isAdmin && (
+            <Button variant="default" size="sm" className="h-7 text-xs ml-2" onClick={handleBulkGeocode}>
+              <Navigation className="h-3.5 w-3.5 mr-1" />
+              Lancer la géolocalisation
+            </Button>
+          )}
         </div>
       )}
 
