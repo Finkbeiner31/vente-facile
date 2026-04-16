@@ -42,11 +42,19 @@ interface ColumnMapping {
   email: string;
 }
 
+interface ImportErrorDetail {
+  rowIndex: number;
+  entreprise: string;
+  ville: string;
+  message: string;
+}
+
 interface ImportResult {
   created: number;
   updated: number;
   skipped: number;
   errors: number;
+  errorDetails: ImportErrorDetail[];
 }
 
 const NONE = '__none__';
