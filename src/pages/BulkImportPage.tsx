@@ -385,12 +385,20 @@ export default function BulkImportPage() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <Card className="border-dashed border-2 hover:border-primary/50 transition-colors">
+          <Card
+            className={`border-dashed border-2 transition-colors ${
+              dragging ? 'border-primary bg-primary/5' : 'hover:border-primary/50'
+            }`}
+            onDragOver={e => { e.preventDefault(); setDragging(true); }}
+            onDragEnter={e => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={handleDrop}
+          >
             <CardContent className="p-8 text-center">
-              <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="font-medium mb-2">Importer un fichier</h3>
+              <Upload className={`mx-auto h-12 w-12 mb-4 transition-colors ${dragging ? 'text-primary' : 'text-muted-foreground'}`} />
+              <h3 className="font-medium mb-2">{dragging ? 'Déposez le fichier ici' : 'Importer un fichier'}</h3>
               <p className="text-xs text-muted-foreground mb-4">
-                Formats acceptés : .csv, .xlsx
+                Glissez-déposez ou cliquez · .csv, .xlsx
               </p>
               <label>
                 <input
