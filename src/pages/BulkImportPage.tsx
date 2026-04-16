@@ -300,7 +300,7 @@ export default function BulkImportPage() {
   const handleImport = async () => {
     if (!user) return;
     setImporting(true);
-    const res: ImportResult = { created: 0, updated: 0, skipped: 0, errors: 0, errorDetails: [] };
+    const res: ImportResult = { created: 0, updated: 0, skipped: 0, errors: 0, errorDetails: [], zoneAssigned: 0 };
 
     for (const row of rows) {
       if (row.errors.length > 0) { res.errors++; res.errorDetails.push({ rowIndex: row.rowIndex, entreprise: row.data.entreprise, ville: row.data.ville, message: row.errors.join(', ') }); continue; }
