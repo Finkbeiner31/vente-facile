@@ -24,31 +24,14 @@ const STORAGE_KEY = 'f7_tour_session';
 
 const TourSessionContext = createContext<TourSessionContextValue | null>(null);
 
-function isValidSession(s: unknown): s is TourSession {
-  if (!s || typeof s !== 'object') return false;
-  const obj = s as Record<string, unknown>;
-  return (
-    typeof obj.active === 'boolean' &&
-    typeof obj.selectedDay === 'number' &&
-    Array.isArray(obj.stops) &&
-    typeof obj.currentIndex === 'number' &&
-    typeof obj.statuses === 'object' && obj.statuses !== null &&
-    typeof obj.startedAt === 'string'
-  );
-}
-
 function loadSession(): TourSession | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!isValidSession(parsed) || !parsed.active) {
-      localStorage.removeItem(STORAGE_KEY);
-      return null;
-    }
+    const parsed = JSON.parse(raw) as TourSession;
+    if (!parsed.active) return null;
     return parsed;
   } catch {
-    try { localStorage.removeItem(STORAGE_KEY); } catch {}
     return null;
   }
 }
