@@ -216,7 +216,61 @@ export default function MapPage() {
     [allCustomers]
   );
 
-  // Compute performance status per customer for marker colors
+  // Geocode all clients without coordinates
+  const handleBulkGeocode = useCallback(async () => {
+    if (!window.google?.maps || missingCoords.length === 0) return;
+    setGeocoding(true);
+    const geocoder = new google.maps.Geocoder();
+    const total = missingCoords.length;
+    let done = 0, success = 0, fail = 0;
+    setGeocodeProgress({ total, done: 0, success: 0, fail: 0 });
+
+    for (const client of missingCoords) {
+      const parts = [client.address, client.postal_code, client.city].filter(Boolean);
+      const addressStr = parts.join(', ');
+      if (!addressStr.trim()) {
+        fail++;
+        done++;
+        setGeocodeProgress({ total, done, success, fail });
+        continue;
+      }
+
+      try {
+        const result = await new Promise<google.maps.GeocoderResult | null>((resolve) => {
+          geocoder.geocode({ address: addressStr, region: 'fr' }, (results, status) => {
+            if (status === google.maps.GeocoderStatus.OK && results && results.length > 0) {
+              resolve(results[0]);
+            } else {
+              resolve(null);
+            }
+          });
+        });
+
+        if (result) {
+          const lat = result.geometry.location.lat();
+          const lng = result.geometry.location.lng();
+          await supabase.from('customers').update({ latitude: lat, longitude: lng } as any).eq('id', client.id);
+          success++;
+        } else {
+          fail++;
+        }
+      } catch {
+        fail++;
+      }
+      done++;
+      setGeocodeProgress({ total, done, success, fail });
+
+      // Small delay to avoid Google rate limits
+      if (done < total) await new Promise(r => setTimeout(r, 150));
+    }
+
+    setGeocoding(false);
+    // Refresh data
+    queryClient.invalidateQueries({ queryKey: ['customers-map'] });
+    queryClient.invalidateQueries({ queryKey: ['customers'] });
+  }, [missingCoords, queryClient]);
+
+
   const perfMap = useMemo(() => {
     const m = new window.Map<string, PerformanceStatus>();
     customers.forEach(c => {
