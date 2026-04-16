@@ -1,9 +1,10 @@
+import { useContext } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { AuthProvider, AuthContext } from "@/contexts/AuthContext";
 import { TourSessionProvider } from "@/contexts/TourSessionContext";
 import { ImpersonationProvider } from "@/contexts/ImpersonationContext";
 import AppLayout from "@/components/AppLayout";
@@ -26,7 +27,10 @@ import NotFound from "./pages/NotFound.tsx";
 const queryClient = new QueryClient();
 
 function ImpersonationWrapper({ children }: { children: React.ReactNode }) {
-  const { user, role, profile } = useAuth();
+  const auth = useContext(AuthContext);
+  const user = auth?.user ?? null;
+  const role = auth?.role ?? null;
+  const profile = auth?.profile ?? null;
   return (
     <ImpersonationProvider 
       realUserId={user?.id ?? null} 
