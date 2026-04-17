@@ -821,7 +821,19 @@ export default function RouteOptimizerSheet({
           {/* ── Result ── */}
           {step === 'result' && optimizedRoute && (
             <div className="flex-1 flex flex-col overflow-hidden">
-              <div className="px-4 py-3 border-b bg-muted/30 shrink-0">
+              <div className="px-4 py-3 border-b bg-muted/30 shrink-0 space-y-2">
+                <div className="flex items-center justify-center gap-2">
+                  {usedRealRouting ? (
+                    <Badge className="gap-1 bg-primary/10 text-primary border-primary/20 hover:bg-primary/10">
+                      <Sparkles className="h-3 w-3" /> Itinéraire optimisé (Google)
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="gap-1 text-warning border-warning/40">
+                      <AlertTriangle className="h-3 w-3" /> Approximation locale
+                    </Badge>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-3 gap-3 text-center">
                   <div>
                     <p className="text-lg font-bold text-primary">{formatDuration(optimizedRoute.estimatedDurationMin)}</p>
@@ -836,7 +848,7 @@ export default function RouteOptimizerSheet({
                     <p className="text-[10px] text-muted-foreground">🤝 visites</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3 text-center mt-2 pt-2 border-t">
+                <div className="grid grid-cols-2 gap-3 text-center pt-2 border-t">
                   <div>
                     <p className="text-sm font-bold">{optimizedRoute.customers.length}</p>
                     <p className="text-[10px] text-muted-foreground">visites</p>
@@ -846,14 +858,37 @@ export default function RouteOptimizerSheet({
                     <p className="text-[10px] text-muted-foreground">distance</p>
                   </div>
                 </div>
-                <div className="flex items-center justify-center gap-3 mt-2 text-[11px] text-muted-foreground">
-                  <span className="flex items-center gap-1 truncate"><CircleDot className="h-3 w-3 text-primary shrink-0" />{getPointDisplayAddress(departureType) || departureLabel}</span>
-                  <span>→</span>
-                  <span className="flex items-center gap-1 truncate"><Flag className="h-3 w-3 text-primary shrink-0" />{getPointDisplayAddress(arrivalType) || arrivalLabel}</span>
+
+                {/* Optimization context — what the engine actually used */}
+                <div className="rounded-lg border bg-background/60 px-2.5 py-2 text-[10.5px] space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <CircleDot className="h-3 w-3 text-primary shrink-0" />
+                    <span className="font-medium">Départ :</span>
+                    <span className="truncate text-muted-foreground">{pointTypeLabel(departureType)} — {getPointDisplayAddress(departureType) || '—'}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Flag className="h-3 w-3 text-primary shrink-0" />
+                    <span className="font-medium">Arrivée :</span>
+                    <span className="truncate text-muted-foreground">{pointTypeLabel(arrivalType)} — {getPointDisplayAddress(arrivalType) || '—'}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Route className="h-3 w-3 text-primary shrink-0" />
+                    <span className="font-medium">Ordre :</span>
+                    <span className="text-muted-foreground">{strategyLabelFn(strategy)}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Store className="h-3 w-3 text-primary shrink-0" />
+                    <span className="font-medium">Relation :</span>
+                    <span className="text-muted-foreground">{relationshipLabel(relationshipFilter)}</span>
+                  </div>
+                  {zone && (
+                    <div className="flex items-center gap-1.5">
+                      <MapPin className="h-3 w-3 text-primary shrink-0" />
+                      <span className="font-medium">Zone :</span>
+                      <span className="text-muted-foreground truncate">{zoneName} · {zoneLogicShortLabel(zoneLogicFlags)}</span>
+                    </div>
+                  )}
                 </div>
-                {zoneName && (
-                  <p className="text-[10px] text-center text-muted-foreground mt-1">{zoneName} · {strategyLabel} · {getZoneLogicLabels().join(' + ')}</p>
-                )}
               </div>
 
               <ScrollArea className="flex-1">
