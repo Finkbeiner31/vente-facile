@@ -55,6 +55,19 @@ interface SavedPoint {
   type: PointType;
 }
 
+interface RenderMarkerItem {
+  key: string;
+  kind: 'departure' | 'stop' | 'arrival';
+  position: google.maps.LatLngLiteral;
+  displayPosition: google.maps.LatLngLiteral;
+  title: string;
+  label: string;
+  stop?: DayRouteStop;
+  stopNumber?: number;
+  pointType?: PointType;
+  pointLabel?: string;
+}
+
 const FRANCE_CENTER = { lat: 46.6, lng: 2.5 };
 const AVG_SPEED_KMH = 45;
 const DEFAULT_VISIT_MIN = 30;
@@ -165,6 +178,28 @@ function resolvePoint(type: PointType, addr: ProfileAddresses | null): SavedPoin
 
 function firstAvailablePoint(addr: ProfileAddresses | null): SavedPoint | null {
   return resolvePoint('company', addr) || resolvePoint('home', addr) || resolvePoint('custom', addr);
+}
+
+function coordinateKey(point: google.maps.LatLngLiteral): string {
+  return `${point.lat.toFixed(5)},${point.lng.toFixed(5)}`;
+}
+
+function offsetDuplicatePosition(
+  base: google.maps.LatLngLiteral,
+  index: number,
+  total: number,
+): google.maps.LatLngLiteral {
+  if (total <= 1) return base;
+
+  const ring = Math.floor(index / 8);
+  const radius = 0.00022 + ring * 0.00008;
+  const angle = ((index % 8) / Math.min(total, 8)) * Math.PI * 2 - Math.PI / 2;
+  const lngScale = Math.max(Math.cos((base.lat * Math.PI) / 180), 0.35);
+
+  return {
+    lat: base.lat + Math.sin(angle) * radius,
+    lng: base.lng + (Math.cos(angle) * radius) / lngScale,
+  };
 }
 
 export default function DayRouteMapDialog({
@@ -301,9 +336,79 @@ export default function DayRouteMapDialog({
 
   // Effective ordered stops, derived from route.order if available
   const orderedStops = useMemo(() => {
-    if (!route) return geocodedStops;
-    return route.order.map(i => geocodedStops[i]);
+    if (geocodedStops.length === 0) return [];
+    if (!route || route.order.length === 0) return geocodedStops;
+
+    const seen = new Set<number>();
+    const mapped = route.order
+      .filter((index) => Number.isInteger(index) && index >= 0 && index < geocodedStops.length)
+      .filter((index) => {
+        if (seen.has(index)) return false;
+        seen.add(index);
+        return true;
+      })
+      .map((index) => geocodedStops[index]);
+
+    if (mapped.length === geocodedStops.length) return mapped;
+
+    const missing = geocodedStops.filter((_, index) => !seen.has(index));
+    return [...mapped, ...missing];
   }, [route, geocodedStops]);
+
+  const renderedMarkers = useMemo<RenderMarkerItem[]>(() => {
+    const baseItems: Omit<RenderMarkerItem, 'displayPosition'>[] = [];
+
+    if (departurePoint) {
+      baseItems.push({
+        key: `departure-${departurePoint.type}`,
+        kind: 'departure',
+        position: { lat: departurePoint.lat, lng: departurePoint.lng },
+        title: `Départ — ${departurePoint.label}`,
+        label: 'A',
+        pointType: departurePoint.type,
+        pointLabel: departurePoint.label,
+      });
+    }
+
+    orderedStops.forEach((stop, index) => {
+      baseItems.push({
+        key: `stop-${stop.id}`,
+        kind: 'stop',
+        position: { lat: stop.latitude as number, lng: stop.longitude as number },
+        title: `${index + 1}. ${stop.company_name}`,
+        label: String(index + 1),
+        stop,
+        stopNumber: index + 1,
+      });
+    });
+
+    if (arrivalPoint) {
+      baseItems.push({
+        key: `arrival-${arrivalPoint.type}`,
+        kind: 'arrival',
+        position: { lat: arrivalPoint.lat, lng: arrivalPoint.lng },
+        title: `Arrivée — ${arrivalPoint.label}`,
+        label: 'B',
+        pointType: arrivalPoint.type,
+        pointLabel: arrivalPoint.label,
+      });
+    }
+
+    const grouped = new Map<string, Omit<RenderMarkerItem, 'displayPosition'>[]>();
+    baseItems.forEach((item) => {
+      const key = coordinateKey(item.position);
+      grouped.set(key, [...(grouped.get(key) || []), item]);
+    });
+
+    return baseItems.map((item) => {
+      const duplicates = grouped.get(coordinateKey(item.position)) || [item];
+      const duplicateIndex = duplicates.findIndex((duplicate) => duplicate.key === item.key);
+      return {
+        ...item,
+        displayPosition: offsetDuplicatePosition(item.position, duplicateIndex, duplicates.length),
+      };
+    });
+  }, [departurePoint, orderedStops, arrivalPoint]);
 
   const summary = useMemo(() => {
     const visitMin = stops.reduce((sum, s) => sum + (s.visit_duration_minutes ?? DEFAULT_VISIT_MIN), 0);
@@ -340,46 +445,72 @@ export default function DayRouteMapDialog({
     const bounds = new google.maps.LatLngBounds();
     let hasContent = false;
 
-    if (departurePoint) {
-      const aMarker = new google.maps.Marker({
-        position: { lat: departurePoint.lat, lng: departurePoint.lng },
-        map,
-        title: `Départ — ${departurePoint.label}`,
-        label: { text: 'A', color: '#ffffff', fontWeight: '700', fontSize: '12px' },
-        icon: {
-          path: google.maps.SymbolPath.CIRCLE,
-          fillColor: '#0f172a', fillOpacity: 1,
-          strokeColor: '#ffffff', strokeWeight: 2, scale: 13,
-        },
-        zIndex: 1000,
-      });
-      const aInfo = new google.maps.InfoWindow({
-        content: `<div style="font-size:12px;font-weight:700">Départ — ${pointTypeLabel(departurePoint.type)}</div><div style="font-size:11px;color:#666">${departurePoint.label}</div>`,
-      });
-      aMarker.addListener('click', () => aInfo.open({ map, anchor: aMarker }));
-      overlaysRef.current.push(aMarker);
-      bounds.extend({ lat: departurePoint.lat, lng: departurePoint.lng });
-      hasContent = true;
-    }
+    renderedMarkers.forEach((item) => {
+      if (item.kind === 'departure') {
+        const marker = new google.maps.Marker({
+          position: item.displayPosition,
+          map,
+          title: item.title,
+          label: { text: item.label, color: '#ffffff', fontWeight: '700', fontSize: '12px' },
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            fillColor: '#0f172a', fillOpacity: 1,
+            strokeColor: '#ffffff', strokeWeight: 2, scale: 13,
+          },
+          zIndex: 1200,
+        });
+        const info = new google.maps.InfoWindow({
+          content: `<div style="font-size:12px;font-weight:700">Départ — ${pointTypeLabel(item.pointType || prefs.departureType)}</div><div style="font-size:11px;color:#666">${item.pointLabel || '—'}</div>`,
+        });
+        marker.addListener('click', () => info.open({ map, anchor: marker }));
+        overlaysRef.current.push(marker);
+        bounds.extend(item.displayPosition);
+        hasContent = true;
+        return;
+      }
 
-    orderedStops.forEach((s, i) => {
-      const pos = { lat: s.latitude as number, lng: s.longitude as number };
+      if (item.kind === 'arrival') {
+        const marker = new google.maps.Marker({
+          position: item.displayPosition,
+          map,
+          title: item.title,
+          label: { text: item.label, color: '#ffffff', fontWeight: '700', fontSize: '12px' },
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            fillColor: '#475569', fillOpacity: 1,
+            strokeColor: '#ffffff', strokeWeight: 2, scale: 13,
+          },
+          zIndex: 1190,
+        });
+        const info = new google.maps.InfoWindow({
+          content: `<div style="font-size:12px;font-weight:700">Arrivée — ${pointTypeLabel(item.pointType || prefs.arrivalType)}</div><div style="font-size:11px;color:#666">${item.pointLabel || '—'}</div>`,
+        });
+        marker.addListener('click', () => info.open({ map, anchor: marker }));
+        overlaysRef.current.push(marker);
+        bounds.extend(item.displayPosition);
+        hasContent = true;
+        return;
+      }
+
+      if (!item.stop || item.stop.latitude == null || item.stop.longitude == null) return;
+
       const marker = new google.maps.Marker({
-        position: pos, map,
-        title: `${i + 1}. ${s.company_name}`,
-        label: { text: String(i + 1), color: '#ffffff', fontWeight: '700', fontSize: '11px' },
+        position: item.displayPosition,
+        map,
+        title: item.title,
+        label: { text: item.label, color: '#ffffff', fontWeight: '700', fontSize: '11px' },
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
           fillColor: zoneColor || '#2563eb', fillOpacity: 1,
-          strokeColor: '#ffffff', strokeWeight: 2, scale: 12,
+          strokeColor: '#ffffff', strokeWeight: 2, scale: 13,
         },
-        zIndex: 500 + i,
+        zIndex: 800 + (item.stopNumber || 0),
       });
-      const rt = relationshipBadge(s.relationship_type);
-      const ct = customerTypeBadge(s.customer_type);
+      const rt = relationshipBadge(item.stop.relationship_type);
+      const ct = customerTypeBadge(item.stop.customer_type);
       const html = `
-        <div style="font-size:12px;font-weight:700;margin-bottom:2px">${i + 1}. ${s.company_name}</div>
-        ${s.city ? `<div style="font-size:11px;color:#666">${s.city}</div>` : ''}
+        <div style="font-size:12px;font-weight:700;margin-bottom:2px">${item.stopNumber}. ${item.stop.company_name}</div>
+        ${item.stop.city ? `<div style="font-size:11px;color:#666">${item.stop.city}</div>` : ''}
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px">
           ${ct ? `<span style="font-size:10px;padding:2px 6px;border-radius:4px;background:#f1f5f9;color:#334155">${ct}</span>` : ''}
           ${rt ? `<span style="font-size:10px;padding:2px 6px;border-radius:4px;background:${rt.label === 'Magasin' ? '#dbeafe;color:#1d4ed8' : rt.label === 'Atelier' ? '#ffedd5;color:#c2410c' : '#ede9fe;color:#6d28d9'}">${rt.label}</span>` : ''}
@@ -387,30 +518,9 @@ export default function DayRouteMapDialog({
       const info = new google.maps.InfoWindow({ content: html });
       marker.addListener('click', () => info.open({ map, anchor: marker }));
       overlaysRef.current.push(marker);
-      bounds.extend(pos);
+      bounds.extend(item.displayPosition);
       hasContent = true;
     });
-
-    if (arrivalPoint && orderedStops.length > 0) {
-      const bMarker = new google.maps.Marker({
-        position: { lat: arrivalPoint.lat, lng: arrivalPoint.lng },
-        map,
-        title: `Arrivée — ${arrivalPoint.label}`,
-        label: { text: 'B', color: '#ffffff', fontWeight: '700', fontSize: '12px' },
-        icon: {
-          path: google.maps.SymbolPath.CIRCLE,
-          fillColor: '#475569', fillOpacity: 1,
-          strokeColor: '#ffffff', strokeWeight: 2, scale: 13,
-        },
-        zIndex: 1001,
-      });
-      const bInfo = new google.maps.InfoWindow({
-        content: `<div style="font-size:12px;font-weight:700">Arrivée — ${pointTypeLabel(arrivalPoint.type)}</div><div style="font-size:11px;color:#666">${arrivalPoint.label}</div>`,
-      });
-      bMarker.addListener('click', () => bInfo.open({ map, anchor: bMarker }));
-      overlaysRef.current.push(bMarker);
-      bounds.extend({ lat: arrivalPoint.lat, lng: arrivalPoint.lng });
-    }
 
     if (route && route.path.length >= 2) {
       const line = new google.maps.Polyline({
@@ -428,10 +538,12 @@ export default function DayRouteMapDialog({
       });
       line.setMap(map);
       overlaysRef.current.push(line);
+      route.path.forEach(point => bounds.extend(point));
+      hasContent = true;
     }
 
     if (hasContent) map.fitBounds(bounds, 70);
-  }, [open, ready, orderedStops, departurePoint, arrivalPoint, route, zoneColor]);
+  }, [open, ready, renderedMarkers, route, zoneColor, prefs.departureType, prefs.arrivalType]);
 
   const externalGmapsUrl = useMemo(() => {
     if (orderedStops.length === 0) return null;
