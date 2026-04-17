@@ -461,31 +461,43 @@ export default function DayRouteMapDialog({
     const bounds = new google.maps.LatLngBounds();
     let hasContent = false;
 
+    // Build a reliable square SVG icon as a data URI. Using an inline SVG (vs
+    // SymbolPath with a custom path) ensures the A/B markers render at a
+    // predictable size, are anchored on their center, and are never clipped or
+    // invisible due to a misconfigured custom path.
+    const buildPinIcon = (color: string, label: string): google.maps.Icon => {
+      const fontSize = label.length > 1 ? 12 : 16;
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="44" viewBox="0 0 36 44">
+          <defs>
+            <filter id="s" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="1" stdDeviation="1.2" flood-opacity="0.35"/>
+            </filter>
+          </defs>
+          <path d="M18 2 C9 2 2 9 2 18 c0 11 16 24 16 24 s16-13 16-24 C34 9 27 2 18 2 z"
+                fill="${color}" stroke="#ffffff" stroke-width="2.5" filter="url(#s)"/>
+          <text x="18" y="23" text-anchor="middle" font-family="Arial, sans-serif"
+                font-size="${fontSize}" font-weight="800" fill="#ffffff">${label}</text>
+        </svg>`.trim();
+      return {
+        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+        scaledSize: new google.maps.Size(36, 44),
+        anchor: new google.maps.Point(18, 42),
+        labelOrigin: new google.maps.Point(18, 18),
+      };
+    };
+
     renderedMarkers.forEach((item) => {
       if (item.kind === 'departure') {
-        // Larger, distinctive shape (rounded square via SymbolPath) so A is
-        // immediately spotted vs the round numbered stop markers. Bright green
-        // (success-like) signals "start". When same as arrival, label reads "A/B".
         const isCombined = item.label === 'A/B';
+        const color = isCombined ? '#7c3aed' : '#16a34a';
         const marker = new google.maps.Marker({
           position: item.displayPosition,
           map,
           title: item.title,
-          label: {
-            text: item.label,
-            color: '#ffffff',
-            fontWeight: '800',
-            fontSize: isCombined ? '10px' : '13px',
-          },
-          icon: {
-            path: 'M -14,-14 L 14,-14 L 14,14 L -14,14 z',
-            fillColor: isCombined ? '#7c3aed' : '#16a34a',
-            fillOpacity: 1,
-            strokeColor: '#ffffff',
-            strokeWeight: 3,
-            scale: 1,
-          },
+          icon: buildPinIcon(color, item.label),
           zIndex: 2000,
+          optimized: false,
         });
         const headerText = isCombined
           ? `Départ et arrivée — ${pointTypeLabel(item.pointType || prefs.departureType)}`
@@ -501,21 +513,13 @@ export default function DayRouteMapDialog({
       }
 
       if (item.kind === 'arrival') {
-        // Larger square in red so B is unmistakable as "end of day".
         const marker = new google.maps.Marker({
           position: item.displayPosition,
           map,
           title: item.title,
-          label: { text: item.label, color: '#ffffff', fontWeight: '800', fontSize: '13px' },
-          icon: {
-            path: 'M -14,-14 L 14,-14 L 14,14 L -14,14 z',
-            fillColor: '#dc2626',
-            fillOpacity: 1,
-            strokeColor: '#ffffff',
-            strokeWeight: 3,
-            scale: 1,
-          },
+          icon: buildPinIcon('#dc2626', item.label),
           zIndex: 1990,
+          optimized: false,
         });
         const info = new google.maps.InfoWindow({
           content: `<div style="font-size:12px;font-weight:700">Arrivée — ${pointTypeLabel(item.pointType || prefs.arrivalType)}</div><div style="font-size:11px;color:#666">${item.pointLabel || '—'}</div>`,
@@ -684,17 +688,17 @@ export default function DayRouteMapDialog({
             <div className="absolute top-2 left-2 z-10 bg-background/95 backdrop-blur border rounded-md shadow-sm px-2.5 py-1.5 flex items-center gap-3 text-[11px] font-medium pointer-events-none">
               {sameStartEnd ? (
                 <span className="flex items-center gap-1.5">
-                  <span className="inline-flex items-center justify-center h-4 w-5 rounded-sm text-white text-[9px] font-bold" style={{ background: '#7c3aed' }}>A/B</span>
+                  <span className="inline-flex items-center justify-center h-5 w-5 rounded-full text-white text-[8px] font-bold shadow" style={{ background: '#7c3aed' }}>A/B</span>
                   Départ / Arrivée
                 </span>
               ) : (
                 <>
                   <span className="flex items-center gap-1.5">
-                    <span className="inline-flex items-center justify-center h-4 w-4 rounded-sm text-white text-[10px] font-bold" style={{ background: '#16a34a' }}>A</span>
+                    <span className="inline-flex items-center justify-center h-5 w-5 rounded-full text-white text-[10px] font-bold shadow" style={{ background: '#16a34a' }}>A</span>
                     Départ
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <span className="inline-flex items-center justify-center h-4 w-4 rounded-sm text-white text-[10px] font-bold" style={{ background: '#dc2626' }}>B</span>
+                    <span className="inline-flex items-center justify-center h-5 w-5 rounded-full text-white text-[10px] font-bold shadow" style={{ background: '#dc2626' }}>B</span>
                     Arrivée
                   </span>
                 </>
