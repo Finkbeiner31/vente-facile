@@ -679,6 +679,32 @@ export default function DayRouteMapDialog({
         {/* Map */}
         <div className="relative h-[60vh] min-h-[420px] bg-muted">
           <div ref={containerRef} className="absolute inset-0" />
+          {/* Map legend so the user instantly maps colors/letters to A/B/stops. */}
+          {ready && geocodedStops.length > 0 && (
+            <div className="absolute top-2 left-2 z-10 bg-background/95 backdrop-blur border rounded-md shadow-sm px-2.5 py-1.5 flex items-center gap-3 text-[11px] font-medium pointer-events-none">
+              {sameStartEnd ? (
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-flex items-center justify-center h-4 w-5 rounded-sm text-white text-[9px] font-bold" style={{ background: '#7c3aed' }}>A/B</span>
+                  Départ / Arrivée
+                </span>
+              ) : (
+                <>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-flex items-center justify-center h-4 w-4 rounded-sm text-white text-[10px] font-bold" style={{ background: '#16a34a' }}>A</span>
+                    Départ
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-flex items-center justify-center h-4 w-4 rounded-sm text-white text-[10px] font-bold" style={{ background: '#dc2626' }}>B</span>
+                    Arrivée
+                  </span>
+                </>
+              )}
+              <span className="flex items-center gap-1.5">
+                <span className="inline-flex items-center justify-center h-4 w-4 rounded-full text-white text-[10px] font-bold" style={{ background: zoneColor || '#2563eb' }}>1</span>
+                Visites
+              </span>
+            </div>
+          )}
           {(!ready || routing) && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 gap-2">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
