@@ -340,11 +340,11 @@ export default function DayRouteMapDialog({
     const bounds = new google.maps.LatLngBounds();
     let hasContent = false;
 
-    if (origin) {
+    if (departurePoint) {
       const aMarker = new google.maps.Marker({
-        position: { lat: origin.lat, lng: origin.lng },
+        position: { lat: departurePoint.lat, lng: departurePoint.lng },
         map,
-        title: `Départ — ${origin.label}`,
+        title: `Départ — ${departurePoint.label}`,
         label: { text: 'A', color: '#ffffff', fontWeight: '700', fontSize: '12px' },
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
@@ -354,11 +354,11 @@ export default function DayRouteMapDialog({
         zIndex: 1000,
       });
       const aInfo = new google.maps.InfoWindow({
-        content: `<div style="font-size:12px;font-weight:700">Départ</div><div style="font-size:11px;color:#666">${origin.label}</div>`,
+        content: `<div style="font-size:12px;font-weight:700">Départ — ${pointTypeLabel(departurePoint.type)}</div><div style="font-size:11px;color:#666">${departurePoint.label}</div>`,
       });
       aMarker.addListener('click', () => aInfo.open({ map, anchor: aMarker }));
       overlaysRef.current.push(aMarker);
-      bounds.extend({ lat: origin.lat, lng: origin.lng });
+      bounds.extend({ lat: departurePoint.lat, lng: departurePoint.lng });
       hasContent = true;
     }
 
