@@ -6,12 +6,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { QuickReportDialog } from '@/components/QuickReportDialog';
 import { TourMode } from '@/components/TourMode';
 import {
-  MapPin, Zap,
+  MapPin, Map as MapIcon, Zap,
   ChevronLeft, ChevronRight, Calendar, Target,
   RotateCcw, Loader2,
   Plus, Users,
 } from 'lucide-react';
 import RouteOptimizerSheet from '@/components/RouteOptimizerSheet';
+import ZoneMapPreviewDialog from '@/components/ZoneMapPreviewDialog';
 import { useTourSession } from '@/contexts/TourSessionContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
@@ -70,6 +71,7 @@ export default function RoutesPage() {
   const [activeClient, setActiveClient] = useState('');
   const [tourMode, setTourMode] = useState(false);
   const [optimizerOpen, setOptimizerOpen] = useState(false);
+  const [zoneMapOpen, setZoneMapOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
 
   const [manualStops, setManualStops] = useState<Record<string, ManualStop[]>>({});
@@ -441,9 +443,18 @@ export default function RoutesPage() {
       {/* Zone info + target bar + Optimize button */}
       {todayZone && (
         <div className="rounded-xl border p-3 space-y-2" style={{ borderColor: `${todayZone.color}40` }}>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <div className="h-3.5 w-3.5 rounded-full" style={{ backgroundColor: todayZone.color }} />
             <span className="text-sm font-bold" style={{ color: todayZone.color }}>{formatZoneName(todayZone)}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 px-3 text-xs gap-1.5"
+              onClick={() => setZoneMapOpen(true)}
+            >
+              <MapIcon className="h-3.5 w-3.5" />
+              Voir la zone sur la carte
+            </Button>
             {/* Optimize button - prominent placement */}
             <Button
               size="sm"
@@ -539,6 +550,12 @@ export default function RoutesPage() {
         zone={todayZone ? { id: todayZone.id, system_name: todayZone.system_name, custom_label: todayZone.custom_label, color: todayZone.color } : null}
         zoneCustomers={zoneCustomers}
         dayLabel={`${WEEK_LABELS[selectedWeek]} · ${DAY_NAMES[selectedDay - 1]}`}
+      />
+      <ZoneMapPreviewDialog
+        open={zoneMapOpen}
+        onOpenChange={setZoneMapOpen}
+        zone={todayZone || null}
+        customers={zoneCustomers as any}
       />
       <AddUnplannedVisitSheet
         open={addOpen}
