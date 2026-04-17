@@ -391,11 +391,11 @@ export default function DayRouteMapDialog({
       hasContent = true;
     });
 
-    if (origin && orderedStops.length > 0) {
+    if (arrivalPoint && orderedStops.length > 0) {
       const bMarker = new google.maps.Marker({
-        position: { lat: origin.lat, lng: origin.lng },
+        position: { lat: arrivalPoint.lat, lng: arrivalPoint.lng },
         map,
-        title: `Arrivée — ${origin.label}`,
+        title: `Arrivée — ${arrivalPoint.label}`,
         label: { text: 'B', color: '#ffffff', fontWeight: '700', fontSize: '12px' },
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
@@ -404,7 +404,12 @@ export default function DayRouteMapDialog({
         },
         zIndex: 1001,
       });
+      const bInfo = new google.maps.InfoWindow({
+        content: `<div style="font-size:12px;font-weight:700">Arrivée — ${pointTypeLabel(arrivalPoint.type)}</div><div style="font-size:11px;color:#666">${arrivalPoint.label}</div>`,
+      });
+      bMarker.addListener('click', () => bInfo.open({ map, anchor: bMarker }));
       overlaysRef.current.push(bMarker);
+      bounds.extend({ lat: arrivalPoint.lat, lng: arrivalPoint.lng });
     }
 
     if (route && route.path.length >= 2) {
