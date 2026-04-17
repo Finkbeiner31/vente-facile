@@ -498,6 +498,12 @@ export function getReasonBadgeStyle(reason: string): { className: string } {
       return { className: 'bg-warning/15 text-warning' };
     case 'Hors zone':
       return { className: 'bg-warning/10 text-warning border border-warning/20' };
+    case 'Magasin prioritaire':
+      return { className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' };
+    case 'Atelier prioritaire':
+      return { className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' };
+    case 'Mixte prioritaire':
+      return { className: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' };
     default:
       return { className: 'bg-muted text-muted-foreground' };
   }
