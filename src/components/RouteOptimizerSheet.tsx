@@ -803,9 +803,11 @@ export default function RouteOptimizerSheet({
                 </div>
               </ScrollArea>
               <div className="p-4 border-t flex gap-2 shrink-0">
-                <Button variant="outline" className="flex-1 h-11" onClick={() => setStep('config')}>Retour</Button>
-                <Button className="flex-1 h-11 font-semibold" disabled={selectedIds.size < 2 || !departurePos} onClick={handleOptimize}>
-                  <Sparkles className="h-4 w-4 mr-2" />Optimiser ({selectedIds.size})
+                <Button variant="outline" className="flex-1 h-11" onClick={() => setStep('config')} disabled={optimizing}>Retour</Button>
+                <Button className="flex-1 h-11 font-semibold" disabled={selectedIds.size < 2 || !departurePos || optimizing} onClick={handleOptimize}>
+                  {optimizing
+                    ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Calcul en cours…</>
+                    : <><Sparkles className="h-4 w-4 mr-2" />Optimiser ({selectedIds.size})</>}
                 </Button>
               </div>
               {!departurePos && (
