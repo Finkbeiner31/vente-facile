@@ -252,6 +252,7 @@ export function computeTourneePriority(
 export function computeRelationshipBonus(
   relationshipType: string | null | undefined,
   filter: RelationshipFilter,
+  weights?: RelationshipWeightsConfig,
 ): { bonus: number; reason: string | null } {
   const rt = relationshipType || null;
 
@@ -260,13 +261,46 @@ export function computeRelationshipBonus(
     return { bonus: 0, reason: null };
   }
 
+  // ── Admin-configured weights take precedence when provided ──
+  if (weights) {
+    const weightFor = (t: string | null): number => {
+      if (t === 'magasin') return weights.magasin;
+      if (t === 'mixte') return weights.mixte;
+      if (t === 'atelier') return weights.atelier;
+      return weights.unknown;
+    };
+
+    let bonus = weightFor(rt);
+    let reason: string | null = null;
+
+    // In a "*_priority" mode, give an additional boost to the targeted type
+    // so the user-selected priority remains visible above the base weights.
+    if (filter !== 'tous') {
+      const targetMap: Record<string, 'magasin' | 'atelier' | 'mixte'> = {
+        magasin_priority: 'magasin',
+        atelier_priority: 'atelier',
+        mixte_priority: 'mixte',
+      };
+      const target = targetMap[filter];
+      if (target && rt === target) {
+        bonus += 10;
+        reason = target === 'magasin'
+          ? 'Magasin prioritaire'
+          : target === 'atelier'
+            ? 'Atelier prioritaire'
+            : 'Mixte prioritaire';
+      }
+    }
+
+    return { bonus: Math.round(bonus), reason };
+  }
+
+  // ── Legacy fallback (no admin weights available) ──
   if (filter === 'tous') {
-    // Light typing bonus to push known accounts above unknown ones
     if (rt === 'magasin' || rt === 'atelier' || rt === 'mixte') return { bonus: 2, reason: null };
     return { bonus: 0, reason: null };
   }
 
-  // Priority modes
   const targetMap: Record<string, 'magasin' | 'atelier' | 'mixte'> = {
     magasin_priority: 'magasin',
     atelier_priority: 'atelier',
@@ -278,13 +312,11 @@ export function computeRelationshipBonus(
     return { bonus: 18, reason: target === 'magasin' ? 'Magasin prioritaire' : target === 'atelier' ? 'Atelier prioritaire' : 'Mixte prioritaire' };
   }
 
-  // Default Magasin priority cascade (Magasin > Mixte > Atelier)
   if (target === 'magasin') {
     if (rt === 'mixte') return { bonus: 9, reason: null };
     if (rt === 'atelier') return { bonus: 3, reason: null };
-    return { bonus: 0, reason: null }; // non renseigné
+    return { bonus: 0, reason: null };
   }
-  // Other priority modes: lighter cascade
   if (rt === 'magasin' || rt === 'mixte' || rt === 'atelier') return { bonus: 4, reason: null };
   return { bonus: 0, reason: null };
 }
