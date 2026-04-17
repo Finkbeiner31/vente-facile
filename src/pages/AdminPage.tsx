@@ -273,6 +273,8 @@ function RelationshipWeightsCard() {
     </Card>
   );
 }
+
+export default function AdminPage() {
   const { user: currentUser, role: currentRole, loading: authLoading } = useAuth();
   const { startImpersonation } = useImpersonation();
   const navigate = useNavigate();
