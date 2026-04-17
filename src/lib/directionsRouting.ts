@@ -118,14 +118,29 @@ export async function routeWithDirections(
 
     let km = 0;
     let driveSec = 0;
-    const path: google.maps.LatLngLiteral[] = [];
     r.legs.forEach(leg => {
       km += (leg.distance?.value || 0) / 1000;
       driveSec += leg.duration?.value || 0;
-      leg.steps.forEach(step => {
-        step.path?.forEach(p => path.push({ lat: p.lat(), lng: p.lng() }));
-      });
     });
+    // Build the FULL route polyline. Prefer overview_path (entire route in one
+    // array) and only fall back to step-by-step accumulation if it's missing,
+    // which avoids ever rendering only a single leg.
+    const path: google.maps.LatLngLiteral[] = [];
+    if (r.overview_path && r.overview_path.length > 0) {
+      r.overview_path.forEach(p => path.push({ lat: p.lat(), lng: p.lng() }));
+    } else {
+      r.legs.forEach(leg => {
+        leg.steps.forEach(step => {
+          if (step.path && step.path.length > 0) {
+            step.path.forEach(p => path.push({ lat: p.lat(), lng: p.lng() }));
+          } else {
+            // Last-resort: at least connect leg endpoints so we never lose a leg.
+            if (leg.start_location) path.push({ lat: leg.start_location.lat(), lng: leg.start_location.lng() });
+            if (leg.end_location) path.push({ lat: leg.end_location.lat(), lng: leg.end_location.lng() });
+          }
+        });
+      });
+    }
 
     // Second-pass optimization for 'farthest' mode: re-optimize the tail
     // (everything after the pinned stop) by issuing one more Directions
