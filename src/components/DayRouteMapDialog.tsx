@@ -1,7 +1,7 @@
 /// <reference types="google.maps" />
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Loader2, MapPin, Route as RouteIcon, Clock, Navigation, Store, Hammer, Layers } from 'lucide-react';
+import { Loader2, MapPin, Route as RouteIcon, Clock, Navigation, Store, Hammer, Layers, AlertTriangle, Sparkles } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
@@ -9,11 +9,17 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
 
 /**
- * GPS-style itinerary view of the day's tournée.
- * Renders an ordered route: A (départ) → 1, 2, 3 ... → B (arrivée),
- * with a connecting polyline and per-stop info windows.
+ * GPS-style itinerary view for the day's tournée.
  *
- * This is a *visualization* component, not a navigation app.
+ * Routing strategy:
+ *  1. Use Google Maps DirectionsService with `optimizeWaypoints: true` to compute
+ *     a real road-based polyline AND an optimized stop order in one call.
+ *  2. If Directions fails (quota, no road found, etc.), fall back to a
+ *     nearest-neighbor heuristic on great-circle distance and draw a clean
+ *     non-crossing polyline through the reordered points.
+ *
+ * The optimized order is reflected in the marker numbering so the user
+ * immediately understands the recommended sequence.
  */
 
 export interface DayRouteStop {
@@ -44,10 +50,10 @@ interface SavedPoint {
 }
 
 const FRANCE_CENTER = { lat: 46.6, lng: 2.5 };
-
-// Average urban driving speed (km/h) used for the rough ETA.
 const AVG_SPEED_KMH = 45;
 const DEFAULT_VISIT_MIN = 30;
+// Google caps optimizeWaypoints to ~25 intermediate stops; well above our 8–12 target.
+const MAX_DIRECTIONS_WAYPOINTS = 23;
 
 function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
   const R = 6371;
@@ -68,9 +74,9 @@ function fmtMin(min: number): string {
 }
 
 function relationshipBadge(rt?: string | null) {
-  if (rt === 'magasin') return { label: 'Magasin', icon: Store, cls: 'bg-blue-100 text-blue-700 border-blue-200' };
-  if (rt === 'atelier') return { label: 'Atelier', icon: Hammer, cls: 'bg-orange-100 text-orange-700 border-orange-200' };
-  if (rt === 'mixte') return { label: 'Mixte', icon: Layers, cls: 'bg-purple-100 text-purple-700 border-purple-200' };
+  if (rt === 'magasin') return { label: 'Magasin', icon: Store };
+  if (rt === 'atelier') return { label: 'Atelier', icon: Hammer };
+  if (rt === 'mixte') return { label: 'Mixte', icon: Layers };
   return null;
 }
 
@@ -79,6 +85,48 @@ function customerTypeBadge(t?: string | null) {
   if (t === 'prospect_qualifie') return 'Prospect qualifié';
   if (t === 'prospect') return 'Prospect';
   return null;
+}
+
+/** Order points by nearest-neighbor starting from `start`. Returns indices into `stops`. */
+function nearestNeighborOrder(
+  start: { lat: number; lng: number },
+  stops: Array<{ lat: number; lng: number }>,
+): number[] {
+  const remaining = stops.map((_, i) => i);
+  const order: number[] = [];
+  let current = start;
+  while (remaining.length > 0) {
+    let bestIdx = 0;
+    let bestDist = Infinity;
+    for (let i = 0; i < remaining.length; i++) {
+      const d = haversineKm(current, stops[remaining[i]]);
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    }
+    const picked = remaining.splice(bestIdx, 1)[0];
+    order.push(picked);
+    current = stops[picked];
+  }
+  return order;
+}
+
+interface RouteResult {
+  /** order is a permutation of indices into the geocoded stops array */
+  order: number[];
+  /** Polyline path: real road geometry from Directions, or straight legs as fallback */
+  path: google.maps.LatLngLiteral[];
+  /** Total distance in km */
+  km: number;
+  /** Total drive time in minutes */
+  driveMin: number;
+  /** True if real road routing was used (vs nearest-neighbor fallback) */
+  usedRouting: boolean;
+}
+
+/** Module-level cache keyed by origin + ordered stop ids to avoid repeated API calls. */
+const routeCache = new Map<string, RouteResult>();
+function cacheKey(origin: SavedPoint | null, ids: string[]): string {
+  const o = origin ? `${origin.lat.toFixed(5)},${origin.lng.toFixed(5)}` : 'no-origin';
+  return `${o}|${[...ids].sort().join(',')}`;
 }
 
 export default function DayRouteMapDialog({
@@ -94,10 +142,11 @@ export default function DayRouteMapDialog({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const overlaysRef = useRef<Array<google.maps.Marker | google.maps.Polyline>>([]);
+  const mapRef = useRef<google.maps.Map | null>(null);
   const [ready, setReady] = useState(false);
   const [origin, setOrigin] = useState<SavedPoint | null>(null);
-
-  const lineColor = zoneColor || 'hsl(var(--primary))';
+  const [route, setRoute] = useState<RouteResult | null>(null);
+  const [routing, setRouting] = useState(false);
 
   // Wait for Google Maps SDK
   useEffect(() => {
@@ -108,8 +157,7 @@ export default function DayRouteMapDialog({
     return () => clearInterval(iv);
   }, [open]);
 
-  // Load the user's saved company/home/other point as the natural A & B.
-  // We pick the first one configured (priority: entreprise → domicile → autre).
+  // Load the user's saved company/home/other point for A & B
   useEffect(() => {
     if (!open || !activeUserId) return;
     let cancelled = false;
@@ -136,21 +184,132 @@ export default function DayRouteMapDialog({
     [stops],
   );
 
-  // Build the ordered geometry: [origin?, ...stops, origin?]
-  const path = useMemo(() => {
-    const pts: Array<{ lat: number; lng: number }> = [];
-    if (origin) pts.push({ lat: origin.lat, lng: origin.lng });
-    geocodedStops.forEach(s => pts.push({ lat: s.latitude as number, lng: s.longitude as number }));
-    if (origin) pts.push({ lat: origin.lat, lng: origin.lng });
-    return pts;
-  }, [origin, geocodedStops]);
+  // Compute route: optimized order + real polyline
+  useEffect(() => {
+    if (!open || !ready || geocodedStops.length === 0) {
+      setRoute(null);
+      return;
+    }
 
-  // Distance + driving-time approximation (no real routing)
+    const ids = geocodedStops.map(s => s.id);
+    const key = cacheKey(origin, ids);
+    const cached = routeCache.get(key);
+    if (cached) { setRoute(cached); return; }
+
+    let cancelled = false;
+    setRouting(true);
+
+    const run = async () => {
+      const positions = geocodedStops.map(s => ({ lat: s.latitude as number, lng: s.longitude as number }));
+      const start = origin ? { lat: origin.lat, lng: origin.lng } : positions[0];
+      const end = origin ? { lat: origin.lat, lng: origin.lng } : positions[positions.length - 1];
+
+      // Try Google Directions with waypoint optimization first.
+      // We optimize all stops (or all but the first when no origin is provided).
+      const waypointSourceIdx = origin
+        ? positions.map((_, i) => i)              // [0..n-1] all geocoded stops
+        : positions.map((_, i) => i).slice(1, -1); // exclude pinned start & end
+
+      const useDirections =
+        waypointSourceIdx.length > 0 &&
+        waypointSourceIdx.length <= MAX_DIRECTIONS_WAYPOINTS;
+
+      if (useDirections) {
+        try {
+          const ds = new google.maps.DirectionsService();
+          const waypoints = waypointSourceIdx.map(i => ({ location: positions[i], stopover: true }));
+          const result = await ds.route({
+            origin: start,
+            destination: end,
+            waypoints,
+            optimizeWaypoints: true,
+            travelMode: google.maps.TravelMode.DRIVING,
+          });
+
+          if (cancelled) return;
+          const r = result.routes[0];
+          if (r) {
+            // r.waypoint_order contains the optimized order of `waypoints`,
+            // so we rebuild full stop order from it.
+            const optimized: number[] = [];
+            if (origin) {
+              r.waypoint_order.forEach(o => optimized.push(waypointSourceIdx[o]));
+            } else {
+              optimized.push(0);
+              r.waypoint_order.forEach(o => optimized.push(waypointSourceIdx[o]));
+              optimized.push(positions.length - 1);
+            }
+
+            // Real road polyline + summed metrics from each leg
+            let km = 0;
+            let driveSec = 0;
+            const path: google.maps.LatLngLiteral[] = [];
+            r.legs.forEach(leg => {
+              km += (leg.distance?.value || 0) / 1000;
+              driveSec += leg.duration?.value || 0;
+              leg.steps.forEach(step => {
+                step.path?.forEach(p => path.push({ lat: p.lat(), lng: p.lng() }));
+              });
+            });
+
+            const result2: RouteResult = {
+              order: optimized,
+              path,
+              km,
+              driveMin: driveSec / 60,
+              usedRouting: true,
+            };
+            routeCache.set(key, result2);
+            setRoute(result2);
+            setRouting(false);
+            return;
+          }
+        } catch (err) {
+          console.warn('[DayRouteMap] Directions failed, falling back to nearest-neighbor', err);
+        }
+      }
+
+      // Fallback: nearest-neighbor from `start`, straight-leg polyline
+      if (cancelled) return;
+      const nnOrder = nearestNeighborOrder(start, positions);
+      // If no origin, force first geocoded stop to remain the entry point
+      const order = origin ? nnOrder : (() => {
+        const idx = nnOrder.indexOf(0);
+        if (idx > 0) { nnOrder.splice(idx, 1); nnOrder.unshift(0); }
+        return nnOrder;
+      })();
+      const seq: google.maps.LatLngLiteral[] = [];
+      if (origin) seq.push({ lat: origin.lat, lng: origin.lng });
+      order.forEach(i => seq.push(positions[i]));
+      if (origin) seq.push({ lat: origin.lat, lng: origin.lng });
+      let km = 0;
+      for (let i = 0; i < seq.length - 1; i++) km += haversineKm(seq[i], seq[i + 1]);
+      const fb: RouteResult = {
+        order,
+        path: seq,
+        km,
+        driveMin: (km / AVG_SPEED_KMH) * 60,
+        usedRouting: false,
+      };
+      routeCache.set(key, fb);
+      setRoute(fb);
+      setRouting(false);
+    };
+
+    run();
+    return () => { cancelled = true; };
+  }, [open, ready, geocodedStops, origin]);
+
+  // Effective ordered stops, derived from route.order if available
+  const orderedStops = useMemo(() => {
+    if (!route) return geocodedStops;
+    return route.order.map(i => geocodedStops[i]);
+  }, [route, geocodedStops]);
+
   const summary = useMemo(() => {
-    let km = 0;
-    for (let i = 0; i < path.length - 1; i++) km += haversineKm(path[i], path[i + 1]);
-    const driveMin = (km / AVG_SPEED_KMH) * 60;
     const visitMin = stops.reduce((sum, s) => sum + (s.visit_duration_minutes ?? DEFAULT_VISIT_MIN), 0);
+    const km = route?.km ?? 0;
+    const driveMin = route?.driveMin ?? 0;
     return {
       visits: stops.length,
       km,
@@ -158,8 +317,9 @@ export default function DayRouteMapDialog({
       visitMin,
       totalMin: driveMin + visitMin,
       missingGeo: stops.length - geocodedStops.length,
+      usedRouting: route?.usedRouting ?? false,
     };
-  }, [path, stops, geocodedStops]);
+  }, [route, stops, geocodedStops]);
 
   // Render markers + polyline
   useEffect(() => {
@@ -176,11 +336,11 @@ export default function DayRouteMapDialog({
       fullscreenControl: true,
       gestureHandling: 'greedy',
     });
+    mapRef.current = map;
 
     const bounds = new google.maps.LatLngBounds();
     let hasContent = false;
 
-    // Origin (A) and arrival (B) — same point if a single departure is configured
     if (origin) {
       const aMarker = new google.maps.Marker({
         position: { lat: origin.lat, lng: origin.lng },
@@ -189,11 +349,8 @@ export default function DayRouteMapDialog({
         label: { text: 'A', color: '#ffffff', fontWeight: '700', fontSize: '12px' },
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
-          fillColor: '#0f172a',
-          fillOpacity: 1,
-          strokeColor: '#ffffff',
-          strokeWeight: 2,
-          scale: 13,
+          fillColor: '#0f172a', fillOpacity: 1,
+          strokeColor: '#ffffff', strokeWeight: 2, scale: 13,
         },
         zIndex: 1000,
       });
@@ -206,21 +363,16 @@ export default function DayRouteMapDialog({
       hasContent = true;
     }
 
-    // Numbered stops
-    geocodedStops.forEach((s, i) => {
+    orderedStops.forEach((s, i) => {
       const pos = { lat: s.latitude as number, lng: s.longitude as number };
       const marker = new google.maps.Marker({
-        position: pos,
-        map,
+        position: pos, map,
         title: `${i + 1}. ${s.company_name}`,
         label: { text: String(i + 1), color: '#ffffff', fontWeight: '700', fontSize: '11px' },
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
-          fillColor: zoneColor || '#2563eb',
-          fillOpacity: 1,
-          strokeColor: '#ffffff',
-          strokeWeight: 2,
-          scale: 12,
+          fillColor: zoneColor || '#2563eb', fillOpacity: 1,
+          strokeColor: '#ffffff', strokeWeight: 2, scale: 12,
         },
         zIndex: 500 + i,
       });
@@ -240,8 +392,7 @@ export default function DayRouteMapDialog({
       hasContent = true;
     });
 
-    // Arrival (B) — only show distinctly if we have stops AND an origin
-    if (origin && geocodedStops.length > 0) {
+    if (origin && orderedStops.length > 0) {
       const bMarker = new google.maps.Marker({
         position: { lat: origin.lat, lng: origin.lng },
         map,
@@ -249,26 +400,23 @@ export default function DayRouteMapDialog({
         label: { text: 'B', color: '#ffffff', fontWeight: '700', fontSize: '12px' },
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
-          fillColor: '#475569',
-          fillOpacity: 1,
-          strokeColor: '#ffffff',
-          strokeWeight: 2,
-          scale: 13,
+          fillColor: '#475569', fillOpacity: 1,
+          strokeColor: '#ffffff', strokeWeight: 2, scale: 13,
         },
         zIndex: 1001,
       });
       overlaysRef.current.push(bMarker);
     }
 
-    // Connecting polyline
-    if (path.length >= 2) {
+    if (route && route.path.length >= 2) {
       const line = new google.maps.Polyline({
-        path,
+        path: route.path,
         strokeColor: zoneColor || '#2563eb',
-        strokeOpacity: 0.9,
-        strokeWeight: 3,
+        strokeOpacity: route.usedRouting ? 0.9 : 0.6,
+        strokeWeight: route.usedRouting ? 4 : 3,
         geodesic: true,
-        icons: [{
+        // Arrows only on the simplified fallback line; the real road polyline is dense.
+        icons: route.usedRouting ? undefined : [{
           icon: { path: google.maps.SymbolPath.FORWARD_CLOSED_ARROW, scale: 2.5 },
           offset: '50%',
           repeat: '120px',
@@ -279,19 +427,20 @@ export default function DayRouteMapDialog({
     }
 
     if (hasContent) map.fitBounds(bounds, 70);
-  }, [open, ready, geocodedStops, origin, path, zoneColor]);
+  }, [open, ready, orderedStops, origin, route, zoneColor]);
 
   const externalGmapsUrl = useMemo(() => {
-    if (geocodedStops.length === 0) return null;
+    if (orderedStops.length === 0) return null;
     const fmt = (p: { lat: number; lng: number }) => `${p.lat},${p.lng}`;
-    const start = origin ? fmt(origin) : fmt({ lat: geocodedStops[0].latitude as number, lng: geocodedStops[0].longitude as number });
-    const end = origin ? fmt(origin) : fmt({ lat: geocodedStops[geocodedStops.length - 1].latitude as number, lng: geocodedStops[geocodedStops.length - 1].longitude as number });
-    const waypoints = (origin ? geocodedStops : geocodedStops.slice(1, -1))
+    const start = origin ? fmt(origin) : fmt({ lat: orderedStops[0].latitude as number, lng: orderedStops[0].longitude as number });
+    const end = origin ? fmt(origin) : fmt({ lat: orderedStops[orderedStops.length - 1].latitude as number, lng: orderedStops[orderedStops.length - 1].longitude as number });
+    const wpStops = origin ? orderedStops : orderedStops.slice(1, -1);
+    const waypoints = wpStops
       .map(s => fmt({ lat: s.latitude as number, lng: s.longitude as number }))
       .join('|');
     const wp = waypoints ? `&waypoints=${encodeURIComponent(waypoints)}` : '';
     return `https://www.google.com/maps/dir/?api=1&origin=${start}&destination=${end}${wp}&travelmode=driving`;
-  }, [geocodedStops, origin]);
+  }, [orderedStops, origin]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -304,6 +453,16 @@ export default function DayRouteMapDialog({
               <MapPin className="h-3 w-3" />
               {summary.visits} visite{summary.visits > 1 ? 's' : ''}
             </Badge>
+            {summary.usedRouting && !routing && (
+              <Badge className="gap-1 bg-primary/10 text-primary border-primary/20 hover:bg-primary/10">
+                <Sparkles className="h-3 w-3" /> Itinéraire optimisé
+              </Badge>
+            )}
+            {!summary.usedRouting && route && !routing && (
+              <Badge variant="outline" className="gap-1 text-warning border-warning/40">
+                <AlertTriangle className="h-3 w-3" /> Approximation
+              </Badge>
+            )}
             {summary.missingGeo > 0 && (
               <Badge variant="outline" className="text-[10px]">
                 {summary.missingGeo} non géolocalisé{summary.missingGeo > 1 ? 's' : ''}
@@ -339,9 +498,10 @@ export default function DayRouteMapDialog({
         {/* Map */}
         <div className="relative h-[60vh] min-h-[420px] bg-muted">
           <div ref={containerRef} className="absolute inset-0" />
-          {!ready && (
-            <div className="absolute inset-0 flex items-center justify-center bg-background/80">
+          {(!ready || routing) && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 gap-2">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              {routing && <p className="text-xs text-muted-foreground">Calcul du trajet optimisé…</p>}
             </div>
           )}
           {ready && stops.length === 0 && (
@@ -360,18 +520,15 @@ export default function DayRouteMapDialog({
           )}
         </div>
 
-        {/* Footer actions — future-ready slot for GPS / recalc */}
-        <div className="flex items-center justify-between px-4 py-2.5 border-t bg-background">
+        {/* Footer */}
+        <div className="flex items-center justify-between px-4 py-2.5 border-t bg-background gap-2">
           <p className="text-[11px] text-muted-foreground">
-            Estimations indicatives (vitesse moyenne {AVG_SPEED_KMH} km/h, sans trafic réel).
+            {summary.usedRouting
+              ? 'Distance et durée calculées par Google Maps (sans trafic en temps réel).'
+              : `Estimations indicatives (vitesse moyenne ${AVG_SPEED_KMH} km/h).`}
           </p>
           {externalGmapsUrl && (
-            <Button
-              size="sm"
-              variant="outline"
-              className="h-8 gap-1.5"
-              asChild
-            >
+            <Button size="sm" variant="outline" className="h-8 gap-1.5 shrink-0" asChild>
               <a href={externalGmapsUrl} target="_blank" rel="noopener noreferrer">
                 <Navigation className="h-3.5 w-3.5" />
                 Ouvrir dans Google Maps
