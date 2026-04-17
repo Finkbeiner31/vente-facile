@@ -33,10 +33,12 @@ import {
   haversineKm, estimateDriveMin, formatDuration, getReasonBadgeStyle,
   getRelationshipBadge,
 } from '@/lib/tourneeOptimizer';
-
-// ── Types ──
-
-type PointType = 'company' | 'home' | 'custom';
+import { routeWithDirections } from '@/lib/directionsRouting';
+import {
+  loadPrefs, savePrefs, type PointType,
+  strategyLabel as strategyLabelFn, relationshipLabel, zoneLogicShortLabel,
+  pointTypeLabel,
+} from '@/lib/tourneePrefs';
 
 interface SavedAddresses {
   entreprise_address: string | null;
@@ -97,15 +99,16 @@ export default function RouteOptimizerSheet({
   const [addresses, setAddresses] = useState<SavedAddresses>(EMPTY_ADDRESSES);
   const [addressesLoaded, setAddressesLoaded] = useState(false);
 
-  // Config
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>('tous');
-  const [relationshipFilter, setRelationshipFilter] = useState<RelationshipFilter>('magasin_priority');
-  const [visitTarget, setVisitTarget] = useState(10);
-  const [excludeRecent, setExcludeRecent] = useState(true);
-  const [strategy, setStrategy] = useState<RouteStrategy>('nearest');
-  const [departureType, setDepartureType] = useState<PointType>('company');
-  const [arrivalType, setArrivalType] = useState<PointType>('company');
-  const [zoneLogicFlags, setZoneLogicFlags] = useState<ZoneLogicFlags>({ strict: true, tolerance: false, route: false });
+  // Config — initialised from persisted prefs (per-user)
+  const initialPrefs = useMemo(() => loadPrefs(user?.id), [user?.id]);
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>(initialPrefs.typeFilter);
+  const [relationshipFilter, setRelationshipFilter] = useState<RelationshipFilter>(initialPrefs.relationshipFilter);
+  const [visitTarget, setVisitTarget] = useState(initialPrefs.visitTarget);
+  const [excludeRecent, setExcludeRecent] = useState(initialPrefs.excludeRecent);
+  const [strategy, setStrategy] = useState<RouteStrategy>(initialPrefs.strategy);
+  const [departureType, setDepartureType] = useState<PointType>(initialPrefs.departureType);
+  const [arrivalType, setArrivalType] = useState<PointType>(initialPrefs.arrivalType);
+  const [zoneLogicFlags, setZoneLogicFlags] = useState<ZoneLogicFlags>(initialPrefs.zoneLogicFlags);
 
   // Address edit modal
   const [editingField, setEditingField] = useState<'entreprise' | 'domicile' | 'autre' | null>(null);
@@ -115,8 +118,20 @@ export default function RouteOptimizerSheet({
   // Process state
   const [step, setStep] = useState<'config' | 'preview' | 'result'>('config');
   const [optimizedRoute, setOptimizedRoute] = useState<OptimizedRoute | null>(null);
+  const [optimizing, setOptimizing] = useState(false);
+  const [usedRealRouting, setUsedRealRouting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
+
+  // Persist prefs whenever the user changes any optimization input
+  useEffect(() => {
+    if (!user?.id) return;
+    savePrefs(user.id, {
+      departureType, arrivalType, strategy, typeFilter,
+      relationshipFilter, zoneLogicFlags, excludeRecent, visitTarget,
+    });
+  }, [user?.id, departureType, arrivalType, strategy, typeFilter, relationshipFilter, zoneLogicFlags, excludeRecent, visitTarget]);
+
 
   // Load addresses from profile
   useEffect(() => {
@@ -256,10 +271,11 @@ export default function RouteOptimizerSheet({
     });
   };
 
-  const handleOptimize = () => {
+  const handleOptimize = async () => {
     if (!departurePos) { toast.error('Veuillez définir votre point de départ'); return; }
     const arrival = effectiveArrival || departurePos;
     const selected = candidates.filter(c => selectedIds.has(c.id));
+    if (selected.length < 2) return;
 
     const config: OptimizationConfig = {
       visitTarget, strategy, zoneLogic: 'strict', zoneLogicFlags, typeFilter,
@@ -269,9 +285,48 @@ export default function RouteOptimizerSheet({
       arrivalLat: arrival.lat, arrivalLng: arrival.lng,
     };
 
-    const route = buildOptimizedRoute(selected, config);
-    setOptimizedRoute(route);
-    setStep('result');
+    setOptimizing(true);
+    setUsedRealRouting(false);
+    try {
+      // 1. Try Google Directions for a real road-based optimized order that
+      //    respects the chosen departure, arrival and order strategy.
+      const positions = selected
+        .filter(c => c.latitude != null && c.longitude != null)
+        .map(c => ({ lat: c.latitude as number, lng: c.longitude as number }));
+
+      if (positions.length === selected.length && positions.length > 0) {
+        const dr = await routeWithDirections(
+          { lat: departurePos.lat, lng: departurePos.lng },
+          positions,
+          { lat: arrival.lat, lng: arrival.lng },
+          strategy,
+        );
+        if (dr) {
+          const ordered = dr.order.map(i => selected[i]);
+          const totalVisitMin = ordered.reduce((s, c) => s + (c.visitDuration || 0), 0);
+          const totalDriveMin = Math.round(dr.driveMin);
+          const route: OptimizedRoute = {
+            customers: ordered,
+            totalDistanceKm: Math.round(dr.km * 10) / 10,
+            totalTravelMin: totalDriveMin,
+            totalVisitMin,
+            estimatedDurationMin: totalDriveMin + totalVisitMin,
+          };
+          setOptimizedRoute(route);
+          setUsedRealRouting(true);
+          setStep('result');
+          return;
+        }
+      }
+
+      // 2. Fallback: local heuristic (already strategy-aware via config.strategy)
+      const route = buildOptimizedRoute(selected, config);
+      setOptimizedRoute(route);
+      setUsedRealRouting(false);
+      setStep('result');
+    } finally {
+      setOptimizing(false);
+    }
   };
 
   const handleSaveAndStart = async () => {
@@ -748,9 +803,11 @@ export default function RouteOptimizerSheet({
                 </div>
               </ScrollArea>
               <div className="p-4 border-t flex gap-2 shrink-0">
-                <Button variant="outline" className="flex-1 h-11" onClick={() => setStep('config')}>Retour</Button>
-                <Button className="flex-1 h-11 font-semibold" disabled={selectedIds.size < 2 || !departurePos} onClick={handleOptimize}>
-                  <Sparkles className="h-4 w-4 mr-2" />Optimiser ({selectedIds.size})
+                <Button variant="outline" className="flex-1 h-11" onClick={() => setStep('config')} disabled={optimizing}>Retour</Button>
+                <Button className="flex-1 h-11 font-semibold" disabled={selectedIds.size < 2 || !departurePos || optimizing} onClick={handleOptimize}>
+                  {optimizing
+                    ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Calcul en cours…</>
+                    : <><Sparkles className="h-4 w-4 mr-2" />Optimiser ({selectedIds.size})</>}
                 </Button>
               </div>
               {!departurePos && (
@@ -764,7 +821,19 @@ export default function RouteOptimizerSheet({
           {/* ── Result ── */}
           {step === 'result' && optimizedRoute && (
             <div className="flex-1 flex flex-col overflow-hidden">
-              <div className="px-4 py-3 border-b bg-muted/30 shrink-0">
+              <div className="px-4 py-3 border-b bg-muted/30 shrink-0 space-y-2">
+                <div className="flex items-center justify-center gap-2">
+                  {usedRealRouting ? (
+                    <Badge className="gap-1 bg-primary/10 text-primary border-primary/20 hover:bg-primary/10">
+                      <Sparkles className="h-3 w-3" /> Itinéraire optimisé (Google)
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="gap-1 text-warning border-warning/40">
+                      <AlertTriangle className="h-3 w-3" /> Approximation locale
+                    </Badge>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-3 gap-3 text-center">
                   <div>
                     <p className="text-lg font-bold text-primary">{formatDuration(optimizedRoute.estimatedDurationMin)}</p>
@@ -779,7 +848,7 @@ export default function RouteOptimizerSheet({
                     <p className="text-[10px] text-muted-foreground">🤝 visites</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3 text-center mt-2 pt-2 border-t">
+                <div className="grid grid-cols-2 gap-3 text-center pt-2 border-t">
                   <div>
                     <p className="text-sm font-bold">{optimizedRoute.customers.length}</p>
                     <p className="text-[10px] text-muted-foreground">visites</p>
@@ -789,14 +858,37 @@ export default function RouteOptimizerSheet({
                     <p className="text-[10px] text-muted-foreground">distance</p>
                   </div>
                 </div>
-                <div className="flex items-center justify-center gap-3 mt-2 text-[11px] text-muted-foreground">
-                  <span className="flex items-center gap-1 truncate"><CircleDot className="h-3 w-3 text-primary shrink-0" />{getPointDisplayAddress(departureType) || departureLabel}</span>
-                  <span>→</span>
-                  <span className="flex items-center gap-1 truncate"><Flag className="h-3 w-3 text-primary shrink-0" />{getPointDisplayAddress(arrivalType) || arrivalLabel}</span>
+
+                {/* Optimization context — what the engine actually used */}
+                <div className="rounded-lg border bg-background/60 px-2.5 py-2 text-[10.5px] space-y-1">
+                  <div className="flex items-center gap-1.5">
+                    <CircleDot className="h-3 w-3 text-primary shrink-0" />
+                    <span className="font-medium">Départ :</span>
+                    <span className="truncate text-muted-foreground">{pointTypeLabel(departureType)} — {getPointDisplayAddress(departureType) || '—'}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Flag className="h-3 w-3 text-primary shrink-0" />
+                    <span className="font-medium">Arrivée :</span>
+                    <span className="truncate text-muted-foreground">{pointTypeLabel(arrivalType)} — {getPointDisplayAddress(arrivalType) || '—'}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Route className="h-3 w-3 text-primary shrink-0" />
+                    <span className="font-medium">Ordre :</span>
+                    <span className="text-muted-foreground">{strategyLabelFn(strategy)}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Store className="h-3 w-3 text-primary shrink-0" />
+                    <span className="font-medium">Relation :</span>
+                    <span className="text-muted-foreground">{relationshipLabel(relationshipFilter)}</span>
+                  </div>
+                  {zone && (
+                    <div className="flex items-center gap-1.5">
+                      <MapPin className="h-3 w-3 text-primary shrink-0" />
+                      <span className="font-medium">Zone :</span>
+                      <span className="text-muted-foreground truncate">{zoneName} · {zoneLogicShortLabel(zoneLogicFlags)}</span>
+                    </div>
+                  )}
                 </div>
-                {zoneName && (
-                  <p className="text-[10px] text-center text-muted-foreground mt-1">{zoneName} · {strategyLabel} · {getZoneLogicLabels().join(' + ')}</p>
-                )}
               </div>
 
               <ScrollArea className="flex-1">
