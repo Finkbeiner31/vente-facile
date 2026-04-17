@@ -271,10 +271,11 @@ export default function RouteOptimizerSheet({
     });
   };
 
-  const handleOptimize = () => {
+  const handleOptimize = async () => {
     if (!departurePos) { toast.error('Veuillez définir votre point de départ'); return; }
     const arrival = effectiveArrival || departurePos;
     const selected = candidates.filter(c => selectedIds.has(c.id));
+    if (selected.length < 2) return;
 
     const config: OptimizationConfig = {
       visitTarget, strategy, zoneLogic: 'strict', zoneLogicFlags, typeFilter,
@@ -284,9 +285,48 @@ export default function RouteOptimizerSheet({
       arrivalLat: arrival.lat, arrivalLng: arrival.lng,
     };
 
-    const route = buildOptimizedRoute(selected, config);
-    setOptimizedRoute(route);
-    setStep('result');
+    setOptimizing(true);
+    setUsedRealRouting(false);
+    try {
+      // 1. Try Google Directions for a real road-based optimized order that
+      //    respects the chosen departure, arrival and order strategy.
+      const positions = selected
+        .filter(c => c.latitude != null && c.longitude != null)
+        .map(c => ({ lat: c.latitude as number, lng: c.longitude as number }));
+
+      if (positions.length === selected.length && positions.length > 0) {
+        const dr = await routeWithDirections(
+          { lat: departurePos.lat, lng: departurePos.lng },
+          positions,
+          { lat: arrival.lat, lng: arrival.lng },
+          strategy,
+        );
+        if (dr) {
+          const ordered = dr.order.map(i => selected[i]);
+          const totalVisitMin = ordered.reduce((s, c) => s + (c.visitDuration || 0), 0);
+          const totalDriveMin = Math.round(dr.driveMin);
+          const route: OptimizedRoute = {
+            customers: ordered,
+            totalDistanceKm: Math.round(dr.km * 10) / 10,
+            totalTravelMin: totalDriveMin,
+            totalVisitMin,
+            estimatedDurationMin: totalDriveMin + totalVisitMin,
+          };
+          setOptimizedRoute(route);
+          setUsedRealRouting(true);
+          setStep('result');
+          return;
+        }
+      }
+
+      // 2. Fallback: local heuristic (already strategy-aware via config.strategy)
+      const route = buildOptimizedRoute(selected, config);
+      setOptimizedRoute(route);
+      setUsedRealRouting(false);
+      setStep('result');
+    } finally {
+      setOptimizing(false);
+    }
   };
 
   const handleSaveAndStart = async () => {
