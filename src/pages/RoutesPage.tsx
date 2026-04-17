@@ -551,6 +551,12 @@ export default function RoutesPage() {
         zoneCustomers={zoneCustomers}
         dayLabel={`${WEEK_LABELS[selectedWeek]} · ${DAY_NAMES[selectedDay - 1]}`}
       />
+      <ZoneMapPreviewDialog
+        open={zoneMapOpen}
+        onOpenChange={setZoneMapOpen}
+        zone={todayZone || null}
+        customers={zoneCustomers as any}
+      />
       <AddUnplannedVisitSheet
         open={addOpen}
         onOpenChange={setAddOpen}
