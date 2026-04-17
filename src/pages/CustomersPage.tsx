@@ -442,6 +442,7 @@ export default function CustomersPage() {
             <SelectItem value="priority">Tri: Priorité</SelectItem>
             <SelectItem value="potential">Tri: Potentiel</SelectItem>
             <SelectItem value="caM1">Tri: CA M-1</SelectItem>
+            <SelectItem value="zone">Tri: Zone</SelectItem>
           </SelectContent>
         </Select>
       </div>
