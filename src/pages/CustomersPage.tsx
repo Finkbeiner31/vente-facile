@@ -96,8 +96,11 @@ const splitContactName = (fullName: string) => {
 
 export default function CustomersPage() {
   const { user, loading, role } = useAuth();
-  const { effectiveUserId } = useImpersonation();
+  const { effectiveUserId, effectiveRole, isImpersonating } = useImpersonation();
   const activeUserId = effectiveUserId || user?.id;
+  // Use effective role so that admin impersonating a sales_rep gets sales_rep filtering
+  const activeRole = effectiveRole || role;
+  const isAdmin = activeRole === 'admin' || activeRole === 'manager';
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<FilterTab>('tous');
   const [perfFilter, setPerfFilter] = useState<PerfFilter>('tous');
@@ -109,7 +112,6 @@ export default function CustomersPage() {
   const queryClient = useQueryClient();
   const { autoAssignCustomer } = useZoneAssignment();
   const { data: zones = [] } = useCommercialZones();
-  const isAdmin = role === 'admin' || role === 'manager';
 
   const { data: revenueMap } = useAllCustomerRevenues();
 
