@@ -99,6 +99,7 @@ export default function RouteOptimizerSheet({
 
   // Config
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('tous');
+  const [relationshipFilter, setRelationshipFilter] = useState<RelationshipFilter>('magasin_priority');
   const [visitTarget, setVisitTarget] = useState(10);
   const [excludeRecent, setExcludeRecent] = useState(true);
   const [strategy, setStrategy] = useState<RouteStrategy>('nearest');
