@@ -28,6 +28,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useZoneAssignment } from '@/hooks/useZoneAssignment';
 import { RefreshCw } from 'lucide-react';
 import { AssignmentIssuesSheet } from '@/components/AssignmentIssuesSheet';
+import { useCycleStartDate, useUpdateCycleStartDate } from '@/hooks/useCycleStartDate';
+import { isMonday, formatWeekRange, getCurrentWeekNumber } from '@/lib/weekCycleUtils';
 
 const roleLabels: Record<string, string> = {
   admin: 'Administrateur',
