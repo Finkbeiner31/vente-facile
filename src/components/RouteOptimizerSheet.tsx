@@ -470,6 +470,50 @@ export default function RouteOptimizerSheet({
                   </Select>
                 </div>
 
+                {/* Relationship type filter */}
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold flex items-center gap-1.5">
+                    <Store className="h-4 w-4 text-primary" />
+                    Type de relation commerciale
+                  </label>
+                  <Select value={relationshipFilter} onValueChange={v => setRelationshipFilter(v as RelationshipFilter)}>
+                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="tous">Tous</SelectItem>
+                      <SelectItem value="magasin_priority">⭐ Magasin prioritaire (recommandé)</SelectItem>
+                      <SelectItem value="atelier_priority">Atelier prioritaire</SelectItem>
+                      <SelectItem value="mixte_priority">Mixte prioritaire</SelectItem>
+                      <SelectItem value="magasin_only">Magasin uniquement</SelectItem>
+                      <SelectItem value="atelier_only">Atelier uniquement</SelectItem>
+                      <SelectItem value="mixte_only">Mixte uniquement</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {candidates.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 text-[10px] pt-0.5">
+                      {relationshipCounts.magasin > 0 && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-medium">
+                          <Store className="h-2.5 w-2.5" />{relationshipCounts.magasin} Magasin
+                        </span>
+                      )}
+                      {relationshipCounts.mixte > 0 && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 font-medium">
+                          {relationshipCounts.mixte} Mixte
+                        </span>
+                      )}
+                      {relationshipCounts.atelier > 0 && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 font-medium">
+                          <Hammer className="h-2.5 w-2.5" />{relationshipCounts.atelier} Atelier
+                        </span>
+                      )}
+                      {relationshipCounts.none > 0 && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">
+                          {relationshipCounts.none} Non renseigné
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {/* Visit count */}
                 <div className="space-y-2">
                   <label className="text-sm font-semibold flex items-center gap-1.5">
