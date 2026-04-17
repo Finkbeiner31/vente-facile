@@ -96,8 +96,11 @@ const splitContactName = (fullName: string) => {
 
 export default function CustomersPage() {
   const { user, loading, role } = useAuth();
-  const { effectiveUserId } = useImpersonation();
+  const { effectiveUserId, effectiveRole, isImpersonating } = useImpersonation();
   const activeUserId = effectiveUserId || user?.id;
+  // Use effective role so that admin impersonating a sales_rep gets sales_rep filtering
+  const activeRole = effectiveRole || role;
+  const isAdmin = activeRole === 'admin' || activeRole === 'manager';
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<FilterTab>('tous');
   const [perfFilter, setPerfFilter] = useState<PerfFilter>('tous');
@@ -109,18 +112,17 @@ export default function CustomersPage() {
   const queryClient = useQueryClient();
   const { autoAssignCustomer } = useZoneAssignment();
   const { data: zones = [] } = useCommercialZones();
-  const isAdmin = role === 'admin' || role === 'manager';
 
   const { data: revenueMap } = useAllCustomerRevenues();
 
   const { data: customers = [], isLoading, isError } = useQuery({
-    queryKey: ['customers', activeUserId, role],
+    queryKey: ['customers', activeUserId, activeRole],
     queryFn: async () => {
       if (!activeUserId) return [];
 
       let allData: any[] = [];
 
-      if (role === 'admin' || role === 'manager') {
+      if (activeRole === 'admin' || activeRole === 'manager') {
         // Admin and Manager: load ALL customers (RLS already allows it)
         const { data, error } = await supabase
           .from('customers')
@@ -129,7 +131,7 @@ export default function CustomersPage() {
         if (error) throw error;
         allData = data || [];
       } else {
-        // Commercial / other roles: load only own scope
+        // Commercial / sales_rep: filter by assigned_rep_id at the Supabase level (+ exceptional)
         const { data: principalClients, error: e1 } = await supabase
           .from('customers')
           .select('*')
@@ -157,6 +159,19 @@ export default function CustomersPage() {
           return true;
         });
       }
+
+      // Diagnostic logs
+      // eslint-disable-next-line no-console
+      console.log('[CustomersPage] visibility', {
+        realRole: role,
+        effectiveRole,
+        activeRole,
+        effectiveUserId,
+        userId: user?.id,
+        activeUserId,
+        isImpersonating,
+        rowsReturned: allData.length,
+      });
 
       return allData.map((customer: any): CustomerListItem => {
         const revenue = Number(customer.annual_revenue_potential || 0);
