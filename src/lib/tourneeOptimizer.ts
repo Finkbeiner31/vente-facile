@@ -79,6 +79,8 @@ export interface OptimizationConfig {
   zoneLogic: ZoneLogic;
   zoneLogicFlags?: ZoneLogicFlags;
   typeFilter: TypeFilter;
+  /** Commercial relationship filter (Magasin / Atelier / Mixte). Defaults to 'magasin_priority'. */
+  relationshipFilter?: RelationshipFilter;
   excludeRecentDays: number | null; // null = don't exclude
   departureLat: number;
   departureLng: number;
