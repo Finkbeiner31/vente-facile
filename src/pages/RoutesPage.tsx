@@ -6,12 +6,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { QuickReportDialog } from '@/components/QuickReportDialog';
 import { TourMode } from '@/components/TourMode';
 import {
-  MapPin, Zap,
+  MapPin, Map as MapIcon, Zap,
   ChevronLeft, ChevronRight, Calendar, Target,
   RotateCcw, Loader2,
   Plus, Users,
 } from 'lucide-react';
 import RouteOptimizerSheet from '@/components/RouteOptimizerSheet';
+import ZoneMapPreviewDialog from '@/components/ZoneMapPreviewDialog';
 import { useTourSession } from '@/contexts/TourSessionContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
