@@ -73,6 +73,13 @@ export interface OptimizedRoute {
   totalVisitMin: number;
 }
 
+export interface RelationshipWeightsConfig {
+  magasin: number;
+  mixte: number;
+  atelier: number;
+  unknown: number;
+}
+
 export interface OptimizationConfig {
   visitTarget: number;
   strategy: RouteStrategy;
@@ -81,6 +88,8 @@ export interface OptimizationConfig {
   typeFilter: TypeFilter;
   /** Commercial relationship filter (Magasin / Atelier / Mixte). Defaults to 'magasin_priority'. */
   relationshipFilter?: RelationshipFilter;
+  /** Admin-configured priority weights per relationship type. Optional — falls back to legacy heuristic. */
+  relationshipWeights?: RelationshipWeightsConfig;
   excludeRecentDays: number | null; // null = don't exclude
   departureLat: number;
   departureLng: number;
