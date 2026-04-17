@@ -583,8 +583,15 @@ export default function CustomersPage() {
         <div className="py-12 text-center">
           <Building2 className="mx-auto h-10 w-10 text-muted-foreground/30" />
           <p className="mt-3 text-sm text-muted-foreground">
-            {customers.length === 0 ? 'Aucun compte enregistré' : 'Aucun résultat'}
+            {customers.length === 0
+              ? (isAdmin ? 'Aucun compte enregistré' : 'Aucun client dans votre portefeuille')
+              : 'Aucun résultat avec ces filtres'}
           </p>
+          {!isAdmin && customers.length === 0 && (
+            <p className="mt-1 text-xs text-muted-foreground/70">
+              Seuls les clients de votre zone ou affectés manuellement apparaissent ici.
+            </p>
+          )}
         </div>
       )}
 
