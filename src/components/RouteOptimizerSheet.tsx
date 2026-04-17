@@ -19,7 +19,7 @@ import {
   Loader2, Navigation, MapPin, Play, Route, Sparkles, Zap,
   LocateFixed, AlertTriangle, Users, Target, ArrowDown, ArrowUp,
   Building2, MapPinned, Flag, CircleDot, Clock, Home, MoreHorizontal,
-  Info, Pencil,
+  Info, Pencil, Store, Hammer,
 } from 'lucide-react';
 import { formatMonthly } from '@/lib/revenueUtils';
 import { toast } from 'sonner';
@@ -27,9 +27,11 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   type OptCustomer, type ScoredCustomer, type OptimizedRoute,
   type RouteStrategy, type ZoneLogic, type ZoneLogicFlags, type TypeFilter,
+  type RelationshipFilter,
   type OptimizationConfig,
   filterCandidates, buildOptimizedRoute,
   haversineKm, estimateDriveMin, formatDuration, getReasonBadgeStyle,
+  getRelationshipBadge,
 } from '@/lib/tourneeOptimizer';
 
 // ── Types ──
