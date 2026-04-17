@@ -10,6 +10,7 @@ import { TourMode } from '@/components/TourMode';
 import { useDailyTour } from '@/hooks/useDailyTour';
 import { isReadOnly, canPerformAction, getRoleLabel, type AppRole } from '@/lib/permissions';
 import { getCurrentWeekNumber, getTodayDow } from '@/lib/weekCycleUtils';
+import { useCycleStartDate } from '@/hooks/useCycleStartDate';
 
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -54,7 +55,8 @@ export default function DashboardPage() {
   }, [dailyTourLoading, dailyTour, activeUserId, autoGenerate]);
 
   /* ── Fallback: read directly from weekly_zone_planning if no daily_tour ── */
-  const currentWeek = useMemo(() => getCurrentWeekNumber(), []);
+  const { data: cycleStart } = useCycleStartDate();
+  const currentWeek = useMemo(() => getCurrentWeekNumber(cycleStart), [cycleStart]);
   const currentDow = useMemo(() => getTodayDow(), []);
   const { data: zones = [] } = useCommercialZones();
   const isWeekdayToday = currentDow <= 5;

@@ -78,7 +78,13 @@ export function useDailyTour(userId: string | undefined) {
       const dow = getTodayDow();
       if (dow > 5) return null; // Weekend
 
-      const weekNumber = getCurrentWeekNumber();
+      // Read configured cycle reference date for accurate week index.
+      const { data: setting } = await (supabase as any)
+        .from('app_settings')
+        .select('setting_value')
+        .eq('setting_key', 'cycle_start_date')
+        .maybeSingle();
+      const weekNumber = getCurrentWeekNumber(setting?.setting_value);
 
       // Get zone for today
       const { data: plannings } = await supabase
