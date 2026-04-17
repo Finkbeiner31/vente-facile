@@ -19,7 +19,7 @@ import {
   Loader2, Navigation, MapPin, Play, Route, Sparkles, Zap,
   LocateFixed, AlertTriangle, Users, Target, ArrowDown, ArrowUp,
   Building2, MapPinned, Flag, CircleDot, Clock, Home, MoreHorizontal,
-  Info, Pencil,
+  Info, Pencil, Store, Hammer,
 } from 'lucide-react';
 import { formatMonthly } from '@/lib/revenueUtils';
 import { toast } from 'sonner';
@@ -27,9 +27,11 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   type OptCustomer, type ScoredCustomer, type OptimizedRoute,
   type RouteStrategy, type ZoneLogic, type ZoneLogicFlags, type TypeFilter,
+  type RelationshipFilter,
   type OptimizationConfig,
   filterCandidates, buildOptimizedRoute,
   haversineKm, estimateDriveMin, formatDuration, getReasonBadgeStyle,
+  getRelationshipBadge,
 } from '@/lib/tourneeOptimizer';
 
 // ── Types ──
@@ -97,6 +99,7 @@ export default function RouteOptimizerSheet({
 
   // Config
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('tous');
+  const [relationshipFilter, setRelationshipFilter] = useState<RelationshipFilter>('magasin_priority');
   const [visitTarget, setVisitTarget] = useState(10);
   const [excludeRecent, setExcludeRecent] = useState(true);
   const [strategy, setStrategy] = useState<RouteStrategy>('nearest');
@@ -182,13 +185,14 @@ export default function RouteOptimizerSheet({
 
     const config: OptimizationConfig = {
       visitTarget, strategy, zoneLogic: 'strict', zoneLogicFlags, typeFilter,
+      relationshipFilter,
       excludeRecentDays: excludeRecent ? 7 : null,
       departureLat: departurePos.lat, departureLng: departurePos.lng,
       arrivalLat: arrival.lat, arrivalLng: arrival.lng,
     };
 
     return filterCandidates(sourcePool, zoneCustomerIds, config);
-  }, [zoneCustomers, allCustomers, typeFilter, excludeRecent, departurePos, effectiveArrival, zoneLogicFlags, hasExtension, visitTarget, strategy]);
+  }, [zoneCustomers, allCustomers, typeFilter, relationshipFilter, excludeRecent, departurePos, effectiveArrival, zoneLogicFlags, hasExtension, visitTarget, strategy]);
 
   const eligibleClients = zoneCustomers.filter((c: any) =>
     c.customer_type !== 'prospect' && c.customer_type !== 'prospect_qualifie').length;
@@ -197,6 +201,18 @@ export default function RouteOptimizerSheet({
 
   const overdueCount = candidates.filter(c => c.reasons.includes('En retard')).length;
   const highPriorityCount = candidates.filter(c => c.reasons.includes('Fort potentiel') || c.reasons.includes('Priorité A')).length;
+
+  // Relationship type counts in the eligible pool
+  const relationshipCounts = useMemo(() => {
+    let magasin = 0, atelier = 0, mixte = 0, none = 0;
+    for (const c of candidates) {
+      if (c.relationship_type === 'magasin') magasin++;
+      else if (c.relationship_type === 'atelier') atelier++;
+      else if (c.relationship_type === 'mixte') mixte++;
+      else none++;
+    }
+    return { magasin, atelier, mixte, none };
+  }, [candidates]);
 
   // Save address to profile
   const saveAddress = async (field: 'entreprise' | 'domicile' | 'autre', address: string) => {
@@ -247,6 +263,7 @@ export default function RouteOptimizerSheet({
 
     const config: OptimizationConfig = {
       visitTarget, strategy, zoneLogic: 'strict', zoneLogicFlags, typeFilter,
+      relationshipFilter,
       excludeRecentDays: excludeRecent ? 7 : null,
       departureLat: departurePos.lat, departureLng: departurePos.lng,
       arrivalLat: arrival.lat, arrivalLng: arrival.lng,
@@ -453,6 +470,50 @@ export default function RouteOptimizerSheet({
                   </Select>
                 </div>
 
+                {/* Relationship type filter */}
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold flex items-center gap-1.5">
+                    <Store className="h-4 w-4 text-primary" />
+                    Type de relation commerciale
+                  </label>
+                  <Select value={relationshipFilter} onValueChange={v => setRelationshipFilter(v as RelationshipFilter)}>
+                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="tous">Tous</SelectItem>
+                      <SelectItem value="magasin_priority">⭐ Magasin prioritaire (recommandé)</SelectItem>
+                      <SelectItem value="atelier_priority">Atelier prioritaire</SelectItem>
+                      <SelectItem value="mixte_priority">Mixte prioritaire</SelectItem>
+                      <SelectItem value="magasin_only">Magasin uniquement</SelectItem>
+                      <SelectItem value="atelier_only">Atelier uniquement</SelectItem>
+                      <SelectItem value="mixte_only">Mixte uniquement</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {candidates.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 text-[10px] pt-0.5">
+                      {relationshipCounts.magasin > 0 && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-medium">
+                          <Store className="h-2.5 w-2.5" />{relationshipCounts.magasin} Magasin
+                        </span>
+                      )}
+                      {relationshipCounts.mixte > 0 && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 font-medium">
+                          {relationshipCounts.mixte} Mixte
+                        </span>
+                      )}
+                      {relationshipCounts.atelier > 0 && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400 font-medium">
+                          <Hammer className="h-2.5 w-2.5" />{relationshipCounts.atelier} Atelier
+                        </span>
+                      )}
+                      {relationshipCounts.none > 0 && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">
+                          {relationshipCounts.none} Non renseigné
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {/* Visit count */}
                 <div className="space-y-2">
                   <label className="text-sm font-semibold flex items-center gap-1.5">
@@ -643,6 +704,14 @@ export default function RouteOptimizerSheet({
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium truncate">{c.company_name}</span>
                               <Badge variant="outline" className="text-[9px] h-4 shrink-0">{c.score}pts</Badge>
+                              {(() => {
+                                const rb = getRelationshipBadge(c.relationship_type);
+                                return rb ? (
+                                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold shrink-0 ${rb.className}`}>
+                                    {rb.label}
+                                  </span>
+                                ) : null;
+                              })()}
                             </div>
                             <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
                               <span>{c.city}</span>
@@ -752,7 +821,17 @@ export default function RouteOptimizerSheet({
                             {i + 1}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold truncate">{c.company_name}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold truncate">{c.company_name}</p>
+                              {(() => {
+                                const rb = getRelationshipBadge(c.relationship_type);
+                                return rb ? (
+                                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold shrink-0 ${rb.className}`}>
+                                    {rb.label}
+                                  </span>
+                                ) : null;
+                              })()}
+                            </div>
                             <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                               <span>{c.city}</span>
                               <span>·</span>

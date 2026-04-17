@@ -39,6 +39,19 @@ export interface ZoneLogicFlags {
 }
 export type TypeFilter = 'tous' | 'clients' | 'prospects';
 
+/**
+ * Commercial relationship filter mode.
+ * - `tous`            : no relationship filter, no bonus
+ * - `*_priority`      : keep all eligible accounts, give a strong score bonus to the chosen type
+ * - `*_only`          : strictly keep only accounts of the chosen type
+ */
+export type RelationshipFilter =
+  | 'tous'
+  | 'magasin_priority' | 'atelier_priority' | 'mixte_priority'
+  | 'magasin_only' | 'atelier_only' | 'mixte_only';
+
+export type RelationshipType = 'magasin' | 'atelier' | 'mixte' | null;
+
 export interface ScoredCustomer extends OptCustomer {
   /** Composite priority score (0-100+) */
   score: number;
@@ -66,6 +79,8 @@ export interface OptimizationConfig {
   zoneLogic: ZoneLogic;
   zoneLogicFlags?: ZoneLogicFlags;
   typeFilter: TypeFilter;
+  /** Commercial relationship filter (Magasin / Atelier / Mixte). Defaults to 'magasin_priority'. */
+  relationshipFilter?: RelationshipFilter;
   excludeRecentDays: number | null; // null = don't exclude
   departureLat: number;
   departureLng: number;
@@ -210,13 +225,59 @@ export function computeTourneePriority(
     }
   }
 
-  // D. Relationship type bonus (0-10)
+  // D. Relationship type bonus (0-10) — base bonus, augmenté ensuite par computeRelationshipBonus
   if (c.relationship_type === 'mixte') {
     relationshipScore = 5;
   }
 
   const score = urgencyScore + businessScore + routeScore + relationshipScore;
   return { score: Math.round(score), reasons };
+}
+
+/**
+ * Returns the score bonus and an optional reason label based on the
+ * selected relationship filter (Magasin/Atelier/Mixte priority).
+ *
+ * Default ranking when "magasin_priority" is active: Magasin > Mixte > Atelier > non renseigné.
+ */
+export function computeRelationshipBonus(
+  relationshipType: string | null | undefined,
+  filter: RelationshipFilter,
+): { bonus: number; reason: string | null } {
+  const rt = relationshipType || null;
+
+  // Strict modes — handled at filter step, no extra scoring needed
+  if (filter === 'magasin_only' || filter === 'atelier_only' || filter === 'mixte_only') {
+    return { bonus: 0, reason: null };
+  }
+
+  if (filter === 'tous') {
+    // Light typing bonus to push known accounts above unknown ones
+    if (rt === 'magasin' || rt === 'atelier' || rt === 'mixte') return { bonus: 2, reason: null };
+    return { bonus: 0, reason: null };
+  }
+
+  // Priority modes
+  const targetMap: Record<string, 'magasin' | 'atelier' | 'mixte'> = {
+    magasin_priority: 'magasin',
+    atelier_priority: 'atelier',
+    mixte_priority: 'mixte',
+  };
+  const target = targetMap[filter];
+
+  if (rt === target) {
+    return { bonus: 18, reason: target === 'magasin' ? 'Magasin prioritaire' : target === 'atelier' ? 'Atelier prioritaire' : 'Mixte prioritaire' };
+  }
+
+  // Default Magasin priority cascade (Magasin > Mixte > Atelier)
+  if (target === 'magasin') {
+    if (rt === 'mixte') return { bonus: 9, reason: null };
+    if (rt === 'atelier') return { bonus: 3, reason: null };
+    return { bonus: 0, reason: null }; // non renseigné
+  }
+  // Other priority modes: lighter cascade
+  if (rt === 'magasin' || rt === 'mixte' || rt === 'atelier') return { bonus: 4, reason: null };
+  return { bonus: 0, reason: null };
 }
 
 // ── Filtering ──
@@ -235,6 +296,13 @@ export function filterCandidates(
     const isProspect = c.customer_type === 'prospect' || c.customer_type === 'prospect_qualifie';
     if (config.typeFilter === 'clients' && isProspect) continue;
     if (config.typeFilter === 'prospects' && !isProspect) continue;
+
+    // Relationship filter (strict only-modes exclude here)
+    const relFilter: RelationshipFilter = config.relationshipFilter || 'magasin_priority';
+    const rt = c.relationship_type || null;
+    if (relFilter === 'magasin_only' && rt !== 'magasin') continue;
+    if (relFilter === 'atelier_only' && rt !== 'atelier') continue;
+    if (relFilter === 'mixte_only' && rt !== 'mixte') continue;
 
     // Exclude recently visited
     if (config.excludeRecentDays != null) {
@@ -279,10 +347,15 @@ export function filterCandidates(
     }
 
     const distanceFromUser = haversineKm(config.departureLat, config.departureLng, c.latitude, c.longitude);
-    const { score, reasons } = computeTourneePriority(
+    const { score: baseScore, reasons } = computeTourneePriority(
       c, config.departureLat, config.departureLng, config.arrivalLat, config.arrivalLng,
     );
     const visitDuration = getVisitDuration(c);
+
+    // Apply commercial relationship bonus
+    const { bonus: relBonus, reason: relReason } = computeRelationshipBonus(rt, relFilter);
+    const score = baseScore + relBonus;
+    if (relReason && !reasons.includes(relReason)) reasons.push(relReason);
 
     if (isOutsideZone) {
       reasons.push('Hors zone');
@@ -425,7 +498,32 @@ export function getReasonBadgeStyle(reason: string): { className: string } {
       return { className: 'bg-warning/15 text-warning' };
     case 'Hors zone':
       return { className: 'bg-warning/10 text-warning border border-warning/20' };
+    case 'Magasin prioritaire':
+      return { className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' };
+    case 'Atelier prioritaire':
+      return { className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' };
+    case 'Mixte prioritaire':
+      return { className: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' };
     default:
       return { className: 'bg-muted text-muted-foreground' };
   }
 }
+
+/**
+ * Returns a compact label + badge style for a customer's relationship type.
+ */
+export function getRelationshipBadge(
+  relationshipType: string | null | undefined,
+): { label: string; className: string } | null {
+  switch (relationshipType) {
+    case 'magasin':
+      return { label: 'Magasin', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' };
+    case 'atelier':
+      return { label: 'Atelier', className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' };
+    case 'mixte':
+      return { label: 'Mixte', className: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' };
+    default:
+      return null;
+  }
+}
+
