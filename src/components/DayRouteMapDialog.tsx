@@ -1,25 +1,29 @@
 /// <reference types="google.maps" />
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Loader2, MapPin, Route as RouteIcon, Clock, Navigation, Store, Hammer, Layers, AlertTriangle, Sparkles } from 'lucide-react';
+import { Loader2, MapPin, Route as RouteIcon, Clock, Navigation, Store, Hammer, Layers, AlertTriangle, Sparkles, CircleDot, Flag } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
+import {
+  loadPrefs, type PointType, pointTypeLabel, strategyLabel, relationshipLabel,
+} from '@/lib/tourneePrefs';
+import { routeWithDirections, MAX_DIRECTIONS_WAYPOINTS } from '@/lib/directionsRouting';
 
 /**
  * GPS-style itinerary view for the day's tournée.
  *
  * Routing strategy:
- *  1. Use Google Maps DirectionsService with `optimizeWaypoints: true` to compute
- *     a real road-based polyline AND an optimized stop order in one call.
- *  2. If Directions fails (quota, no road found, etc.), fall back to a
- *     nearest-neighbor heuristic on great-circle distance and draw a clean
+ *  1. Resolve A (départ) and B (arrivée) from the user's persisted optimizer
+ *     preferences (Entreprise / Domicile / Autre). A and B can differ.
+ *  2. Use Google Directions with `optimizeWaypoints` (via routeWithDirections)
+ *     to compute a real road polyline + an optimized stop order that respects
+ *     the chosen 'nearest' / 'farthest' strategy.
+ *  3. If Directions fails, fall back to a nearest-neighbor heuristic (or a
+ *     farthest-first pass if the user picked that strategy) and draw a clean
  *     non-crossing polyline through the reordered points.
- *
- * The optimized order is reflected in the marker numbering so the user
- * immediately understands the recommended sequence.
  */
 
 export interface DayRouteStop {
@@ -41,19 +45,19 @@ interface DayRouteMapDialogProps {
   stops: DayRouteStop[];
   zoneColor?: string | null;
   dayLabel?: string;
+  zoneName?: string | null;
 }
 
 interface SavedPoint {
   lat: number;
   lng: number;
   label: string;
+  type: PointType;
 }
 
 const FRANCE_CENTER = { lat: 46.6, lng: 2.5 };
 const AVG_SPEED_KMH = 45;
 const DEFAULT_VISIT_MIN = 30;
-// Google caps optimizeWaypoints to ~25 intermediate stops; well above our 8–12 target.
-const MAX_DIRECTIONS_WAYPOINTS = 23;
 
 function haversineKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
   const R = 6371;
