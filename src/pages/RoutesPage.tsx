@@ -455,7 +455,17 @@ export default function RoutesPage() {
               onClick={() => setZoneMapOpen(true)}
             >
               <MapIcon className="h-3.5 w-3.5" />
-              Voir la zone sur la carte
+              Voir la zone
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 px-3 text-xs gap-1.5"
+              onClick={() => setRouteMapOpen(true)}
+              disabled={allStops.length === 0}
+            >
+              <RouteIcon className="h-3.5 w-3.5" />
+              Voir le trajet du jour
             </Button>
             {/* Optimize button - prominent placement */}
             <Button
