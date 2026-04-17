@@ -463,20 +463,35 @@ export default function DayRouteMapDialog({
 
     renderedMarkers.forEach((item) => {
       if (item.kind === 'departure') {
+        // Larger, distinctive shape (rounded square via SymbolPath) so A is
+        // immediately spotted vs the round numbered stop markers. Bright green
+        // (success-like) signals "start". When same as arrival, label reads "A/B".
+        const isCombined = item.label === 'A/B';
         const marker = new google.maps.Marker({
           position: item.displayPosition,
           map,
           title: item.title,
-          label: { text: item.label, color: '#ffffff', fontWeight: '700', fontSize: '12px' },
-          icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            fillColor: '#0f172a', fillOpacity: 1,
-            strokeColor: '#ffffff', strokeWeight: 2, scale: 13,
+          label: {
+            text: item.label,
+            color: '#ffffff',
+            fontWeight: '800',
+            fontSize: isCombined ? '10px' : '13px',
           },
-          zIndex: 1200,
+          icon: {
+            path: 'M -14,-14 L 14,-14 L 14,14 L -14,14 z',
+            fillColor: isCombined ? '#7c3aed' : '#16a34a',
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 3,
+            scale: 1,
+          },
+          zIndex: 2000,
         });
+        const headerText = isCombined
+          ? `Départ et arrivée — ${pointTypeLabel(item.pointType || prefs.departureType)}`
+          : `Départ — ${pointTypeLabel(item.pointType || prefs.departureType)}`;
         const info = new google.maps.InfoWindow({
-          content: `<div style="font-size:12px;font-weight:700">Départ — ${pointTypeLabel(item.pointType || prefs.departureType)}</div><div style="font-size:11px;color:#666">${item.pointLabel || '—'}</div>`,
+          content: `<div style="font-size:12px;font-weight:700">${headerText}</div><div style="font-size:11px;color:#666">${item.pointLabel || '—'}</div>`,
         });
         marker.addListener('click', () => info.open({ map, anchor: marker }));
         overlaysRef.current.push(marker);
@@ -486,17 +501,21 @@ export default function DayRouteMapDialog({
       }
 
       if (item.kind === 'arrival') {
+        // Larger square in red so B is unmistakable as "end of day".
         const marker = new google.maps.Marker({
           position: item.displayPosition,
           map,
           title: item.title,
-          label: { text: item.label, color: '#ffffff', fontWeight: '700', fontSize: '12px' },
+          label: { text: item.label, color: '#ffffff', fontWeight: '800', fontSize: '13px' },
           icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            fillColor: '#475569', fillOpacity: 1,
-            strokeColor: '#ffffff', strokeWeight: 2, scale: 13,
+            path: 'M -14,-14 L 14,-14 L 14,14 L -14,14 z',
+            fillColor: '#dc2626',
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 3,
+            scale: 1,
           },
-          zIndex: 1190,
+          zIndex: 1990,
         });
         const info = new google.maps.InfoWindow({
           content: `<div style="font-size:12px;font-weight:700">Arrivée — ${pointTypeLabel(item.pointType || prefs.arrivalType)}</div><div style="font-size:11px;color:#666">${item.pointLabel || '—'}</div>`,
