@@ -249,14 +249,51 @@ export default function DayRouteMapDialog({
     return () => { cancelled = true; };
   }, [open, activeUserId]);
 
-  const departurePoint: SavedPoint | null = useMemo(
-    () => resolvePoint(prefs.departureType, addresses) || firstAvailablePoint(addresses),
+  // Resolve A from the user's chosen departure type. If that exact type has
+  // no saved coordinates we fall back to the next available saved point
+  // (firstAvailablePoint) so A is still rendered. We also surface a warning
+  // to the user when their actual selection is not honored.
+  const resolvedDeparture = useMemo(
+    () => resolvePoint(prefs.departureType, addresses),
     [prefs.departureType, addresses],
   );
-  const arrivalPoint: SavedPoint | null = useMemo(
-    () => resolvePoint(prefs.arrivalType, addresses) || departurePoint,
-    [prefs.arrivalType, addresses, departurePoint],
+  const resolvedArrival = useMemo(
+    () => resolvePoint(prefs.arrivalType, addresses),
+    [prefs.arrivalType, addresses],
   );
+  const departurePoint: SavedPoint | null = useMemo(
+    () => resolvedDeparture || firstAvailablePoint(addresses),
+    [resolvedDeparture, addresses],
+  );
+  const arrivalPoint: SavedPoint | null = useMemo(
+    () => resolvedArrival || departurePoint,
+    [resolvedArrival, departurePoint],
+  );
+
+  // Warn explicitly when the selected departure/arrival type has no saved
+  // coordinates on the profile. This is the root cause of "A/B markers don't
+  // appear" for users who never configured their entreprise/domicile address.
+  const departureMissing = !!addresses && !resolvedDeparture;
+  const arrivalMissing = !!addresses && !resolvedArrival;
+
+  // Dev-friendly debug trace so the propagation of A/B is verifiable.
+  useEffect(() => {
+    if (!open) return;
+    // eslint-disable-next-line no-console
+    console.debug('[DayRouteMapDialog] A/B resolution', {
+      prefsDepartureType: prefs.departureType,
+      prefsArrivalType: prefs.arrivalType,
+      strategy: prefs.strategy,
+      hasProfileAddresses: !!addresses,
+      resolvedDeparture,
+      resolvedArrival,
+      finalDeparture: departurePoint,
+      finalArrival: arrivalPoint,
+      departureMissing,
+      arrivalMissing,
+      stopCount: stops.length,
+    });
+  }, [open, prefs.departureType, prefs.arrivalType, prefs.strategy, addresses, resolvedDeparture, resolvedArrival, departurePoint, arrivalPoint, departureMissing, arrivalMissing, stops.length]);
 
   const geocodedStops = useMemo(
     () => stops.filter(s => typeof s.latitude === 'number' && typeof s.longitude === 'number'),
@@ -654,6 +691,19 @@ export default function DayRouteMapDialog({
               {relationshipLabel(prefs.relationshipFilter)}
             </Badge>
           </div>
+          {(departureMissing || arrivalMissing) && (
+            <div className="mt-2 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-[11px] text-warning-foreground">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning mt-px" />
+              <span>
+                {departureMissing && arrivalMissing
+                  ? `Aucune adresse "${pointTypeLabel(prefs.departureType)}" / "${pointTypeLabel(prefs.arrivalType)}" enregistrée sur votre profil. Le trajet utilise un point de repli.`
+                  : departureMissing
+                  ? `Aucune adresse "${pointTypeLabel(prefs.departureType)}" sur votre profil — un point de repli est utilisé pour le départ.`
+                  : `Aucune adresse "${pointTypeLabel(prefs.arrivalType)}" sur votre profil — un point de repli est utilisé pour l'arrivée.`}
+                {' '}Renseignez vos adresses dans Profil pour un trajet précis.
+              </span>
+            </div>
+          )}
         </DialogHeader>
 
         {/* Summary bar */}
