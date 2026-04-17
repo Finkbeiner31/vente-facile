@@ -71,6 +71,7 @@ export default function RoutesPage() {
   const [activeClient, setActiveClient] = useState('');
   const [tourMode, setTourMode] = useState(false);
   const [optimizerOpen, setOptimizerOpen] = useState(false);
+  const [zoneMapOpen, setZoneMapOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
 
   const [manualStops, setManualStops] = useState<Record<string, ManualStop[]>>({});
