@@ -431,20 +431,25 @@ export default function DayRouteMapDialog({
     }
 
     if (hasContent) map.fitBounds(bounds, 70);
-  }, [open, ready, orderedStops, origin, route, zoneColor]);
+  }, [open, ready, orderedStops, departurePoint, arrivalPoint, route, zoneColor]);
 
   const externalGmapsUrl = useMemo(() => {
     if (orderedStops.length === 0) return null;
     const fmt = (p: { lat: number; lng: number }) => `${p.lat},${p.lng}`;
-    const start = origin ? fmt(origin) : fmt({ lat: orderedStops[0].latitude as number, lng: orderedStops[0].longitude as number });
-    const end = origin ? fmt(origin) : fmt({ lat: orderedStops[orderedStops.length - 1].latitude as number, lng: orderedStops[orderedStops.length - 1].longitude as number });
-    const wpStops = origin ? orderedStops : orderedStops.slice(1, -1);
-    const waypoints = wpStops
+    const start = departurePoint
+      ? fmt({ lat: departurePoint.lat, lng: departurePoint.lng })
+      : fmt({ lat: orderedStops[0].latitude as number, lng: orderedStops[0].longitude as number });
+    const end = arrivalPoint
+      ? fmt({ lat: arrivalPoint.lat, lng: arrivalPoint.lng })
+      : fmt({ lat: orderedStops[orderedStops.length - 1].latitude as number, lng: orderedStops[orderedStops.length - 1].longitude as number });
+    const wpStops = departurePoint ? orderedStops : orderedStops.slice(1);
+    const finalWp = arrivalPoint ? wpStops : wpStops.slice(0, -1);
+    const waypoints = finalWp
       .map(s => fmt({ lat: s.latitude as number, lng: s.longitude as number }))
       .join('|');
     const wp = waypoints ? `&waypoints=${encodeURIComponent(waypoints)}` : '';
     return `https://www.google.com/maps/dir/?api=1&origin=${start}&destination=${end}${wp}&travelmode=driving`;
-  }, [orderedStops, origin]);
+  }, [orderedStops, departurePoint, arrivalPoint]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
