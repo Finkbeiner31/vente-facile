@@ -202,6 +202,18 @@ export default function RouteOptimizerSheet({
   const overdueCount = candidates.filter(c => c.reasons.includes('En retard')).length;
   const highPriorityCount = candidates.filter(c => c.reasons.includes('Fort potentiel') || c.reasons.includes('Priorité A')).length;
 
+  // Relationship type counts in the eligible pool
+  const relationshipCounts = useMemo(() => {
+    let magasin = 0, atelier = 0, mixte = 0, none = 0;
+    for (const c of candidates) {
+      if (c.relationship_type === 'magasin') magasin++;
+      else if (c.relationship_type === 'atelier') atelier++;
+      else if (c.relationship_type === 'mixte') mixte++;
+      else none++;
+    }
+    return { magasin, atelier, mixte, none };
+  }, [candidates]);
+
   // Save address to profile
   const saveAddress = async (field: 'entreprise' | 'domicile' | 'autre', address: string) => {
     if (!user?.id) return;
