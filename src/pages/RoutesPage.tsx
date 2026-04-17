@@ -569,12 +569,6 @@ export default function RoutesPage() {
         zone={todayZone || null}
         customers={zoneCustomers as any}
       />
-      <ZoneMapPreviewDialog
-        open={zoneMapOpen}
-        onOpenChange={setZoneMapOpen}
-        zone={todayZone || null}
-        customers={zoneCustomers as any}
-      />
       <DayRouteMapDialog
         open={routeMapOpen}
         onOpenChange={setRouteMapOpen}
