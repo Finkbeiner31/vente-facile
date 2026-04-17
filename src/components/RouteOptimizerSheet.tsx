@@ -33,6 +33,7 @@ import {
   haversineKm, estimateDriveMin, formatDuration, getReasonBadgeStyle,
   getRelationshipBadge,
 } from '@/lib/tourneeOptimizer';
+import { useRelationshipWeights } from '@/hooks/useRelationshipWeights';
 
 // ── Types ──
 
@@ -92,6 +93,7 @@ export default function RouteOptimizerSheet({
   zone, zoneCustomers = [], allCustomers, dayLabel,
 }: Props) {
   const { user } = useAuth();
+  const { data: relationshipWeights } = useRelationshipWeights();
 
   // Saved addresses from profile
   const [addresses, setAddresses] = useState<SavedAddresses>(EMPTY_ADDRESSES);
@@ -186,13 +188,14 @@ export default function RouteOptimizerSheet({
     const config: OptimizationConfig = {
       visitTarget, strategy, zoneLogic: 'strict', zoneLogicFlags, typeFilter,
       relationshipFilter,
+      relationshipWeights: relationshipWeights || undefined,
       excludeRecentDays: excludeRecent ? 7 : null,
       departureLat: departurePos.lat, departureLng: departurePos.lng,
       arrivalLat: arrival.lat, arrivalLng: arrival.lng,
     };
 
     return filterCandidates(sourcePool, zoneCustomerIds, config);
-  }, [zoneCustomers, allCustomers, typeFilter, relationshipFilter, excludeRecent, departurePos, effectiveArrival, zoneLogicFlags, hasExtension, visitTarget, strategy]);
+  }, [zoneCustomers, allCustomers, typeFilter, relationshipFilter, relationshipWeights, excludeRecent, departurePos, effectiveArrival, zoneLogicFlags, hasExtension, visitTarget, strategy]);
 
   const eligibleClients = zoneCustomers.filter((c: any) =>
     c.customer_type !== 'prospect' && c.customer_type !== 'prospect_qualifie').length;
@@ -264,6 +267,7 @@ export default function RouteOptimizerSheet({
     const config: OptimizationConfig = {
       visitTarget, strategy, zoneLogic: 'strict', zoneLogicFlags, typeFilter,
       relationshipFilter,
+      relationshipWeights: relationshipWeights || undefined,
       excludeRecentDays: excludeRecent ? 7 : null,
       departureLat: departurePos.lat, departureLng: departurePos.lng,
       arrivalLat: arrival.lat, arrivalLng: arrival.lng,
