@@ -9,10 +9,11 @@ import {
   MapPin, Map as MapIcon, Zap,
   ChevronLeft, ChevronRight, Calendar, Target,
   RotateCcw, Loader2,
-  Plus, Users,
+  Plus, Users, Route as RouteIcon,
 } from 'lucide-react';
 import RouteOptimizerSheet from '@/components/RouteOptimizerSheet';
 import ZoneMapPreviewDialog from '@/components/ZoneMapPreviewDialog';
+import DayRouteMapDialog from '@/components/DayRouteMapDialog';
 import { useTourSession } from '@/contexts/TourSessionContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
@@ -72,6 +73,7 @@ export default function RoutesPage() {
   const [tourMode, setTourMode] = useState(false);
   const [optimizerOpen, setOptimizerOpen] = useState(false);
   const [zoneMapOpen, setZoneMapOpen] = useState(false);
+  const [routeMapOpen, setRouteMapOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
 
   const [manualStops, setManualStops] = useState<Record<string, ManualStop[]>>({});
@@ -453,7 +455,17 @@ export default function RoutesPage() {
               onClick={() => setZoneMapOpen(true)}
             >
               <MapIcon className="h-3.5 w-3.5" />
-              Voir la zone sur la carte
+              Voir la zone
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 px-3 text-xs gap-1.5"
+              onClick={() => setRouteMapOpen(true)}
+              disabled={allStops.length === 0}
+            >
+              <RouteIcon className="h-3.5 w-3.5" />
+              Voir le trajet du jour
             </Button>
             {/* Optimize button - prominent placement */}
             <Button
@@ -556,6 +568,27 @@ export default function RoutesPage() {
         onOpenChange={setZoneMapOpen}
         zone={todayZone || null}
         customers={zoneCustomers as any}
+      />
+      <DayRouteMapDialog
+        open={routeMapOpen}
+        onOpenChange={setRouteMapOpen}
+        zoneColor={todayZone?.color || null}
+        dayLabel={`${WEEK_LABELS[selectedWeek]} · ${DAY_NAMES[selectedDay - 1]}`}
+        stops={allStops.map(s => {
+          const full = zoneCustomers.find((c: any) => c.id === s.customer.id) as any;
+          return {
+            id: s.customer.id,
+            company_name: s.customer.company_name,
+            city: s.customer.city,
+            latitude: s.customer.latitude,
+            longitude: s.customer.longitude,
+            customer_type: full?.customer_type ?? ('customerType' in s ? (s as any).customerType : null),
+            relationship_type: full?.relationship_type ?? null,
+            visit_duration_minutes: full?.visit_duration_minutes ?? ('visitDurationMinutes' in s ? (s as any).visitDurationMinutes : null),
+            annual_revenue_potential: s.customer.annual_revenue_potential,
+            last_visit_date: full?.last_visit_date ?? ('lastVisitDate' in s ? (s as any).lastVisitDate : null),
+          };
+        })}
       />
       <AddUnplannedVisitSheet
         open={addOpen}
