@@ -185,13 +185,14 @@ export default function RouteOptimizerSheet({
 
     const config: OptimizationConfig = {
       visitTarget, strategy, zoneLogic: 'strict', zoneLogicFlags, typeFilter,
+      relationshipFilter,
       excludeRecentDays: excludeRecent ? 7 : null,
       departureLat: departurePos.lat, departureLng: departurePos.lng,
       arrivalLat: arrival.lat, arrivalLng: arrival.lng,
     };
 
     return filterCandidates(sourcePool, zoneCustomerIds, config);
-  }, [zoneCustomers, allCustomers, typeFilter, excludeRecent, departurePos, effectiveArrival, zoneLogicFlags, hasExtension, visitTarget, strategy]);
+  }, [zoneCustomers, allCustomers, typeFilter, relationshipFilter, excludeRecent, departurePos, effectiveArrival, zoneLogicFlags, hasExtension, visitTarget, strategy]);
 
   const eligibleClients = zoneCustomers.filter((c: any) =>
     c.customer_type !== 'prospect' && c.customer_type !== 'prospect_qualifie').length;
