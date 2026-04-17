@@ -20,6 +20,7 @@ import { NewCustomerSheet, type NewCustomerFormData } from '@/components/NewCust
 import { toast } from 'sonner';
 import { useAllCustomerRevenues } from '@/hooks/useCustomerPerformance';
 import { useZoneAssignment } from '@/hooks/useZoneAssignment';
+import { useCommercialZones, formatZoneName } from '@/hooks/useCommercialZones';
 import { analyzeCustomerPerformance, getStatusConfig, formatCompactRevenue, type PerformanceStatus } from '@/lib/performanceUtils';
 import { computeVisitPriority, PRIORITY_CONFIGS, type PriorityLevel } from '@/lib/priorityEngine';
 import { computeVisitStatus, getDefaultFrequency } from '@/lib/visitFrequencyUtils';
