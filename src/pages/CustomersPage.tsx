@@ -20,6 +20,7 @@ import { NewCustomerSheet, type NewCustomerFormData } from '@/components/NewCust
 import { toast } from 'sonner';
 import { useAllCustomerRevenues } from '@/hooks/useCustomerPerformance';
 import { useZoneAssignment } from '@/hooks/useZoneAssignment';
+import { useCommercialZones, formatZoneName } from '@/hooks/useCommercialZones';
 import { analyzeCustomerPerformance, getStatusConfig, formatCompactRevenue, type PerformanceStatus } from '@/lib/performanceUtils';
 import { computeVisitPriority, PRIORITY_CONFIGS, type PriorityLevel } from '@/lib/priorityEngine';
 import { computeVisitStatus, getDefaultFrequency } from '@/lib/visitFrequencyUtils';
@@ -69,7 +70,8 @@ type FilterTab = 'tous' | 'clients' | 'prospects' | 'qualifies' | 'en_attente' |
 type PerfFilter = 'tous' | 'optimise' | 'a_developper' | 'sous_exploite';
 type TrendFilter = 'tous' | 'up' | 'down' | 'stable';
 type PriorityFilter = 'tous' | 'high' | 'medium' | 'low';
-type SortMode = 'potential' | 'priority' | 'caM1';
+type SortMode = 'potential' | 'priority' | 'caM1' | 'zone';
+type ZoneFilter = 'tous' | 'hors_zone' | 'a_confirmer' | string; // string = zone id
 
 const formatLastVisit = (value: string | null) => {
   if (!value) return '—';
@@ -102,9 +104,11 @@ export default function CustomersPage() {
   const [trendFilter, setTrendFilter] = useState<TrendFilter>('tous');
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('tous');
   const [sortMode, setSortMode] = useState<SortMode>('priority');
+  const [zoneFilter, setZoneFilter] = useState<ZoneFilter>('tous');
   const [sheetOpen, setSheetOpen] = useState(false);
   const queryClient = useQueryClient();
   const { autoAssignCustomer } = useZoneAssignment();
+  const { data: zones = [] } = useCommercialZones();
   const isAdmin = role === 'admin' || role === 'manager';
 
   const { data: revenueMap } = useAllCustomerRevenues();
@@ -301,6 +305,17 @@ export default function CustomersPage() {
       if (perfFilter !== 'tous' && c.perf.status !== perfFilter) return false;
       if (trendFilter !== 'tous' && c.perf.trend !== trendFilter) return false;
       if (priorityFilter !== 'tous' && c.priority.level !== priorityFilter) return false;
+      if (zoneFilter !== 'tous') {
+        if (zoneFilter === 'hors_zone') {
+          if (!(c.zoneStatus === 'outside' || (!c.zone && c.zoneStatus !== 'to_confirm'))) return false;
+        } else if (zoneFilter === 'a_confirmer') {
+          if (c.zoneStatus !== 'to_confirm' && c.zoneStatus !== 'pending_admin') return false;
+        } else {
+          // zoneFilter is a zone id
+          const zoneObj = zones.find(z => z.id === zoneFilter);
+          if (!zoneObj || c.zone !== zoneObj.system_name) return false;
+        }
+      }
       return true;
     })
     .filter(c =>
@@ -310,8 +325,15 @@ export default function CustomersPage() {
     .sort((a, b) => {
       if (sortMode === 'priority') return b.priority.score - a.priority.score;
       if (sortMode === 'caM1') return (b.perf.caM1 ?? b.perf.latestKnownCA ?? -1) - (a.perf.caM1 ?? a.perf.latestKnownCA ?? -1);
+      if (sortMode === 'zone') {
+        const za = a.zone || 'zzz_Hors zone';
+        const zb = b.zone || 'zzz_Hors zone';
+        const cmp = za.localeCompare(zb, 'fr', { numeric: true });
+        if (cmp !== 0) return cmp;
+        return b.revenue - a.revenue;
+      }
       return b.revenue - a.revenue; // potential
-    }), [enriched, search, tab, perfFilter, trendFilter, priorityFilter, sortMode]);
+    }), [enriched, search, tab, perfFilter, trendFilter, priorityFilter, zoneFilter, sortMode, zones]);
 
   const activeCustomers = customers.filter(c => c.accountStatus !== 'archived' && c.accountStatus !== 'merged');
   const archivedCount = customers.filter(c => c.accountStatus === 'archived' || c.accountStatus === 'merged').length;
@@ -322,6 +344,17 @@ export default function CustomersPage() {
     qualifies: activeCustomers.filter(c => c.status === 'prospect_qualifie').length,
     en_attente: activeCustomers.filter(c => c.status === 'pending_conversion').length,
   };
+
+  // Zone counts (computed against the visible portfolio, ignoring zone filter)
+  const zoneCounts = useMemo(() => {
+    const horsZone = activeCustomers.filter(c => c.zoneStatus === 'outside' || (!c.zone && c.zoneStatus !== 'to_confirm')).length;
+    const aConfirmer = activeCustomers.filter(c => c.zoneStatus === 'to_confirm' || c.zoneStatus === 'pending_admin').length;
+    const byZone = new Map<string, number>();
+    for (const c of activeCustomers) {
+      if (c.zone) byZone.set(c.zone, (byZone.get(c.zone) || 0) + 1);
+    }
+    return { horsZone, aConfirmer, byZone };
+  }, [activeCustomers]);
 
   const handleCreate = async (data: NewCustomerFormData) => {
     await createCustomerMutation.mutateAsync(data);
@@ -340,7 +373,7 @@ export default function CustomersPage() {
           <h1 className="font-heading text-xl md:text-2xl font-bold">
             {tab === 'prospects' ? 'Prospects' : tab === 'clients' ? 'Clients' : 'Clients et prospects'}
           </h1>
-          <p className="text-xs text-muted-foreground">{filtered.length} comptes · trié par {sortMode === 'priority' ? 'priorité' : sortMode === 'caM1' ? 'CA M-1' : 'potentiel'}</p>
+          <p className="text-xs text-muted-foreground">{filtered.length} comptes · trié par {sortMode === 'priority' ? 'priorité' : sortMode === 'caM1' ? 'CA M-1' : sortMode === 'zone' ? 'zone' : 'potentiel'}</p>
         </div>
         <Button size="sm" className="h-10 px-4 font-semibold" onClick={() => setSheetOpen(true)}>
           <Plus className="h-4 w-4 mr-1.5" /> Nouveau
@@ -390,12 +423,26 @@ export default function CustomersPage() {
             <SelectItem value="low">⚪ Priorité faible</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={zoneFilter} onValueChange={v => setZoneFilter(v)}>
+          <SelectTrigger className="w-[180px] h-11 text-xs"><SelectValue placeholder="Zone" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="tous">Toutes les zones</SelectItem>
+            <SelectItem value="hors_zone">🚫 Hors zone ({zoneCounts.horsZone})</SelectItem>
+            <SelectItem value="a_confirmer">⚠️ Zone à confirmer ({zoneCounts.aConfirmer})</SelectItem>
+            {zones.map(z => (
+              <SelectItem key={z.id} value={z.id}>
+                {formatZoneName(z)} ({zoneCounts.byZone.get(z.system_name) || 0})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Select value={sortMode} onValueChange={v => setSortMode(v as SortMode)}>
           <SelectTrigger className="w-[120px] h-11 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="priority">Tri: Priorité</SelectItem>
             <SelectItem value="potential">Tri: Potentiel</SelectItem>
             <SelectItem value="caM1">Tri: CA M-1</SelectItem>
+            <SelectItem value="zone">Tri: Zone</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -585,7 +632,9 @@ export default function CustomersPage() {
           <p className="mt-3 text-sm text-muted-foreground">
             {customers.length === 0
               ? (isAdmin ? 'Aucun compte enregistré' : 'Aucun client dans votre portefeuille')
-              : 'Aucun résultat avec ces filtres'}
+              : zoneFilter !== 'tous'
+                ? 'Aucun compte trouvé pour ce filtre de zone'
+                : 'Aucun résultat avec ces filtres'}
           </p>
           {!isAdmin && customers.length === 0 && (
             <p className="mt-1 text-xs text-muted-foreground/70">
