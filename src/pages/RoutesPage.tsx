@@ -48,13 +48,22 @@ export default function RoutesPage() {
   const { effectiveUserId } = useImpersonation();
   const activeUserId = effectiveUserId || user?.id;
   const { data: zones = [], isLoading: zonesLoading } = useCommercialZones();
+  const { data: cycleStart } = useCycleStartDate();
   const queryClient = useQueryClient();
 
-  const [selectedWeek, setSelectedWeek] = useState(() => getCurrentWeekNumber());
+  const [selectedWeek, setSelectedWeek] = useState(() => getCurrentWeekNumber(cycleStart));
+  const [autoSelected, setAutoSelected] = useState(false);
   const [selectedDay, setSelectedDay] = useState(() => {
     const dow = new Date().getDay();
     return dow >= 1 && dow <= 5 ? dow : 1;
   });
+
+  // Once cycle start is loaded, snap to the active week (only first time).
+  if (cycleStart && !autoSelected) {
+    const active = getCurrentWeekNumber(cycleStart);
+    if (active !== selectedWeek) setSelectedWeek(active);
+    setAutoSelected(true);
+  }
 
   const [reportOpen, setReportOpen] = useState(false);
   const [activeClient, setActiveClient] = useState('');
