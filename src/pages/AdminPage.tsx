@@ -1035,11 +1035,7 @@ function RelationshipWeightsCard() {
         <TabsContent value="settings" className="mt-4 space-y-4">
           {/* Bulk reassignment */}
           <BulkReassignmentCard />
-          <Card>
-            <CardContent className="p-6">
-              <p className="text-sm text-muted-foreground">Les paramètres de l'application seront disponibles ici.</p>
-            </CardContent>
-          </Card>
+          <RelationshipWeightsCard />
         </TabsContent>
       </Tabs>
 
