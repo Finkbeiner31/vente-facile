@@ -104,9 +104,11 @@ export default function CustomersPage() {
   const [trendFilter, setTrendFilter] = useState<TrendFilter>('tous');
   const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>('tous');
   const [sortMode, setSortMode] = useState<SortMode>('priority');
+  const [zoneFilter, setZoneFilter] = useState<ZoneFilter>('tous');
   const [sheetOpen, setSheetOpen] = useState(false);
   const queryClient = useQueryClient();
   const { autoAssignCustomer } = useZoneAssignment();
+  const { data: zones = [] } = useCommercialZones();
   const isAdmin = role === 'admin' || role === 'manager';
 
   const { data: revenueMap } = useAllCustomerRevenues();
