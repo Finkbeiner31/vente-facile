@@ -93,6 +93,7 @@ export default function RouteOptimizerSheet({
   zone, zoneCustomers = [], allCustomers, dayLabel,
 }: Props) {
   const { user } = useAuth();
+  const { data: relationshipWeights } = useRelationshipWeights();
 
   // Saved addresses from profile
   const [addresses, setAddresses] = useState<SavedAddresses>(EMPTY_ADDRESSES);
