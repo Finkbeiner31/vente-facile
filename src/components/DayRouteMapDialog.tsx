@@ -459,7 +459,7 @@ export default function DayRouteMapDialog({
               </Badge>
             )}
             {!summary.usedRouting && route && !routing && (
-              <Badge variant="outline" className="gap-1 text-amber-600 border-amber-300">
+              <Badge variant="outline" className="gap-1 text-warning border-warning/40">
                 <AlertTriangle className="h-3 w-3" /> Approximation
               </Badge>
             )}
