@@ -22,7 +22,8 @@ import { toast } from 'sonner';
 import type { CustomerForRouting } from '@/lib/routeCycleEngine';
 import { AddUnplannedVisitSheet } from '@/components/AddUnplannedVisitSheet';
 import { TourneeDualList } from '@/components/TourneeDualList';
-import { getCurrentWeekNumber } from '@/lib/weekCycleUtils';
+import { getCurrentWeekNumber, formatWeekRange } from '@/lib/weekCycleUtils';
+import { useCycleStartDate } from '@/hooks/useCycleStartDate';
 
 const DAY_NAMES = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
 const WEEK_LABELS = ['S1', 'S2', 'S3', 'S4'];
