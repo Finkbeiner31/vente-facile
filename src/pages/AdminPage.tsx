@@ -28,6 +28,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useZoneAssignment } from '@/hooks/useZoneAssignment';
 import { RefreshCw } from 'lucide-react';
 import { AssignmentIssuesSheet } from '@/components/AssignmentIssuesSheet';
+import { useRelationshipWeights } from '@/hooks/useRelationshipWeights';
 
 const roleLabels: Record<string, string> = {
   admin: 'Administrateur',
@@ -146,7 +147,132 @@ function BulkReassignmentCard() {
   );
 }
 
-export default function AdminPage() {
+function RelationshipWeightsCard() {
+  const queryClient = useQueryClient();
+  const { data: weights, isLoading } = useRelationshipWeights();
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState<{ magasin: string; mixte: string; atelier: string; unknown: string }>({
+    magasin: '30', mixte: '15', atelier: '0', unknown: '-10',
+  });
+
+  const startEdit = () => {
+    if (weights) {
+      setForm({
+        magasin: String(weights.magasin),
+        mixte: String(weights.mixte),
+        atelier: String(weights.atelier),
+        unknown: String(weights.unknown),
+      });
+    }
+    setEditing(true);
+  };
+
+  const parseAndClamp = (v: string): number | null => {
+    const n = parseFloat(v.replace(',', '.'));
+    if (Number.isNaN(n)) return null;
+    return Math.max(-100, Math.min(100, Math.round(n)));
+  };
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const entries: { key: string; value: number }[] = [];
+      const m = parseAndClamp(form.magasin);
+      const mx = parseAndClamp(form.mixte);
+      const a = parseAndClamp(form.atelier);
+      const u = parseAndClamp(form.unknown);
+      if (m === null || mx === null || a === null || u === null) {
+        throw new Error('Toutes les valeurs doivent être numériques (-100 à +100)');
+      }
+      entries.push({ key: 'relationship_weight_magasin', value: m });
+      entries.push({ key: 'relationship_weight_mixte', value: mx });
+      entries.push({ key: 'relationship_weight_atelier', value: a });
+      entries.push({ key: 'relationship_weight_unknown', value: u });
+      for (const e of entries) {
+        const { error } = await (supabase as any)
+          .from('app_settings')
+          .update({ setting_value: String(e.value) })
+          .eq('setting_key', e.key);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['relationship-weights'] });
+      setEditing(false);
+      toast.success('Pondérations enregistrées');
+    },
+    onError: (e: any) => toast.error(e.message || 'Erreur lors de la sauvegarde'),
+  });
+
+  const items: { key: keyof typeof form; label: string; badgeClass: string }[] = [
+    { key: 'magasin', label: 'Magasin', badgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+    { key: 'mixte', label: 'Mixte', badgeClass: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' },
+    { key: 'atelier', label: 'Atelier', badgeClass: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' },
+    { key: 'unknown', label: 'Non renseigné', badgeClass: 'bg-muted text-muted-foreground' },
+  ];
+
+  const formatSigned = (n: number) => (n > 0 ? `+${n}` : `${n}`);
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="font-heading text-base flex items-center gap-2">
+          <SettingsIcon className="h-5 w-5 text-primary" />
+          Priorité par type de relation commerciale
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Ces coefficients influencent la priorité des clients dans l'optimisation de tournée.
+          Valeurs autorisées : -100 à +100.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {isLoading || !weights ? (
+          <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
+        ) : !editing ? (
+          <>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {items.map(it => (
+                <div key={it.key} className="flex items-center justify-between rounded-lg border p-3">
+                  <Badge variant="outline" className={`${it.badgeClass} border-transparent`}>{it.label}</Badge>
+                  <span className="font-mono text-sm font-semibold">{formatSigned(weights[it.key] as number)}</span>
+                </div>
+              ))}
+            </div>
+            <Button size="sm" variant="outline" onClick={startEdit}>
+              <Edit className="h-4 w-4 mr-1" />Modifier
+            </Button>
+          </>
+        ) : (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {items.map(it => (
+                <div key={it.key} className="space-y-1.5">
+                  <Label className="text-xs flex items-center gap-2">
+                    <Badge variant="outline" className={`${it.badgeClass} border-transparent`}>{it.label}</Badge>
+                  </Label>
+                  <Input
+                    type="number"
+                    min={-100}
+                    max={100}
+                    step={1}
+                    value={form[it.key]}
+                    onChange={e => setForm(f => ({ ...f, [it.key]: e.target.value }))}
+                  />
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+                {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
+                Enregistrer
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>Annuler</Button>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
   const { user: currentUser, role: currentRole, loading: authLoading } = useAuth();
   const { startImpersonation } = useImpersonation();
   const navigate = useNavigate();
