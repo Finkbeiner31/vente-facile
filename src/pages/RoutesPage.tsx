@@ -573,6 +573,7 @@ export default function RoutesPage() {
         open={routeMapOpen}
         onOpenChange={setRouteMapOpen}
         zoneColor={todayZone?.color || null}
+        zoneName={todayZone ? formatZoneName(todayZone) : null}
         dayLabel={`${WEEK_LABELS[selectedWeek]} · ${DAY_NAMES[selectedDay - 1]}`}
         stops={allStops.map(s => {
           const full = zoneCustomers.find((c: any) => c.id === s.customer.id) as any;
