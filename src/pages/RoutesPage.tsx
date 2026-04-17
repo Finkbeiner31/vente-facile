@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -58,12 +58,13 @@ export default function RoutesPage() {
     return dow >= 1 && dow <= 5 ? dow : 1;
   });
 
-  // Once cycle start is loaded, snap to the active week (only first time).
-  if (cycleStart && !autoSelected) {
-    const active = getCurrentWeekNumber(cycleStart);
-    if (active !== selectedWeek) setSelectedWeek(active);
-    setAutoSelected(true);
-  }
+  // Once cycle start is loaded, snap to the active week the first time.
+  useEffect(() => {
+    if (cycleStart && !autoSelected) {
+      setSelectedWeek(getCurrentWeekNumber(cycleStart));
+      setAutoSelected(true);
+    }
+  }, [cycleStart, autoSelected]);
 
   const [reportOpen, setReportOpen] = useState(false);
   const [activeClient, setActiveClient] = useState('');
