@@ -821,7 +821,17 @@ export default function RouteOptimizerSheet({
                             {i + 1}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold truncate">{c.company_name}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-semibold truncate">{c.company_name}</p>
+                              {(() => {
+                                const rb = getRelationshipBadge(c.relationship_type);
+                                return rb ? (
+                                  <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold shrink-0 ${rb.className}`}>
+                                    {rb.label}
+                                  </span>
+                                ) : null;
+                              })()}
+                            </div>
                             <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                               <span>{c.city}</span>
                               <span>·</span>
