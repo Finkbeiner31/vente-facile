@@ -393,8 +393,8 @@ export function filterCandidates(
     );
     const visitDuration = getVisitDuration(c);
 
-    // Apply commercial relationship bonus
-    const { bonus: relBonus, reason: relReason } = computeRelationshipBonus(rt, relFilter);
+    // Apply commercial relationship bonus (uses admin-configured weights when available)
+    const { bonus: relBonus, reason: relReason } = computeRelationshipBonus(rt, relFilter, config.relationshipWeights);
     const score = baseScore + relBonus;
     if (relReason && !reasons.includes(relReason)) reasons.push(relReason);
 
