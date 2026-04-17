@@ -249,14 +249,51 @@ export default function DayRouteMapDialog({
     return () => { cancelled = true; };
   }, [open, activeUserId]);
 
-  const departurePoint: SavedPoint | null = useMemo(
-    () => resolvePoint(prefs.departureType, addresses) || firstAvailablePoint(addresses),
+  // Resolve A from the user's chosen departure type. If that exact type has
+  // no saved coordinates we fall back to the next available saved point
+  // (firstAvailablePoint) so A is still rendered. We also surface a warning
+  // to the user when their actual selection is not honored.
+  const resolvedDeparture = useMemo(
+    () => resolvePoint(prefs.departureType, addresses),
     [prefs.departureType, addresses],
   );
-  const arrivalPoint: SavedPoint | null = useMemo(
-    () => resolvePoint(prefs.arrivalType, addresses) || departurePoint,
-    [prefs.arrivalType, addresses, departurePoint],
+  const resolvedArrival = useMemo(
+    () => resolvePoint(prefs.arrivalType, addresses),
+    [prefs.arrivalType, addresses],
   );
+  const departurePoint: SavedPoint | null = useMemo(
+    () => resolvedDeparture || firstAvailablePoint(addresses),
+    [resolvedDeparture, addresses],
+  );
+  const arrivalPoint: SavedPoint | null = useMemo(
+    () => resolvedArrival || departurePoint,
+    [resolvedArrival, departurePoint],
+  );
+
+  // Warn explicitly when the selected departure/arrival type has no saved
+  // coordinates on the profile. This is the root cause of "A/B markers don't
+  // appear" for users who never configured their entreprise/domicile address.
+  const departureMissing = !!addresses && !resolvedDeparture;
+  const arrivalMissing = !!addresses && !resolvedArrival;
+
+  // Dev-friendly debug trace so the propagation of A/B is verifiable.
+  useEffect(() => {
+    if (!open) return;
+    // eslint-disable-next-line no-console
+    console.debug('[DayRouteMapDialog] A/B resolution', {
+      prefsDepartureType: prefs.departureType,
+      prefsArrivalType: prefs.arrivalType,
+      strategy: prefs.strategy,
+      hasProfileAddresses: !!addresses,
+      resolvedDeparture,
+      resolvedArrival,
+      finalDeparture: departurePoint,
+      finalArrival: arrivalPoint,
+      departureMissing,
+      arrivalMissing,
+      stopCount: stops.length,
+    });
+  }, [open, prefs.departureType, prefs.arrivalType, prefs.strategy, addresses, resolvedDeparture, resolvedArrival, departurePoint, arrivalPoint, departureMissing, arrivalMissing, stops.length]);
 
   const geocodedStops = useMemo(
     () => stops.filter(s => typeof s.latitude === 'number' && typeof s.longitude === 'number'),
