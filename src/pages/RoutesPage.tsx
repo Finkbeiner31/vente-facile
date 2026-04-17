@@ -569,6 +569,33 @@ export default function RoutesPage() {
         zone={todayZone || null}
         customers={zoneCustomers as any}
       />
+      <ZoneMapPreviewDialog
+        open={zoneMapOpen}
+        onOpenChange={setZoneMapOpen}
+        zone={todayZone || null}
+        customers={zoneCustomers as any}
+      />
+      <DayRouteMapDialog
+        open={routeMapOpen}
+        onOpenChange={setRouteMapOpen}
+        zoneColor={todayZone?.color || null}
+        dayLabel={`${WEEK_LABELS[selectedWeek]} · ${DAY_NAMES[selectedDay - 1]}`}
+        stops={allStops.map(s => {
+          const full = zoneCustomers.find((c: any) => c.id === s.customer.id) as any;
+          return {
+            id: s.customer.id,
+            company_name: s.customer.company_name,
+            city: s.customer.city,
+            latitude: s.customer.latitude,
+            longitude: s.customer.longitude,
+            customer_type: full?.customer_type ?? ('customerType' in s ? (s as any).customerType : null),
+            relationship_type: full?.relationship_type ?? null,
+            visit_duration_minutes: full?.visit_duration_minutes ?? ('visitDurationMinutes' in s ? (s as any).visitDurationMinutes : null),
+            annual_revenue_potential: s.customer.annual_revenue_potential,
+            last_visit_date: full?.last_visit_date ?? ('lastVisitDate' in s ? (s as any).lastVisitDate : null),
+          };
+        })}
+      />
       <AddUnplannedVisitSheet
         open={addOpen}
         onOpenChange={setAddOpen}
