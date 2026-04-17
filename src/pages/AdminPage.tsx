@@ -28,6 +28,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useZoneAssignment } from '@/hooks/useZoneAssignment';
 import { RefreshCw } from 'lucide-react';
 import { AssignmentIssuesSheet } from '@/components/AssignmentIssuesSheet';
+import { useCycleStartDate, useUpdateCycleStartDate } from '@/hooks/useCycleStartDate';
+import { isMonday, formatWeekRange, getCurrentWeekNumber } from '@/lib/weekCycleUtils';
 
 const roleLabels: Record<string, string> = {
   admin: 'Administrateur',
@@ -143,6 +145,127 @@ function BulkReassignmentCard() {
         onSaved={refreshCounters}
       />
     </>
+  );
+}
+
+function CycleStartDateCard() {
+  const { data: cycleStart, isLoading } = useCycleStartDate();
+  const updateMutation = useUpdateCycleStartDate();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+
+  const startEdit = () => {
+    setDraft(cycleStart || '');
+    setEditing(true);
+  };
+
+  const save = async () => {
+    if (!draft) {
+      toast.error('Veuillez choisir une date');
+      return;
+    }
+    try {
+      await updateMutation.mutateAsync(draft);
+      toast.success('Date du cycle mise à jour');
+      setEditing(false);
+    } catch (e: any) {
+      toast.error(e.message || 'Erreur lors de l\'enregistrement');
+    }
+  };
+
+  const draftIsMonday = draft ? isMonday(draft) : true;
+  const activeWeek = cycleStart ? getCurrentWeekNumber(cycleStart) : 0;
+  const weekLabels = ['S1', 'S2', 'S3', 'S4'];
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="font-heading text-base flex items-center justify-between">
+          <span className="flex items-center gap-2">
+            <Calendar className="h-5 w-5 text-primary" />
+            Cycle 4 semaines
+          </span>
+          {!editing && (
+            <Button variant="outline" size="sm" onClick={startEdit}>
+              <Edit className="h-3.5 w-3.5 mr-1" />Modifier
+            </Button>
+          )}
+        </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Date de référence définissant le début de la semaine S1. Le système calcule automatiquement la semaine active (S1 → S4) à partir de cette date.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        ) : editing ? (
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs">Date de début du cycle (recommandé : un lundi)</Label>
+              <Input
+                type="date"
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                className="h-9 mt-1"
+              />
+              {!draftIsMonday && (
+                <p className="text-xs text-amber-600 mt-1.5 flex items-center gap-1">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  Il est recommandé de choisir un lundi comme début du cycle.
+                </p>
+              )}
+            </div>
+            <div className="flex gap-2 pt-1">
+              <Button onClick={save} disabled={updateMutation.isPending}>
+                <Save className="h-4 w-4 mr-1" />
+                {updateMutation.isPending ? 'Enregistrement...' : 'Enregistrer'}
+              </Button>
+              <Button variant="ghost" onClick={() => setEditing(false)}>Annuler</Button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 rounded-lg bg-muted p-3">
+              <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium flex-1">Début S1</span>
+              <span className="text-sm font-bold text-primary">
+                {cycleStart ? new Date(cycleStart).toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '—'}
+              </span>
+            </div>
+            {cycleStart && !isMonday(cycleStart) && (
+              <p className="text-xs text-amber-600 flex items-center gap-1">
+                <AlertTriangle className="h-3.5 w-3.5" />
+                Cette date n'est pas un lundi. Il est recommandé de choisir un lundi.
+              </p>
+            )}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {weekLabels.map((label, i) => {
+                const isActive = i === activeWeek;
+                return (
+                  <div
+                    key={i}
+                    className={`rounded-lg border p-2 text-center ${isActive ? 'border-primary bg-primary/5' : 'border-border'}`}
+                  >
+                    <div className="text-xs font-bold flex items-center justify-center gap-1">
+                      {label}
+                      {isActive && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground mt-0.5">
+                      {formatWeekRange(i, cycleStart)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Semaine active actuellement : <span className="font-semibold text-foreground">{weekLabels[activeWeek]}</span>
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -909,11 +1032,7 @@ export default function AdminPage() {
         <TabsContent value="settings" className="mt-4 space-y-4">
           {/* Bulk reassignment */}
           <BulkReassignmentCard />
-          <Card>
-            <CardContent className="p-6">
-              <p className="text-sm text-muted-foreground">Les paramètres de l'application seront disponibles ici.</p>
-            </CardContent>
-          </Card>
+          <CycleStartDateCard />
         </TabsContent>
       </Tabs>
 
