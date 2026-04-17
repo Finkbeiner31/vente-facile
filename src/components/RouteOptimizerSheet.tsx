@@ -99,15 +99,16 @@ export default function RouteOptimizerSheet({
   const [addresses, setAddresses] = useState<SavedAddresses>(EMPTY_ADDRESSES);
   const [addressesLoaded, setAddressesLoaded] = useState(false);
 
-  // Config
-  const [typeFilter, setTypeFilter] = useState<TypeFilter>('tous');
-  const [relationshipFilter, setRelationshipFilter] = useState<RelationshipFilter>('magasin_priority');
-  const [visitTarget, setVisitTarget] = useState(10);
-  const [excludeRecent, setExcludeRecent] = useState(true);
-  const [strategy, setStrategy] = useState<RouteStrategy>('nearest');
-  const [departureType, setDepartureType] = useState<PointType>('company');
-  const [arrivalType, setArrivalType] = useState<PointType>('company');
-  const [zoneLogicFlags, setZoneLogicFlags] = useState<ZoneLogicFlags>({ strict: true, tolerance: false, route: false });
+  // Config — initialised from persisted prefs (per-user)
+  const initialPrefs = useMemo(() => loadPrefs(user?.id), [user?.id]);
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>(initialPrefs.typeFilter);
+  const [relationshipFilter, setRelationshipFilter] = useState<RelationshipFilter>(initialPrefs.relationshipFilter);
+  const [visitTarget, setVisitTarget] = useState(initialPrefs.visitTarget);
+  const [excludeRecent, setExcludeRecent] = useState(initialPrefs.excludeRecent);
+  const [strategy, setStrategy] = useState<RouteStrategy>(initialPrefs.strategy);
+  const [departureType, setDepartureType] = useState<PointType>(initialPrefs.departureType);
+  const [arrivalType, setArrivalType] = useState<PointType>(initialPrefs.arrivalType);
+  const [zoneLogicFlags, setZoneLogicFlags] = useState<ZoneLogicFlags>(initialPrefs.zoneLogicFlags);
 
   // Address edit modal
   const [editingField, setEditingField] = useState<'entreprise' | 'domicile' | 'autre' | null>(null);
@@ -117,8 +118,20 @@ export default function RouteOptimizerSheet({
   // Process state
   const [step, setStep] = useState<'config' | 'preview' | 'result'>('config');
   const [optimizedRoute, setOptimizedRoute] = useState<OptimizedRoute | null>(null);
+  const [optimizing, setOptimizing] = useState(false);
+  const [usedRealRouting, setUsedRealRouting] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
+
+  // Persist prefs whenever the user changes any optimization input
+  useEffect(() => {
+    if (!user?.id) return;
+    savePrefs(user.id, {
+      departureType, arrivalType, strategy, typeFilter,
+      relationshipFilter, zoneLogicFlags, excludeRecent, visitTarget,
+    });
+  }, [user?.id, departureType, arrivalType, strategy, typeFilter, relationshipFilter, zoneLogicFlags, excludeRecent, visitTarget]);
+
 
   // Load addresses from profile
   useEffect(() => {
