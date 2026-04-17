@@ -508,3 +508,22 @@ export function getReasonBadgeStyle(reason: string): { className: string } {
       return { className: 'bg-muted text-muted-foreground' };
   }
 }
+
+/**
+ * Returns a compact label + badge style for a customer's relationship type.
+ */
+export function getRelationshipBadge(
+  relationshipType: string | null | undefined,
+): { label: string; className: string } | null {
+  switch (relationshipType) {
+    case 'magasin':
+      return { label: 'Magasin', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' };
+    case 'atelier':
+      return { label: 'Atelier', className: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' };
+    case 'mixte':
+      return { label: 'Mixte', className: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' };
+    default:
+      return null;
+  }
+}
+
