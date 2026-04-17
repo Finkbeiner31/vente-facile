@@ -355,6 +355,17 @@ export default function DayRouteMapDialog({
     return [...mapped, ...missing];
   }, [route, geocodedStops]);
 
+  // True when A and B resolve to the exact same physical point (round trip).
+  // We then render a single combined "A/B" marker instead of two stacked ones,
+  // so the user immediately understands the day starts and ends at the same place.
+  const sameStartEnd = useMemo(() => {
+    if (!departurePoint || !arrivalPoint) return false;
+    return (
+      Math.abs(departurePoint.lat - arrivalPoint.lat) < 1e-6 &&
+      Math.abs(departurePoint.lng - arrivalPoint.lng) < 1e-6
+    );
+  }, [departurePoint, arrivalPoint]);
+
   const renderedMarkers = useMemo<RenderMarkerItem[]>(() => {
     const baseItems: Omit<RenderMarkerItem, 'displayPosition'>[] = [];
 
@@ -363,8 +374,10 @@ export default function DayRouteMapDialog({
         key: `departure-${departurePoint.type}`,
         kind: 'departure',
         position: { lat: departurePoint.lat, lng: departurePoint.lng },
-        title: `Départ — ${departurePoint.label}`,
-        label: 'A',
+        title: sameStartEnd
+          ? `Départ et arrivée — ${departurePoint.label}`
+          : `Départ — ${departurePoint.label}`,
+        label: sameStartEnd ? 'A/B' : 'A',
         pointType: departurePoint.type,
         pointLabel: departurePoint.label,
       });
@@ -382,7 +395,10 @@ export default function DayRouteMapDialog({
       });
     });
 
-    if (arrivalPoint) {
+    // Skip the arrival marker when it's identical to departure — the combined
+    // A/B departure marker already represents both concepts. Otherwise always
+    // render B explicitly so the day's end point is never silently omitted.
+    if (arrivalPoint && !sameStartEnd) {
       baseItems.push({
         key: `arrival-${arrivalPoint.type}`,
         kind: 'arrival',
@@ -408,7 +424,7 @@ export default function DayRouteMapDialog({
         displayPosition: offsetDuplicatePosition(item.position, duplicateIndex, duplicates.length),
       };
     });
-  }, [departurePoint, orderedStops, arrivalPoint]);
+  }, [departurePoint, orderedStops, arrivalPoint, sameStartEnd]);
 
   const summary = useMemo(() => {
     const visitMin = stops.reduce((sum, s) => sum + (s.visit_duration_minutes ?? DEFAULT_VISIT_MIN), 0);
@@ -447,20 +463,35 @@ export default function DayRouteMapDialog({
 
     renderedMarkers.forEach((item) => {
       if (item.kind === 'departure') {
+        // Larger, distinctive shape (rounded square via SymbolPath) so A is
+        // immediately spotted vs the round numbered stop markers. Bright green
+        // (success-like) signals "start". When same as arrival, label reads "A/B".
+        const isCombined = item.label === 'A/B';
         const marker = new google.maps.Marker({
           position: item.displayPosition,
           map,
           title: item.title,
-          label: { text: item.label, color: '#ffffff', fontWeight: '700', fontSize: '12px' },
-          icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            fillColor: '#0f172a', fillOpacity: 1,
-            strokeColor: '#ffffff', strokeWeight: 2, scale: 13,
+          label: {
+            text: item.label,
+            color: '#ffffff',
+            fontWeight: '800',
+            fontSize: isCombined ? '10px' : '13px',
           },
-          zIndex: 1200,
+          icon: {
+            path: 'M -14,-14 L 14,-14 L 14,14 L -14,14 z',
+            fillColor: isCombined ? '#7c3aed' : '#16a34a',
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 3,
+            scale: 1,
+          },
+          zIndex: 2000,
         });
+        const headerText = isCombined
+          ? `Départ et arrivée — ${pointTypeLabel(item.pointType || prefs.departureType)}`
+          : `Départ — ${pointTypeLabel(item.pointType || prefs.departureType)}`;
         const info = new google.maps.InfoWindow({
-          content: `<div style="font-size:12px;font-weight:700">Départ — ${pointTypeLabel(item.pointType || prefs.departureType)}</div><div style="font-size:11px;color:#666">${item.pointLabel || '—'}</div>`,
+          content: `<div style="font-size:12px;font-weight:700">${headerText}</div><div style="font-size:11px;color:#666">${item.pointLabel || '—'}</div>`,
         });
         marker.addListener('click', () => info.open({ map, anchor: marker }));
         overlaysRef.current.push(marker);
@@ -470,17 +501,21 @@ export default function DayRouteMapDialog({
       }
 
       if (item.kind === 'arrival') {
+        // Larger square in red so B is unmistakable as "end of day".
         const marker = new google.maps.Marker({
           position: item.displayPosition,
           map,
           title: item.title,
-          label: { text: item.label, color: '#ffffff', fontWeight: '700', fontSize: '12px' },
+          label: { text: item.label, color: '#ffffff', fontWeight: '800', fontSize: '13px' },
           icon: {
-            path: google.maps.SymbolPath.CIRCLE,
-            fillColor: '#475569', fillOpacity: 1,
-            strokeColor: '#ffffff', strokeWeight: 2, scale: 13,
+            path: 'M -14,-14 L 14,-14 L 14,14 L -14,14 z',
+            fillColor: '#dc2626',
+            fillOpacity: 1,
+            strokeColor: '#ffffff',
+            strokeWeight: 3,
+            scale: 1,
           },
-          zIndex: 1190,
+          zIndex: 1990,
         });
         const info = new google.maps.InfoWindow({
           content: `<div style="font-size:12px;font-weight:700">Arrivée — ${pointTypeLabel(item.pointType || prefs.arrivalType)}</div><div style="font-size:11px;color:#666">${item.pointLabel || '—'}</div>`,
@@ -644,6 +679,32 @@ export default function DayRouteMapDialog({
         {/* Map */}
         <div className="relative h-[60vh] min-h-[420px] bg-muted">
           <div ref={containerRef} className="absolute inset-0" />
+          {/* Map legend so the user instantly maps colors/letters to A/B/stops. */}
+          {ready && geocodedStops.length > 0 && (
+            <div className="absolute top-2 left-2 z-10 bg-background/95 backdrop-blur border rounded-md shadow-sm px-2.5 py-1.5 flex items-center gap-3 text-[11px] font-medium pointer-events-none">
+              {sameStartEnd ? (
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-flex items-center justify-center h-4 w-5 rounded-sm text-white text-[9px] font-bold" style={{ background: '#7c3aed' }}>A/B</span>
+                  Départ / Arrivée
+                </span>
+              ) : (
+                <>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-flex items-center justify-center h-4 w-4 rounded-sm text-white text-[10px] font-bold" style={{ background: '#16a34a' }}>A</span>
+                    Départ
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-flex items-center justify-center h-4 w-4 rounded-sm text-white text-[10px] font-bold" style={{ background: '#dc2626' }}>B</span>
+                    Arrivée
+                  </span>
+                </>
+              )}
+              <span className="flex items-center gap-1.5">
+                <span className="inline-flex items-center justify-center h-4 w-4 rounded-full text-white text-[10px] font-bold" style={{ background: zoneColor || '#2563eb' }}>1</span>
+                Visites
+              </span>
+            </div>
+          )}
           {(!ready || routing) && (
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-background/80 gap-2">
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
