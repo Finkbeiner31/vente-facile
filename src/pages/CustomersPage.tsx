@@ -373,7 +373,7 @@ export default function CustomersPage() {
           <h1 className="font-heading text-xl md:text-2xl font-bold">
             {tab === 'prospects' ? 'Prospects' : tab === 'clients' ? 'Clients' : 'Clients et prospects'}
           </h1>
-          <p className="text-xs text-muted-foreground">{filtered.length} comptes · trié par {sortMode === 'priority' ? 'priorité' : sortMode === 'caM1' ? 'CA M-1' : 'potentiel'}</p>
+          <p className="text-xs text-muted-foreground">{filtered.length} comptes · trié par {sortMode === 'priority' ? 'priorité' : sortMode === 'caM1' ? 'CA M-1' : sortMode === 'zone' ? 'zone' : 'potentiel'}</p>
         </div>
         <Button size="sm" className="h-10 px-4 font-semibold" onClick={() => setSheetOpen(true)}>
           <Plus className="h-4 w-4 mr-1.5" /> Nouveau
