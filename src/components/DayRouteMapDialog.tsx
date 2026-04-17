@@ -355,6 +355,17 @@ export default function DayRouteMapDialog({
     return [...mapped, ...missing];
   }, [route, geocodedStops]);
 
+  // True when A and B resolve to the exact same physical point (round trip).
+  // We then render a single combined "A/B" marker instead of two stacked ones,
+  // so the user immediately understands the day starts and ends at the same place.
+  const sameStartEnd = useMemo(() => {
+    if (!departurePoint || !arrivalPoint) return false;
+    return (
+      Math.abs(departurePoint.lat - arrivalPoint.lat) < 1e-6 &&
+      Math.abs(departurePoint.lng - arrivalPoint.lng) < 1e-6
+    );
+  }, [departurePoint, arrivalPoint]);
+
   const renderedMarkers = useMemo<RenderMarkerItem[]>(() => {
     const baseItems: Omit<RenderMarkerItem, 'displayPosition'>[] = [];
 
@@ -363,8 +374,10 @@ export default function DayRouteMapDialog({
         key: `departure-${departurePoint.type}`,
         kind: 'departure',
         position: { lat: departurePoint.lat, lng: departurePoint.lng },
-        title: `Départ — ${departurePoint.label}`,
-        label: 'A',
+        title: sameStartEnd
+          ? `Départ et arrivée — ${departurePoint.label}`
+          : `Départ — ${departurePoint.label}`,
+        label: sameStartEnd ? 'A/B' : 'A',
         pointType: departurePoint.type,
         pointLabel: departurePoint.label,
       });
@@ -382,7 +395,10 @@ export default function DayRouteMapDialog({
       });
     });
 
-    if (arrivalPoint) {
+    // Skip the arrival marker when it's identical to departure — the combined
+    // A/B departure marker already represents both concepts. Otherwise always
+    // render B explicitly so the day's end point is never silently omitted.
+    if (arrivalPoint && !sameStartEnd) {
       baseItems.push({
         key: `arrival-${arrivalPoint.type}`,
         kind: 'arrival',
@@ -408,7 +424,7 @@ export default function DayRouteMapDialog({
         displayPosition: offsetDuplicatePosition(item.position, duplicateIndex, duplicates.length),
       };
     });
-  }, [departurePoint, orderedStops, arrivalPoint]);
+  }, [departurePoint, orderedStops, arrivalPoint, sameStartEnd]);
 
   const summary = useMemo(() => {
     const visitMin = stops.reduce((sum, s) => sum + (s.visit_duration_minutes ?? DEFAULT_VISIT_MIN), 0);
