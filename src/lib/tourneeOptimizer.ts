@@ -225,13 +225,59 @@ export function computeTourneePriority(
     }
   }
 
-  // D. Relationship type bonus (0-10)
+  // D. Relationship type bonus (0-10) — base bonus, augmenté ensuite par computeRelationshipBonus
   if (c.relationship_type === 'mixte') {
     relationshipScore = 5;
   }
 
   const score = urgencyScore + businessScore + routeScore + relationshipScore;
   return { score: Math.round(score), reasons };
+}
+
+/**
+ * Returns the score bonus and an optional reason label based on the
+ * selected relationship filter (Magasin/Atelier/Mixte priority).
+ *
+ * Default ranking when "magasin_priority" is active: Magasin > Mixte > Atelier > non renseigné.
+ */
+export function computeRelationshipBonus(
+  relationshipType: string | null | undefined,
+  filter: RelationshipFilter,
+): { bonus: number; reason: string | null } {
+  const rt = relationshipType || null;
+
+  // Strict modes — handled at filter step, no extra scoring needed
+  if (filter === 'magasin_only' || filter === 'atelier_only' || filter === 'mixte_only') {
+    return { bonus: 0, reason: null };
+  }
+
+  if (filter === 'tous') {
+    // Light typing bonus to push known accounts above unknown ones
+    if (rt === 'magasin' || rt === 'atelier' || rt === 'mixte') return { bonus: 2, reason: null };
+    return { bonus: 0, reason: null };
+  }
+
+  // Priority modes
+  const targetMap: Record<string, 'magasin' | 'atelier' | 'mixte'> = {
+    magasin_priority: 'magasin',
+    atelier_priority: 'atelier',
+    mixte_priority: 'mixte',
+  };
+  const target = targetMap[filter];
+
+  if (rt === target) {
+    return { bonus: 18, reason: target === 'magasin' ? 'Magasin prioritaire' : target === 'atelier' ? 'Atelier prioritaire' : 'Mixte prioritaire' };
+  }
+
+  // Default Magasin priority cascade (Magasin > Mixte > Atelier)
+  if (target === 'magasin') {
+    if (rt === 'mixte') return { bonus: 9, reason: null };
+    if (rt === 'atelier') return { bonus: 3, reason: null };
+    return { bonus: 0, reason: null }; // non renseigné
+  }
+  // Other priority modes: lighter cascade
+  if (rt === 'magasin' || rt === 'mixte' || rt === 'atelier') return { bonus: 4, reason: null };
+  return { bonus: 0, reason: null };
 }
 
 // ── Filtering ──
