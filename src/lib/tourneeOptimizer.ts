@@ -297,6 +297,13 @@ export function filterCandidates(
     if (config.typeFilter === 'clients' && isProspect) continue;
     if (config.typeFilter === 'prospects' && !isProspect) continue;
 
+    // Relationship filter (strict only-modes exclude here)
+    const relFilter: RelationshipFilter = config.relationshipFilter || 'magasin_priority';
+    const rt = c.relationship_type || null;
+    if (relFilter === 'magasin_only' && rt !== 'magasin') continue;
+    if (relFilter === 'atelier_only' && rt !== 'atelier') continue;
+    if (relFilter === 'mixte_only' && rt !== 'mixte') continue;
+
     // Exclude recently visited
     if (config.excludeRecentDays != null) {
       const days = daysSince(c.last_visit_date);
@@ -340,10 +347,15 @@ export function filterCandidates(
     }
 
     const distanceFromUser = haversineKm(config.departureLat, config.departureLng, c.latitude, c.longitude);
-    const { score, reasons } = computeTourneePriority(
+    const { score: baseScore, reasons } = computeTourneePriority(
       c, config.departureLat, config.departureLng, config.arrivalLat, config.arrivalLng,
     );
     const visitDuration = getVisitDuration(c);
+
+    // Apply commercial relationship bonus
+    const { bonus: relBonus, reason: relReason } = computeRelationshipBonus(rt, relFilter);
+    const score = baseScore + relBonus;
+    if (relReason && !reasons.includes(relReason)) reasons.push(relReason);
 
     if (isOutsideZone) {
       reasons.push('Hors zone');
