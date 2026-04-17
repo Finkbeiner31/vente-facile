@@ -688,17 +688,17 @@ export default function DayRouteMapDialog({
             <div className="absolute top-2 left-2 z-10 bg-background/95 backdrop-blur border rounded-md shadow-sm px-2.5 py-1.5 flex items-center gap-3 text-[11px] font-medium pointer-events-none">
               {sameStartEnd ? (
                 <span className="flex items-center gap-1.5">
-                  <span className="inline-flex items-center justify-center h-4 w-5 rounded-sm text-white text-[9px] font-bold" style={{ background: '#7c3aed' }}>A/B</span>
+                  <span className="inline-flex items-center justify-center h-5 w-5 rounded-full text-white text-[8px] font-bold shadow" style={{ background: '#7c3aed' }}>A/B</span>
                   Départ / Arrivée
                 </span>
               ) : (
                 <>
                   <span className="flex items-center gap-1.5">
-                    <span className="inline-flex items-center justify-center h-4 w-4 rounded-sm text-white text-[10px] font-bold" style={{ background: '#16a34a' }}>A</span>
+                    <span className="inline-flex items-center justify-center h-5 w-5 rounded-full text-white text-[10px] font-bold shadow" style={{ background: '#16a34a' }}>A</span>
                     Départ
                   </span>
                   <span className="flex items-center gap-1.5">
-                    <span className="inline-flex items-center justify-center h-4 w-4 rounded-sm text-white text-[10px] font-bold" style={{ background: '#dc2626' }}>B</span>
+                    <span className="inline-flex items-center justify-center h-5 w-5 rounded-full text-white text-[10px] font-bold shadow" style={{ background: '#dc2626' }}>B</span>
                     Arrivée
                   </span>
                 </>
