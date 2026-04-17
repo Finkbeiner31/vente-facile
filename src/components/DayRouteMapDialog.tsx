@@ -128,9 +128,43 @@ interface RouteResult {
 
 /** Module-level cache keyed by origin + ordered stop ids to avoid repeated API calls. */
 const routeCache = new Map<string, RouteResult>();
-function cacheKey(origin: SavedPoint | null, ids: string[]): string {
-  const o = origin ? `${origin.lat.toFixed(5)},${origin.lng.toFixed(5)}` : 'no-origin';
-  return `${o}|${[...ids].sort().join(',')}`;
+function cacheKey(
+  start: { lat: number; lng: number } | null,
+  end: { lat: number; lng: number } | null,
+  strategy: string,
+  ids: string[],
+): string {
+  const s = start ? `${start.lat.toFixed(5)},${start.lng.toFixed(5)}` : 'no-start';
+  const e = end ? `${end.lat.toFixed(5)},${end.lng.toFixed(5)}` : 'no-end';
+  return `${s}|${e}|${strategy}|${ids.join(',')}`;
+}
+
+interface ProfileAddresses {
+  entreprise_lat: number | null; entreprise_lng: number | null; entreprise_address: string | null;
+  domicile_lat: number | null; domicile_lng: number | null; domicile_address: string | null;
+  autre_lat: number | null; autre_lng: number | null; autre_address: string | null;
+}
+
+function resolvePoint(type: PointType, addr: ProfileAddresses | null): SavedPoint | null {
+  if (!addr) return null;
+  switch (type) {
+    case 'company':
+      return addr.entreprise_lat != null && addr.entreprise_lng != null
+        ? { lat: addr.entreprise_lat, lng: addr.entreprise_lng, label: addr.entreprise_address || 'Entreprise', type }
+        : null;
+    case 'home':
+      return addr.domicile_lat != null && addr.domicile_lng != null
+        ? { lat: addr.domicile_lat, lng: addr.domicile_lng, label: addr.domicile_address || 'Domicile', type }
+        : null;
+    case 'custom':
+      return addr.autre_lat != null && addr.autre_lng != null
+        ? { lat: addr.autre_lat, lng: addr.autre_lng, label: addr.autre_address || 'Autre', type }
+        : null;
+  }
+}
+
+function firstAvailablePoint(addr: ProfileAddresses | null): SavedPoint | null {
+  return resolvePoint('company', addr) || resolvePoint('home', addr) || resolvePoint('custom', addr);
 }
 
 export default function DayRouteMapDialog({
@@ -139,20 +173,24 @@ export default function DayRouteMapDialog({
   stops,
   zoneColor,
   dayLabel,
+  zoneName,
 }: DayRouteMapDialogProps) {
   const { user } = useAuth();
   const { effectiveUserId } = useImpersonation();
   const activeUserId = effectiveUserId || user?.id;
 
+  // Persisted optimizer prefs drive A, B and strategy so this view stays
+  // consistent with what the user configured in "Optimiser ma tournée".
+  const prefs = useMemo(() => loadPrefs(user?.id), [user?.id, open]);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const overlaysRef = useRef<Array<google.maps.Marker | google.maps.Polyline>>([]);
   const mapRef = useRef<google.maps.Map | null>(null);
   const [ready, setReady] = useState(false);
-  const [origin, setOrigin] = useState<SavedPoint | null>(null);
+  const [addresses, setAddresses] = useState<ProfileAddresses | null>(null);
   const [route, setRoute] = useState<RouteResult | null>(null);
   const [routing, setRouting] = useState(false);
 
-  // Wait for Google Maps SDK
   useEffect(() => {
     if (!open) return;
     const check = () => typeof google !== 'undefined' && !!google.maps;
@@ -161,7 +199,6 @@ export default function DayRouteMapDialog({
     return () => clearInterval(iv);
   }, [open]);
 
-  // Load the user's saved company/home/other point for A & B
   useEffect(() => {
     if (!open || !activeUserId) return;
     let cancelled = false;
@@ -171,24 +208,26 @@ export default function DayRouteMapDialog({
         .select('entreprise_address, entreprise_lat, entreprise_lng, domicile_address, domicile_lat, domicile_lng, autre_address, autre_lat, autre_lng')
         .eq('id', activeUserId)
         .maybeSingle();
-      if (cancelled || !data) return;
-      const candidates: Array<{ lat?: number | null; lng?: number | null; label: string }> = [
-        { lat: (data as any).entreprise_lat, lng: (data as any).entreprise_lng, label: (data as any).entreprise_address || 'Entreprise' },
-        { lat: (data as any).domicile_lat, lng: (data as any).domicile_lng, label: (data as any).domicile_address || 'Domicile' },
-        { lat: (data as any).autre_lat, lng: (data as any).autre_lng, label: (data as any).autre_address || 'Autre' },
-      ];
-      const found = candidates.find(c => typeof c.lat === 'number' && typeof c.lng === 'number');
-      setOrigin(found ? { lat: found.lat as number, lng: found.lng as number, label: found.label } : null);
+      if (cancelled) return;
+      setAddresses((data as any) || null);
     })();
     return () => { cancelled = true; };
   }, [open, activeUserId]);
+
+  const departurePoint: SavedPoint | null = useMemo(
+    () => resolvePoint(prefs.departureType, addresses) || firstAvailablePoint(addresses),
+    [prefs.departureType, addresses],
+  );
+  const arrivalPoint: SavedPoint | null = useMemo(
+    () => resolvePoint(prefs.arrivalType, addresses) || departurePoint,
+    [prefs.arrivalType, addresses, departurePoint],
+  );
 
   const geocodedStops = useMemo(
     () => stops.filter(s => typeof s.latitude === 'number' && typeof s.longitude === 'number'),
     [stops],
   );
 
-  // Compute route: optimized order + real polyline
   useEffect(() => {
     if (!open || !ready || geocodedStops.length === 0) {
       setRoute(null);
@@ -196,7 +235,7 @@ export default function DayRouteMapDialog({
     }
 
     const ids = geocodedStops.map(s => s.id);
-    const key = cacheKey(origin, ids);
+    const key = cacheKey(departurePoint, arrivalPoint, prefs.strategy, ids);
     const cached = routeCache.get(key);
     if (cached) { setRoute(cached); return; }
 
@@ -205,95 +244,51 @@ export default function DayRouteMapDialog({
 
     const run = async () => {
       const positions = geocodedStops.map(s => ({ lat: s.latitude as number, lng: s.longitude as number }));
-      const start = origin ? { lat: origin.lat, lng: origin.lng } : positions[0];
-      const end = origin ? { lat: origin.lat, lng: origin.lng } : positions[positions.length - 1];
+      const start = departurePoint
+        ? { lat: departurePoint.lat, lng: departurePoint.lng }
+        : positions[0];
+      const end = arrivalPoint
+        ? { lat: arrivalPoint.lat, lng: arrivalPoint.lng }
+        : (departurePoint ? { lat: departurePoint.lat, lng: departurePoint.lng } : positions[positions.length - 1]);
 
-      // Try Google Directions with waypoint optimization first.
-      // We optimize all stops (or all but the first when no origin is provided).
-      const waypointSourceIdx = origin
-        ? positions.map((_, i) => i)              // [0..n-1] all geocoded stops
-        : positions.map((_, i) => i).slice(1, -1); // exclude pinned start & end
-
-      const useDirections =
-        waypointSourceIdx.length > 0 &&
-        waypointSourceIdx.length <= MAX_DIRECTIONS_WAYPOINTS;
-
-      if (useDirections) {
-        try {
-          const ds = new google.maps.DirectionsService();
-          const waypoints = waypointSourceIdx.map(i => ({ location: positions[i], stopover: true }));
-          const result = await ds.route({
-            origin: start,
-            destination: end,
-            waypoints,
-            optimizeWaypoints: true,
-            travelMode: google.maps.TravelMode.DRIVING,
-          });
-
-          if (cancelled) return;
-          const r = result.routes[0];
-          if (r) {
-            // r.waypoint_order contains the optimized order of `waypoints`,
-            // so we rebuild full stop order from it.
-            const optimized: number[] = [];
-            if (origin) {
-              r.waypoint_order.forEach(o => optimized.push(waypointSourceIdx[o]));
-            } else {
-              optimized.push(0);
-              r.waypoint_order.forEach(o => optimized.push(waypointSourceIdx[o]));
-              optimized.push(positions.length - 1);
-            }
-
-            // Real road polyline + summed metrics from each leg
-            let km = 0;
-            let driveSec = 0;
-            const path: google.maps.LatLngLiteral[] = [];
-            r.legs.forEach(leg => {
-              km += (leg.distance?.value || 0) / 1000;
-              driveSec += leg.duration?.value || 0;
-              leg.steps.forEach(step => {
-                step.path?.forEach(p => path.push({ lat: p.lat(), lng: p.lng() }));
-              });
-            });
-
-            const result2: RouteResult = {
-              order: optimized,
-              path,
-              km,
-              driveMin: driveSec / 60,
-              usedRouting: true,
-            };
-            routeCache.set(key, result2);
-            setRoute(result2);
-            setRouting(false);
-            return;
-          }
-        } catch (err) {
-          console.warn('[DayRouteMap] Directions failed, falling back to nearest-neighbor', err);
+      // 1. Google Directions with strategy-aware optimization
+      if (positions.length > 0 && positions.length <= MAX_DIRECTIONS_WAYPOINTS) {
+        const dr = await routeWithDirections(start, positions, end, prefs.strategy);
+        if (cancelled) return;
+        if (dr) {
+          const result: RouteResult = {
+            order: dr.order, path: dr.path, km: dr.km, driveMin: dr.driveMin, usedRouting: true,
+          };
+          routeCache.set(key, result);
+          setRoute(result);
+          setRouting(false);
+          return;
         }
       }
 
-      // Fallback: nearest-neighbor from `start`, straight-leg polyline
+      // 2. Fallback honoring A/B and strategy
       if (cancelled) return;
-      const nnOrder = nearestNeighborOrder(start, positions);
-      // If no origin, force first geocoded stop to remain the entry point
-      const order = origin ? nnOrder : (() => {
-        const idx = nnOrder.indexOf(0);
-        if (idx > 0) { nnOrder.splice(idx, 1); nnOrder.unshift(0); }
-        return nnOrder;
-      })();
-      const seq: google.maps.LatLngLiteral[] = [];
-      if (origin) seq.push({ lat: origin.lat, lng: origin.lng });
+      let order: number[];
+      if (prefs.strategy === 'farthest' && positions.length >= 2) {
+        let maxD = -1; let maxI = 0;
+        positions.forEach((p, i) => {
+          const d = haversineKm(start, p);
+          if (d > maxD) { maxD = d; maxI = i; }
+        });
+        const remainingIdx = positions.map((_, i) => i).filter(i => i !== maxI);
+        const tail = nearestNeighborOrder(positions[maxI], remainingIdx.map(i => positions[i]));
+        order = [maxI, ...tail.map(t => remainingIdx[t])];
+      } else {
+        order = nearestNeighborOrder(start, positions);
+      }
+
+      const seq: google.maps.LatLngLiteral[] = [start];
       order.forEach(i => seq.push(positions[i]));
-      if (origin) seq.push({ lat: origin.lat, lng: origin.lng });
+      seq.push(end);
       let km = 0;
       for (let i = 0; i < seq.length - 1; i++) km += haversineKm(seq[i], seq[i + 1]);
       const fb: RouteResult = {
-        order,
-        path: seq,
-        km,
-        driveMin: (km / AVG_SPEED_KMH) * 60,
-        usedRouting: false,
+        order, path: seq, km, driveMin: (km / AVG_SPEED_KMH) * 60, usedRouting: false,
       };
       routeCache.set(key, fb);
       setRoute(fb);
@@ -302,7 +297,7 @@ export default function DayRouteMapDialog({
 
     run();
     return () => { cancelled = true; };
-  }, [open, ready, geocodedStops, origin]);
+  }, [open, ready, geocodedStops, departurePoint, arrivalPoint, prefs.strategy]);
 
   // Effective ordered stops, derived from route.order if available
   const orderedStops = useMemo(() => {
