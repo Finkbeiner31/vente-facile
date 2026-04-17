@@ -70,7 +70,8 @@ type FilterTab = 'tous' | 'clients' | 'prospects' | 'qualifies' | 'en_attente' |
 type PerfFilter = 'tous' | 'optimise' | 'a_developper' | 'sous_exploite';
 type TrendFilter = 'tous' | 'up' | 'down' | 'stable';
 type PriorityFilter = 'tous' | 'high' | 'medium' | 'low';
-type SortMode = 'potential' | 'priority' | 'caM1';
+type SortMode = 'potential' | 'priority' | 'caM1' | 'zone';
+type ZoneFilter = 'tous' | 'hors_zone' | 'a_confirmer' | string; // string = zone id
 
 const formatLastVisit = (value: string | null) => {
   if (!value) return '—';
