@@ -159,25 +159,43 @@ export async function routeWithDirections(
           const tailOrder = tr.waypoint_order.map(o => optimizableIdx[o]);
           const newOrder = [pinnedFirstIdx, ...tailOrder];
 
-          // Rebuild metrics from origin → pinned (use first leg of original)
-          // + the tail route's legs.
+          // Rebuild metrics from origin → pinned (first leg of original `r`)
+          // + the tail route's legs. Use overview_path on the tail to ensure
+          // the FULL polyline is captured (avoids "only last leg" rendering).
           const firstLegMeters = r.legs[0]?.distance?.value || 0;
           const firstLegSec = r.legs[0]?.duration?.value || 0;
+
           const firstLegPath: google.maps.LatLngLiteral[] = [];
           r.legs[0]?.steps.forEach(step => {
-            step.path?.forEach(p => firstLegPath.push({ lat: p.lat(), lng: p.lng() }));
+            if (step.path && step.path.length > 0) {
+              step.path.forEach(p => firstLegPath.push({ lat: p.lat(), lng: p.lng() }));
+            }
           });
 
           let tailKm = firstLegMeters / 1000;
           let tailSec = firstLegSec;
-          const tailPath: google.maps.LatLngLiteral[] = [...firstLegPath];
           tr.legs.forEach(leg => {
             tailKm += (leg.distance?.value || 0) / 1000;
             tailSec += leg.duration?.value || 0;
-            leg.steps.forEach(step => {
-              step.path?.forEach(p => tailPath.push({ lat: p.lat(), lng: p.lng() }));
-            });
           });
+
+          const tailRoutePath: google.maps.LatLngLiteral[] = [];
+          if (tr.overview_path && tr.overview_path.length > 0) {
+            tr.overview_path.forEach(p => tailRoutePath.push({ lat: p.lat(), lng: p.lng() }));
+          } else {
+            tr.legs.forEach(leg => {
+              leg.steps.forEach(step => {
+                if (step.path && step.path.length > 0) {
+                  step.path.forEach(p => tailRoutePath.push({ lat: p.lat(), lng: p.lng() }));
+                } else {
+                  if (leg.start_location) tailRoutePath.push({ lat: leg.start_location.lat(), lng: leg.start_location.lng() });
+                  if (leg.end_location) tailRoutePath.push({ lat: leg.end_location.lat(), lng: leg.end_location.lng() });
+                }
+              });
+            });
+          }
+
+          const tailPath: google.maps.LatLngLiteral[] = [...firstLegPath, ...tailRoutePath];
           return { order: newOrder, path: tailPath, km: tailKm, driveMin: tailSec / 60 };
         }
       } catch {
