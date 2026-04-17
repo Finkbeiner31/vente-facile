@@ -325,22 +325,42 @@ export default function RoutesPage() {
         <p className="text-xs text-muted-foreground">Planning 4 semaines par zone géographique</p>
       </div>
 
-      {/* Week selector */}
+      {/* Week selector with date ranges */}
       <div className="flex gap-1.5">
-        {WEEK_LABELS.map((label, i) => (
-          <button
-            key={i}
-            onClick={() => setSelectedWeek(i)}
-            className={`flex-1 rounded-lg py-1.5 text-xs font-semibold text-center transition-all ${
-              i === selectedWeek
-                ? 'bg-primary text-primary-foreground shadow-sm'
-                : 'bg-muted text-muted-foreground hover:bg-muted/80'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+        {WEEK_LABELS.map((label, i) => {
+          const isActive = i === selectedWeek;
+          const isCurrent = i === getCurrentWeekNumber(cycleStart);
+          return (
+            <button
+              key={i}
+              onClick={() => setSelectedWeek(i)}
+              className={`flex-1 rounded-lg py-1.5 px-1 text-center transition-all leading-tight ${
+                isActive
+                  ? 'bg-primary text-primary-foreground shadow-sm'
+                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+              }`}
+            >
+              <div className="flex items-center justify-center gap-1">
+                <span className="text-xs font-semibold">{label}</span>
+                {isCurrent && (
+                  <span className={`h-1.5 w-1.5 rounded-full ${isActive ? 'bg-primary-foreground' : 'bg-primary'}`} />
+                )}
+              </div>
+              <div className={`text-[10px] mt-0.5 ${isActive ? 'opacity-90' : 'opacity-70'}`}>
+                {formatWeekRange(i, cycleStart)}
+              </div>
+            </button>
+          );
+        })}
       </div>
+      {getCurrentWeekNumber(cycleStart) !== selectedWeek && (
+        <button
+          onClick={() => setSelectedWeek(getCurrentWeekNumber(cycleStart))}
+          className="text-[11px] text-primary hover:underline self-start"
+        >
+          ← Revenir à la semaine en cours ({WEEK_LABELS[getCurrentWeekNumber(cycleStart)]})
+        </button>
+      )}
 
       {/* Day selector with zone colors */}
       <div className="flex items-center gap-1">
