@@ -33,10 +33,12 @@ import {
   haversineKm, estimateDriveMin, formatDuration, getReasonBadgeStyle,
   getRelationshipBadge,
 } from '@/lib/tourneeOptimizer';
-
-// ── Types ──
-
-type PointType = 'company' | 'home' | 'custom';
+import { routeWithDirections } from '@/lib/directionsRouting';
+import {
+  loadPrefs, savePrefs, type PointType,
+  strategyLabel as strategyLabelFn, relationshipLabel, zoneLogicShortLabel,
+  pointTypeLabel,
+} from '@/lib/tourneePrefs';
 
 interface SavedAddresses {
   entreprise_address: string | null;
