@@ -9,10 +9,11 @@ import {
   MapPin, Map as MapIcon, Zap,
   ChevronLeft, ChevronRight, Calendar, Target,
   RotateCcw, Loader2,
-  Plus, Users,
+  Plus, Users, Route as RouteIcon,
 } from 'lucide-react';
 import RouteOptimizerSheet from '@/components/RouteOptimizerSheet';
 import ZoneMapPreviewDialog from '@/components/ZoneMapPreviewDialog';
+import DayRouteMapDialog from '@/components/DayRouteMapDialog';
 import { useTourSession } from '@/contexts/TourSessionContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
@@ -72,6 +73,7 @@ export default function RoutesPage() {
   const [tourMode, setTourMode] = useState(false);
   const [optimizerOpen, setOptimizerOpen] = useState(false);
   const [zoneMapOpen, setZoneMapOpen] = useState(false);
+  const [routeMapOpen, setRouteMapOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
 
   const [manualStops, setManualStops] = useState<Record<string, ManualStop[]>>({});
