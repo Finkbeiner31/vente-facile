@@ -423,6 +423,19 @@ export default function CustomersPage() {
             <SelectItem value="low">⚪ Priorité faible</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={zoneFilter} onValueChange={v => setZoneFilter(v)}>
+          <SelectTrigger className="w-[180px] h-11 text-xs"><SelectValue placeholder="Zone" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="tous">Toutes les zones</SelectItem>
+            <SelectItem value="hors_zone">🚫 Hors zone ({zoneCounts.horsZone})</SelectItem>
+            <SelectItem value="a_confirmer">⚠️ Zone à confirmer ({zoneCounts.aConfirmer})</SelectItem>
+            {zones.map(z => (
+              <SelectItem key={z.id} value={z.id}>
+                {formatZoneName(z)} ({zoneCounts.byZone.get(z.system_name) || 0})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Select value={sortMode} onValueChange={v => setSortMode(v as SortMode)}>
           <SelectTrigger className="w-[120px] h-11 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
