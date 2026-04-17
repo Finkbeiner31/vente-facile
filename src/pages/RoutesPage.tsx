@@ -443,9 +443,18 @@ export default function RoutesPage() {
       {/* Zone info + target bar + Optimize button */}
       {todayZone && (
         <div className="rounded-xl border p-3 space-y-2" style={{ borderColor: `${todayZone.color}40` }}>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <div className="h-3.5 w-3.5 rounded-full" style={{ backgroundColor: todayZone.color }} />
             <span className="text-sm font-bold" style={{ color: todayZone.color }}>{formatZoneName(todayZone)}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 px-3 text-xs gap-1.5"
+              onClick={() => setZoneMapOpen(true)}
+            >
+              <MapIcon className="h-3.5 w-3.5" />
+              Voir la zone sur la carte
+            </Button>
             {/* Optimize button - prominent placement */}
             <Button
               size="sm"
