@@ -345,6 +345,17 @@ export default function CustomersPage() {
     en_attente: activeCustomers.filter(c => c.status === 'pending_conversion').length,
   };
 
+  // Zone counts (computed against the visible portfolio, ignoring zone filter)
+  const zoneCounts = useMemo(() => {
+    const horsZone = activeCustomers.filter(c => c.zoneStatus === 'outside' || (!c.zone && c.zoneStatus !== 'to_confirm')).length;
+    const aConfirmer = activeCustomers.filter(c => c.zoneStatus === 'to_confirm' || c.zoneStatus === 'pending_admin').length;
+    const byZone = new Map<string, number>();
+    for (const c of activeCustomers) {
+      if (c.zone) byZone.set(c.zone, (byZone.get(c.zone) || 0) + 1);
+    }
+    return { horsZone, aConfirmer, byZone };
+  }, [activeCustomers]);
+
   const handleCreate = async (data: NewCustomerFormData) => {
     await createCustomerMutation.mutateAsync(data);
   };
