@@ -39,6 +39,19 @@ export interface ZoneLogicFlags {
 }
 export type TypeFilter = 'tous' | 'clients' | 'prospects';
 
+/**
+ * Commercial relationship filter mode.
+ * - `tous`            : no relationship filter, no bonus
+ * - `*_priority`      : keep all eligible accounts, give a strong score bonus to the chosen type
+ * - `*_only`          : strictly keep only accounts of the chosen type
+ */
+export type RelationshipFilter =
+  | 'tous'
+  | 'magasin_priority' | 'atelier_priority' | 'mixte_priority'
+  | 'magasin_only' | 'atelier_only' | 'mixte_only';
+
+export type RelationshipType = 'magasin' | 'atelier' | 'mixte' | null;
+
 export interface ScoredCustomer extends OptCustomer {
   /** Composite priority score (0-100+) */
   score: number;
