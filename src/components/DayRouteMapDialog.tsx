@@ -478,6 +478,31 @@ export default function DayRouteMapDialog({
               </Badge>
             )}
           </DialogTitle>
+          {/* Optimization context chips: keeps the user trustfully aware of which
+              prefs (Départ / Arrivée / Ordre / Zone) drove this route. */}
+          <div className="flex items-center gap-1.5 flex-wrap pt-1">
+            <Badge variant="outline" className="gap-1 text-[10px] font-medium">
+              <CircleDot className="h-3 w-3" />
+              Départ : {departurePoint ? pointTypeLabel(departurePoint.type) : pointTypeLabel(prefs.departureType)}
+            </Badge>
+            <Badge variant="outline" className="gap-1 text-[10px] font-medium">
+              <Flag className="h-3 w-3" />
+              Arrivée : {arrivalPoint ? pointTypeLabel(arrivalPoint.type) : pointTypeLabel(prefs.arrivalType)}
+            </Badge>
+            <Badge variant="outline" className="gap-1 text-[10px] font-medium">
+              <Navigation className="h-3 w-3" />
+              {strategyLabel(prefs.strategy)}
+            </Badge>
+            {zoneName && (
+              <Badge variant="outline" className="gap-1 text-[10px] font-medium" style={zoneColor ? { borderColor: `${zoneColor}66`, color: zoneColor } : undefined}>
+                <MapPin className="h-3 w-3" />
+                {zoneName}
+              </Badge>
+            )}
+            <Badge variant="outline" className="gap-1 text-[10px] font-medium">
+              {relationshipLabel(prefs.relationshipFilter)}
+            </Badge>
+          </div>
         </DialogHeader>
 
         {/* Summary bar */}
