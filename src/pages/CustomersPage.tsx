@@ -632,7 +632,9 @@ export default function CustomersPage() {
           <p className="mt-3 text-sm text-muted-foreground">
             {customers.length === 0
               ? (isAdmin ? 'Aucun compte enregistré' : 'Aucun client dans votre portefeuille')
-              : 'Aucun résultat avec ces filtres'}
+              : zoneFilter !== 'tous'
+                ? 'Aucun compte trouvé pour ce filtre de zone'
+                : 'Aucun résultat avec ces filtres'}
           </p>
           {!isAdmin && customers.length === 0 && (
             <p className="mt-1 text-xs text-muted-foreground/70">
