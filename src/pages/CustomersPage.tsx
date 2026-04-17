@@ -305,6 +305,17 @@ export default function CustomersPage() {
       if (perfFilter !== 'tous' && c.perf.status !== perfFilter) return false;
       if (trendFilter !== 'tous' && c.perf.trend !== trendFilter) return false;
       if (priorityFilter !== 'tous' && c.priority.level !== priorityFilter) return false;
+      if (zoneFilter !== 'tous') {
+        if (zoneFilter === 'hors_zone') {
+          if (!(c.zoneStatus === 'outside' || (!c.zone && c.zoneStatus !== 'to_confirm'))) return false;
+        } else if (zoneFilter === 'a_confirmer') {
+          if (c.zoneStatus !== 'to_confirm' && c.zoneStatus !== 'pending_admin') return false;
+        } else {
+          // zoneFilter is a zone id
+          const zoneObj = zones.find(z => z.id === zoneFilter);
+          if (!zoneObj || c.zone !== zoneObj.system_name) return false;
+        }
+      }
       return true;
     })
     .filter(c =>
@@ -314,8 +325,15 @@ export default function CustomersPage() {
     .sort((a, b) => {
       if (sortMode === 'priority') return b.priority.score - a.priority.score;
       if (sortMode === 'caM1') return (b.perf.caM1 ?? b.perf.latestKnownCA ?? -1) - (a.perf.caM1 ?? a.perf.latestKnownCA ?? -1);
+      if (sortMode === 'zone') {
+        const za = a.zone || 'zzz_Hors zone';
+        const zb = b.zone || 'zzz_Hors zone';
+        const cmp = za.localeCompare(zb, 'fr', { numeric: true });
+        if (cmp !== 0) return cmp;
+        return b.revenue - a.revenue;
+      }
       return b.revenue - a.revenue; // potential
-    }), [enriched, search, tab, perfFilter, trendFilter, priorityFilter, sortMode]);
+    }), [enriched, search, tab, perfFilter, trendFilter, priorityFilter, zoneFilter, sortMode, zones]);
 
   const activeCustomers = customers.filter(c => c.accountStatus !== 'archived' && c.accountStatus !== 'merged');
   const archivedCount = customers.filter(c => c.accountStatus === 'archived' || c.accountStatus === 'merged').length;
