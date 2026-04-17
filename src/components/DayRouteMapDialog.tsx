@@ -691,6 +691,19 @@ export default function DayRouteMapDialog({
               {relationshipLabel(prefs.relationshipFilter)}
             </Badge>
           </div>
+          {(departureMissing || arrivalMissing) && (
+            <div className="mt-2 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-2.5 py-1.5 text-[11px] text-warning-foreground">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning mt-px" />
+              <span>
+                {departureMissing && arrivalMissing
+                  ? `Aucune adresse "${pointTypeLabel(prefs.departureType)}" / "${pointTypeLabel(prefs.arrivalType)}" enregistrée sur votre profil. Le trajet utilise un point de repli.`
+                  : departureMissing
+                  ? `Aucune adresse "${pointTypeLabel(prefs.departureType)}" sur votre profil — un point de repli est utilisé pour le départ.`
+                  : `Aucune adresse "${pointTypeLabel(prefs.arrivalType)}" sur votre profil — un point de repli est utilisé pour l'arrivée.`}
+                {' '}Renseignez vos adresses dans Profil pour un trajet précis.
+              </span>
+            </div>
+          )}
         </DialogHeader>
 
         {/* Summary bar */}
