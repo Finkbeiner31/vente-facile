@@ -12,6 +12,7 @@ import {
   Plus, Users, Route as RouteIcon,
 } from 'lucide-react';
 import RouteOptimizerSheet from '@/components/RouteOptimizerSheet';
+import type { OptimizedRoute } from '@/components/RouteOptimizerSheet';
 import ZoneMapPreviewDialog from '@/components/ZoneMapPreviewDialog';
 import DayRouteMapDialog from '@/components/DayRouteMapDialog';
 import { useTourSession } from '@/contexts/TourSessionContext';
@@ -78,7 +79,7 @@ export default function RoutesPage() {
 
   const [manualStops, setManualStops] = useState<Record<string, ManualStop[]>>({});
   // Tracks user-customized planned stops per day key
-  const [customPlanned, setCustomPlanned] = useState<Record<string, { customer: CustomerForRouting; priority: number; customerType?: string; lastVisitDate?: string | null }[]>>({});
+  const [customPlanned, setCustomPlanned] = useState<Record<string, { customer: CustomerForRouting; priority: number; customerType?: string; lastVisitDate?: string | null; visitDurationMinutes?: number | null }[]>>({});
 
   const { session, startSession } = useTourSession();
 
@@ -282,6 +283,31 @@ export default function RoutesPage() {
       [dayKey]: [...(prev[dayKey] || []), { customer: prospectCustomer, priority: 30, source: 'manual' }],
     }));
     toast.success(`${data.company_name} ajouté`);
+  };
+
+  const handleRouteGenerated = (route: OptimizedRoute) => {
+    setCustomPlanned(prev => ({
+      ...prev,
+      [dayKey]: route.customers.map((customer, index) => ({
+        customer: {
+          id: customer.id,
+          company_name: customer.company_name,
+          address: customer.address,
+          city: customer.city,
+          phone: customer.phone,
+          visit_frequency: customer.visit_frequency,
+          number_of_vehicles: customer.number_of_vehicles,
+          annual_revenue_potential: customer.annual_revenue_potential,
+          latitude: customer.latitude,
+          longitude: customer.longitude,
+          sales_potential: customer.sales_potential,
+        },
+        priority: Math.max(route.customers.length - index, 1),
+        customerType: customer.customer_type,
+        lastVisitDate: customer.last_visit_date,
+        visitDurationMinutes: customer.visitDuration,
+      })),
+    }));
   };
 
   const sessionCompletedCount = session ? Object.values(session.statuses).filter(s => s === 'completed').length : 0;
@@ -559,6 +585,7 @@ export default function RoutesPage() {
       <RouteOptimizerSheet
         open={optimizerOpen}
         onOpenChange={setOptimizerOpen}
+        onRouteGenerated={handleRouteGenerated}
         zone={todayZone ? { id: todayZone.id, system_name: todayZone.system_name, custom_label: todayZone.custom_label, color: todayZone.color } : null}
         zoneCustomers={zoneCustomers}
         dayLabel={`${WEEK_LABELS[selectedWeek]} · ${DAY_NAMES[selectedDay - 1]}`}
