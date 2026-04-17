@@ -340,11 +340,11 @@ export default function DayRouteMapDialog({
     const bounds = new google.maps.LatLngBounds();
     let hasContent = false;
 
-    if (origin) {
+    if (departurePoint) {
       const aMarker = new google.maps.Marker({
-        position: { lat: origin.lat, lng: origin.lng },
+        position: { lat: departurePoint.lat, lng: departurePoint.lng },
         map,
-        title: `Départ — ${origin.label}`,
+        title: `Départ — ${departurePoint.label}`,
         label: { text: 'A', color: '#ffffff', fontWeight: '700', fontSize: '12px' },
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
@@ -354,11 +354,11 @@ export default function DayRouteMapDialog({
         zIndex: 1000,
       });
       const aInfo = new google.maps.InfoWindow({
-        content: `<div style="font-size:12px;font-weight:700">Départ</div><div style="font-size:11px;color:#666">${origin.label}</div>`,
+        content: `<div style="font-size:12px;font-weight:700">Départ — ${pointTypeLabel(departurePoint.type)}</div><div style="font-size:11px;color:#666">${departurePoint.label}</div>`,
       });
       aMarker.addListener('click', () => aInfo.open({ map, anchor: aMarker }));
       overlaysRef.current.push(aMarker);
-      bounds.extend({ lat: origin.lat, lng: origin.lng });
+      bounds.extend({ lat: departurePoint.lat, lng: departurePoint.lng });
       hasContent = true;
     }
 
@@ -391,11 +391,11 @@ export default function DayRouteMapDialog({
       hasContent = true;
     });
 
-    if (origin && orderedStops.length > 0) {
+    if (arrivalPoint && orderedStops.length > 0) {
       const bMarker = new google.maps.Marker({
-        position: { lat: origin.lat, lng: origin.lng },
+        position: { lat: arrivalPoint.lat, lng: arrivalPoint.lng },
         map,
-        title: `Arrivée — ${origin.label}`,
+        title: `Arrivée — ${arrivalPoint.label}`,
         label: { text: 'B', color: '#ffffff', fontWeight: '700', fontSize: '12px' },
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
@@ -404,7 +404,12 @@ export default function DayRouteMapDialog({
         },
         zIndex: 1001,
       });
+      const bInfo = new google.maps.InfoWindow({
+        content: `<div style="font-size:12px;font-weight:700">Arrivée — ${pointTypeLabel(arrivalPoint.type)}</div><div style="font-size:11px;color:#666">${arrivalPoint.label}</div>`,
+      });
+      bMarker.addListener('click', () => bInfo.open({ map, anchor: bMarker }));
       overlaysRef.current.push(bMarker);
+      bounds.extend({ lat: arrivalPoint.lat, lng: arrivalPoint.lng });
     }
 
     if (route && route.path.length >= 2) {
@@ -426,20 +431,25 @@ export default function DayRouteMapDialog({
     }
 
     if (hasContent) map.fitBounds(bounds, 70);
-  }, [open, ready, orderedStops, origin, route, zoneColor]);
+  }, [open, ready, orderedStops, departurePoint, arrivalPoint, route, zoneColor]);
 
   const externalGmapsUrl = useMemo(() => {
     if (orderedStops.length === 0) return null;
     const fmt = (p: { lat: number; lng: number }) => `${p.lat},${p.lng}`;
-    const start = origin ? fmt(origin) : fmt({ lat: orderedStops[0].latitude as number, lng: orderedStops[0].longitude as number });
-    const end = origin ? fmt(origin) : fmt({ lat: orderedStops[orderedStops.length - 1].latitude as number, lng: orderedStops[orderedStops.length - 1].longitude as number });
-    const wpStops = origin ? orderedStops : orderedStops.slice(1, -1);
-    const waypoints = wpStops
+    const start = departurePoint
+      ? fmt({ lat: departurePoint.lat, lng: departurePoint.lng })
+      : fmt({ lat: orderedStops[0].latitude as number, lng: orderedStops[0].longitude as number });
+    const end = arrivalPoint
+      ? fmt({ lat: arrivalPoint.lat, lng: arrivalPoint.lng })
+      : fmt({ lat: orderedStops[orderedStops.length - 1].latitude as number, lng: orderedStops[orderedStops.length - 1].longitude as number });
+    const wpStops = departurePoint ? orderedStops : orderedStops.slice(1);
+    const finalWp = arrivalPoint ? wpStops : wpStops.slice(0, -1);
+    const waypoints = finalWp
       .map(s => fmt({ lat: s.latitude as number, lng: s.longitude as number }))
       .join('|');
     const wp = waypoints ? `&waypoints=${encodeURIComponent(waypoints)}` : '';
     return `https://www.google.com/maps/dir/?api=1&origin=${start}&destination=${end}${wp}&travelmode=driving`;
-  }, [orderedStops, origin]);
+  }, [orderedStops, departurePoint, arrivalPoint]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -468,6 +478,31 @@ export default function DayRouteMapDialog({
               </Badge>
             )}
           </DialogTitle>
+          {/* Optimization context chips: keeps the user trustfully aware of which
+              prefs (Départ / Arrivée / Ordre / Zone) drove this route. */}
+          <div className="flex items-center gap-1.5 flex-wrap pt-1">
+            <Badge variant="outline" className="gap-1 text-[10px] font-medium">
+              <CircleDot className="h-3 w-3" />
+              Départ : {departurePoint ? pointTypeLabel(departurePoint.type) : pointTypeLabel(prefs.departureType)}
+            </Badge>
+            <Badge variant="outline" className="gap-1 text-[10px] font-medium">
+              <Flag className="h-3 w-3" />
+              Arrivée : {arrivalPoint ? pointTypeLabel(arrivalPoint.type) : pointTypeLabel(prefs.arrivalType)}
+            </Badge>
+            <Badge variant="outline" className="gap-1 text-[10px] font-medium">
+              <Navigation className="h-3 w-3" />
+              {strategyLabel(prefs.strategy)}
+            </Badge>
+            {zoneName && (
+              <Badge variant="outline" className="gap-1 text-[10px] font-medium" style={zoneColor ? { borderColor: `${zoneColor}66`, color: zoneColor } : undefined}>
+                <MapPin className="h-3 w-3" />
+                {zoneName}
+              </Badge>
+            )}
+            <Badge variant="outline" className="gap-1 text-[10px] font-medium">
+              {relationshipLabel(prefs.relationshipFilter)}
+            </Badge>
+          </div>
         </DialogHeader>
 
         {/* Summary bar */}
