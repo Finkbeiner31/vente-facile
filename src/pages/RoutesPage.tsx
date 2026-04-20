@@ -569,8 +569,18 @@ export default function RoutesPage() {
               visitDurationMinutes: 'visitDurationMinutes' in s ? (s as any).visitDurationMinutes : null,
             }))}
             availableCustomers={zoneCustomers}
+            departure={optimizedRoutes[dayKey]?.departure ?? null}
+            arrival={optimizedRoutes[dayKey]?.arrival ?? null}
             onUpdatePlanned={(newStops) => {
               setCustomPlanned(prev => ({ ...prev, [dayKey]: newStops }));
+              // Manual reorder/add invalidates the previous optimized route
+              // since A/B/order may no longer match. The user must re-run the
+              // optimizer to refresh the canonical A → clients → B structure.
+              setOptimizedRoutes(prev => {
+                if (!prev[dayKey]) return prev;
+                const { [dayKey]: _removed, ...rest } = prev;
+                return rest;
+              });
             }}
           />
 
