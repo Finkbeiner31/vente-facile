@@ -46,6 +46,14 @@ interface DayRouteMapDialogProps {
   zoneColor?: string | null;
   dayLabel?: string;
   zoneName?: string | null;
+  /**
+   * Final optimized route built by "Optimiser ma tournée".
+   * When provided, it is the SINGLE SOURCE OF TRUTH: A, B, stop order,
+   * distance, drive time and polyline are taken from this object — the
+   * map dialog does NOT recompute anything. When null, the dialog falls
+   * back to its own A/B resolution + Directions call.
+   */
+  optimizedRoute?: import('@/lib/tourneeOptimizer').OptimizedRoute | null;
 }
 
 interface SavedPoint {
