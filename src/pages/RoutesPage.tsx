@@ -219,27 +219,25 @@ export default function RoutesPage() {
 
   const { data: durationDefaults } = useVisitDurationDefaults();
 
-  // ── Recompute route summary from the CURRENT manual order ──
-  // The "Tournée du jour" list is the single source of truth: any add /
-  // remove / reorder triggers an immediate recomputation of distance,
-  // drive time, visit time and total estimated time. Departure (A) and
-  // arrival (B) are preserved from the last optimization run.
-  useEffect(() => {
-    if (!todayZoneId) return;
+  // ── Derived route summary from the CURRENT "Tournée du jour" ──
+  // The visible list is the single source of truth: any add / remove /
+  // reorder — and even an initial load with no prior optimization —
+  // immediately yields distance, drive time, visit time and total
+  // estimated time. Departure (A) / arrival (B) come from the last
+  // optimization run if present, otherwise the route is computed from
+  // the stops alone.
+  const derivedRoute = useMemo<OptimizedRoute | null>(() => {
+    if (!todayZoneId || !durationDefaults) return null;
+    if (allStops.length === 0) return null;
+
     const existing = optimizedRoutes[dayKey];
-    // Only recompute when we already have an optimized route (A/B known).
-    if (!existing) return;
-    if (!durationDefaults) return;
+    const dep = existing?.departure ?? null;
+    const arr = existing?.arrival ?? null;
 
-    const stops = allStops;
-    const dep = existing.departure;
-    const arr = existing.arrival;
-
-    // Build cumulative distance / drive time A → stops → B
     let totalKm = 0;
-    let prevLat = dep?.lat ?? null;
-    let prevLng = dep?.lng ?? null;
-    for (const s of stops) {
+    let prevLat: number | null = dep?.lat ?? null;
+    let prevLng: number | null = dep?.lng ?? null;
+    for (const s of allStops) {
       const lat = s.customer.latitude;
       const lng = s.customer.longitude;
       if (prevLat != null && prevLng != null && lat != null && lng != null) {
@@ -252,17 +250,18 @@ export default function RoutesPage() {
     }
 
     const totalTravelMin = estimateDriveMin(totalKm);
-    const totalVisitMin = stops.reduce((sum, s) => {
+    const totalVisitMin = allStops.reduce((sum, s) => {
       const type = ('customerType' in s ? (s as any).customerType : undefined) || 'client_actif';
       const profileDur = ('visitDurationMinutes' in s ? (s as any).visitDurationMinutes : null) ?? null;
       return sum + getVisitDurationWithDefaults(type, profileDur, durationDefaults);
     }, 0);
 
-    const next: OptimizedRoute = {
-      ...existing,
-      customers: stops.map((s, i) => {
-        // Try to keep richer fields from previous optimized customer entry
-        const prior = existing.customers.find(c => c.id === s.customer.id);
+    return {
+      ...(existing ?? {} as OptimizedRoute),
+      departure: dep,
+      arrival: arr,
+      customers: allStops.map((s, i) => {
+        const prior = existing?.customers.find(c => c.id === s.customer.id);
         const base = prior || ({
           id: s.customer.id,
           company_name: s.customer.company_name,
@@ -282,23 +281,16 @@ export default function RoutesPage() {
       totalTravelMin,
       totalVisitMin,
       estimatedDurationMin: totalTravelMin + totalVisitMin,
-      // Manual edits invalidate the real Google road polyline — drop it so
-      // the map renders a straight A→stops→B preview from the current order.
-      usedRealRouting: false,
-      path: [],
-    };
-
-    // Skip update if nothing meaningful changed (avoid render loops)
-    const same =
-      next.totalDistanceKm === existing.totalDistanceKm &&
-      next.totalTravelMin === existing.totalTravelMin &&
-      next.totalVisitMin === existing.totalVisitMin &&
-      next.customers.length === existing.customers.length &&
-      next.customers.every((c, i) => c.id === existing.customers[i]?.id);
-    if (same) return;
-
-    setOptimizedRoutes(prev => ({ ...prev, [dayKey]: next }));
-  }, [allStops, dayKey, todayZoneId, durationDefaults]); // eslint-disable-line react-hooks/exhaustive-deps
+      // Manual edits invalidate any cached Google road polyline — fall back
+      // to a straight A→stops→B preview from the current order.
+      usedRealRouting: existing?.usedRealRouting && existing.customers.length === allStops.length
+        && existing.customers.every((c, i) => c.id === allStops[i]?.customer.id)
+        ? existing.usedRealRouting : false,
+      path: existing?.usedRealRouting && existing.customers.length === allStops.length
+        && existing.customers.every((c, i) => c.id === allStops[i]?.customer.id)
+        ? existing.path : [],
+    } as OptimizedRoute;
+  }, [allStops, dayKey, todayZoneId, durationDefaults, optimizedRoutes]);
 
 
   const assignZoneMutation = useMutation({
@@ -628,16 +620,16 @@ export default function RoutesPage() {
         </div>
       )}
 
-      {/* Day route summary metrics — single source of truth from optimized route */}
+      {/* Day route summary metrics — auto-derived from current "Tournée du jour" */}
       {todayZoneId && (() => {
-        const route = optimizedRoutes[dayKey];
+        const route = derivedRoute;
         if (!route || route.customers.length === 0) {
           return (
             <Card className="border-dashed">
               <CardContent className="p-3">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Navigation className="h-3.5 w-3.5" />
-                  <span>Trajet non encore optimisé — lancez « Optimiser ma tournée » pour voir le résumé du jour.</span>
+                  <span>Trajet non encore défini — ajoutez des visites à la tournée du jour pour voir le résumé.</span>
                 </div>
               </CardContent>
             </Card>
@@ -688,6 +680,7 @@ export default function RoutesPage() {
                   <p className="text-base font-bold mt-0.5 text-primary">{formatDuration(route.estimatedDurationMin)}</p>
                 </div>
               </div>
+              <p className="text-[10px] text-muted-foreground mt-2">Résumé mis à jour automatiquement</p>
             </CardContent>
           </Card>
         );
@@ -765,7 +758,7 @@ export default function RoutesPage() {
         zoneColor={todayZone?.color || null}
         zoneName={todayZone ? formatZoneName(todayZone) : null}
         dayLabel={`${WEEK_LABELS[selectedWeek]} · ${DAY_NAMES[selectedDay - 1]}`}
-        optimizedRoute={optimizedRoutes[dayKey] || null}
+        optimizedRoute={derivedRoute || optimizedRoutes[dayKey] || null}
         stops={allStops.map(s => {
           const full = zoneCustomers.find((c: any) => c.id === s.customer.id) as any;
           return {
