@@ -101,7 +101,14 @@ export interface OptimizationConfig {
   visitTarget: number;
   strategy: RouteStrategy;
   zoneLogic: ZoneLogic;
+  /** @deprecated remplacé par `zoneToleranceKm` + `routeInclusion`. Encore lu en fallback. */
   zoneLogicFlags?: ZoneLogicFlags;
+  /** Tolérance autour de la zone sélectionnée (km). 0 = strictement zone. */
+  zoneToleranceKm?: number;
+  /** Inclure les comptes accessibles avec un détour limité sur le trajet A/R. */
+  routeInclusion?: boolean;
+  /** Tolérance de détour (minutes) quand `routeInclusion` est actif. */
+  detourToleranceMin?: number;
   typeFilter: TypeFilter;
   /** Commercial relationship filter (Magasin / Atelier / Mixte). Defaults to 'magasin_priority'. */
   relationshipFilter?: RelationshipFilter;
@@ -169,6 +176,21 @@ function isOnRoute(
   const directDist = haversineKm(depLat, depLng, arrLat, arrLng);
   const detour = haversineKm(depLat, depLng, lat, lng) + haversineKm(lat, lng, arrLat, arrLng);
   return (detour - directDist) <= corridorKm;
+}
+
+/**
+ * Estime, en minutes, le détour induit par l'insertion d'un point sur le trajet
+ * direct A → B. Plus précis pour le terrain qu'une simple tolérance en km.
+ */
+function detourMinutes(
+  lat: number, lng: number,
+  depLat: number, depLng: number,
+  arrLat: number, arrLng: number,
+): number {
+  const directKm = haversineKm(depLat, depLng, arrLat, arrLng);
+  const viaKm = haversineKm(depLat, depLng, lat, lng) + haversineKm(lat, lng, arrLat, arrLng);
+  const extraKm = Math.max(0, viaKm - directKm);
+  return estimateDriveMin(extraKm);
 }
 
 // ── Priority Scoring ──
@@ -313,6 +335,26 @@ export function filterCandidates(
 ): ScoredCustomer[] {
   const results: ScoredCustomer[] = [];
 
+  // Précompute des positions de la zone — sert à mesurer la distance d'un point
+  // hors zone au point le plus proche du périmètre (proxy de la frontière).
+  const zonePoints: { lat: number; lng: number }[] = [];
+  for (const c of allCustomers) {
+    if (zoneCustomerIds.has(c.id) && c.latitude != null && c.longitude != null) {
+      zonePoints.push({ lat: c.latitude, lng: c.longitude });
+    }
+  }
+  const distToZoneKm = (lat: number, lng: number): number => {
+    if (zonePoints.length === 0) {
+      return haversineKm(config.departureLat, config.departureLng, lat, lng);
+    }
+    let min = Infinity;
+    for (const p of zonePoints) {
+      const d = haversineKm(p.lat, p.lng, lat, lng);
+      if (d < min) min = d;
+    }
+    return min;
+  };
+
   for (const c of allCustomers) {
     if (c.latitude == null || c.longitude == null) continue;
 
@@ -334,36 +376,56 @@ export function filterCandidates(
       if (days !== null && days <= config.excludeRecentDays) continue;
     }
 
-    // Zone logic — support combined flags
+    // Logique de zone — la zone sélectionnée est TOUJOURS la base obligatoire.
+    // Extensions optionnelles : tolérance autour de la zone (km) + clients sur
+    // le trajet A/R (détour en minutes).
+    const inZone = zoneCustomerIds.has(c.id);
+    let isOutsideZone = false;
+    let outsideReason: 'tolerance' | 'route' | null = null;
+
+    // Compat : si l'appelant n'a pas encore migré, on déduit les nouveaux
+    // champs depuis l'ancien `zoneLogicFlags`.
     const flags: ZoneLogicFlags = config.zoneLogicFlags || {
       strict: config.zoneLogic === 'strict',
       tolerance: config.zoneLogic === 'tolerance',
       route: config.zoneLogic === 'route',
     };
-
-    const inZone = zoneCustomerIds.has(c.id);
-    let isOutsideZone = false;
+    const toleranceKm = config.zoneToleranceKm !== undefined
+      ? config.zoneToleranceKm
+      : (flags.tolerance ? ZONE_TOLERANCE_KM : 0);
+    const routeInclusion = config.routeInclusion !== undefined
+      ? config.routeInclusion
+      : !!flags.route;
+    const detourMaxMin = config.detourToleranceMin !== undefined
+      ? config.detourToleranceMin
+      : 10;
 
     if (!inZone) {
-      // If only strict is active, skip non-zone accounts
-      const hasExtension = flags.tolerance || flags.route;
+      const hasExtension = toleranceKm > 0 || routeInclusion;
       if (!hasExtension) continue;
 
       let accepted = false;
 
-      if (flags.tolerance) {
-        const dist = haversineKm(config.departureLat, config.departureLng, c.latitude, c.longitude);
-        if (dist <= ZONE_TOLERANCE_KM * 3) accepted = true;
+      // Étape 1 : tolérance autour de la zone (proximité du périmètre)
+      if (toleranceKm > 0) {
+        const dKm = distToZoneKm(c.latitude, c.longitude);
+        if (dKm <= toleranceKm) {
+          accepted = true;
+          outsideReason = 'tolerance';
+        }
       }
 
-      if (!accepted && flags.route) {
-        const onRoute = isOnRoute(
+      // Étape 2 : clients sur le trajet A/R avec détour ≤ X minutes
+      if (!accepted && routeInclusion) {
+        const dMin = detourMinutes(
           c.latitude, c.longitude,
           config.departureLat, config.departureLng,
           config.arrivalLat, config.arrivalLng,
-          ROUTE_CORRIDOR_KM,
         );
-        if (onRoute) accepted = true;
+        if (dMin <= detourMaxMin) {
+          accepted = true;
+          outsideReason = 'route';
+        }
       }
 
       if (!accepted) continue;
@@ -382,7 +444,7 @@ export function filterCandidates(
     if (relReason && !reasons.includes(relReason)) reasons.push(relReason);
 
     if (isOutsideZone) {
-      reasons.push('Hors zone');
+      reasons.push(outsideReason === 'route' ? 'Sur le trajet' : 'Hors zone');
     }
 
     results.push({
