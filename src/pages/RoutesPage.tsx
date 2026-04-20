@@ -10,6 +10,7 @@ import {
   ChevronLeft, ChevronRight, Calendar, Target,
   RotateCcw, Loader2,
   Plus, Users, Route as RouteIcon,
+  Navigation, Clock, Briefcase, Hourglass,
 } from 'lucide-react';
 import RouteOptimizerSheet from '@/components/RouteOptimizerSheet';
 import type { OptimizedRoute } from '@/components/RouteOptimizerSheet';
