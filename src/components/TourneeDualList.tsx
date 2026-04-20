@@ -228,6 +228,60 @@ function DroppableZone({ id, children, className }: { id: string; children: Reac
   );
 }
 
+// ─── A / B endpoint row (départ / arrivée from optimized route) ───
+function EndpointRow({
+  kind,
+  endpoint,
+  combined,
+}: {
+  kind: 'departure' | 'arrival';
+  endpoint: RouteEndpoint;
+  combined?: boolean;
+}) {
+  const isDeparture = kind === 'departure';
+  const letter = combined ? 'A/B' : isDeparture ? 'A' : 'B';
+  const label = combined
+    ? 'Départ et arrivée'
+    : isDeparture
+    ? 'Départ'
+    : 'Arrivée';
+  const Icon = isDeparture ? CircleDot : Flag;
+  const colorClass = combined
+    ? 'bg-accent/10 border-accent/40 text-accent-foreground'
+    : isDeparture
+    ? 'bg-primary/5 border-primary/40'
+    : 'bg-destructive/5 border-destructive/40';
+  const badgeClass = combined
+    ? 'bg-accent text-accent-foreground'
+    : isDeparture
+    ? 'bg-primary text-primary-foreground'
+    : 'bg-destructive text-destructive-foreground';
+  const typeLabel =
+    endpoint.type === 'company' ? 'Entreprise' : endpoint.type === 'home' ? 'Domicile' : 'Autre';
+
+  return (
+    <div className={`rounded-xl border-2 border-dashed p-2.5 ${colorClass}`}>
+      <div className="flex items-center gap-2">
+        <div
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${badgeClass}`}
+        >
+          {letter}
+        </div>
+        <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <p className="text-sm font-bold uppercase tracking-wide">{label}</p>
+            <Badge variant="outline" className="text-[9px] h-4">
+              {typeLabel}
+            </Badge>
+          </div>
+          <p className="text-[11px] text-muted-foreground truncate">{endpoint.label}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main component ───
 export function TourneeDualList({ plannedStops, availableCustomers, onUpdatePlanned, departure, arrival }: TourneeDualListProps) {
   const [isMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
