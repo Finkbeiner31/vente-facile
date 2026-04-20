@@ -9,7 +9,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Slider } from '@/components/ui/slider';
+
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { AddressAutocomplete, type AddressSelection } from '@/components/AddressAutocomplete';
@@ -109,13 +109,17 @@ export default function RouteOptimizerSheet({
   const initialPrefs = useMemo(() => loadPrefs(user?.id), [user?.id]);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>(initialPrefs.typeFilter);
   const [relationshipFilter, setRelationshipFilter] = useState<RelationshipFilter>(initialPrefs.relationshipFilter);
-  const [visitTarget, setVisitTarget] = useState(initialPrefs.visitTarget);
   const [workdayTargetHours, setWorkdayTargetHours] = useState(initialPrefs.workdayTargetHours);
   const [excludeRecent, setExcludeRecent] = useState(initialPrefs.excludeRecent);
   const [strategy, setStrategy] = useState<RouteStrategy>(initialPrefs.strategy);
   const [departureType, setDepartureType] = useState<PointType>(initialPrefs.departureType);
   const [arrivalType, setArrivalType] = useState<PointType>(initialPrefs.arrivalType);
   const [zoneLogicFlags, setZoneLogicFlags] = useState<ZoneLogicFlags>(initialPrefs.zoneLogicFlags);
+
+  // Hard safety cap on stops considered by the local heuristic. The system
+  // is time-driven: this only prevents pathological cases where the candidate
+  // pool is huge and the workday target is very high.
+  const HARD_VISIT_CAP = 20;
 
   // Address edit modal — uses live autocomplete (Nominatim) and stores
   // a validated geocoded selection rather than raw text.
@@ -137,10 +141,10 @@ export default function RouteOptimizerSheet({
     if (!user?.id) return;
     savePrefs(user.id, {
       departureType, arrivalType, strategy, typeFilter,
-      relationshipFilter, zoneLogicFlags, excludeRecent, visitTarget,
+      relationshipFilter, zoneLogicFlags, excludeRecent,
       workdayTargetHours,
     });
-  }, [user?.id, departureType, arrivalType, strategy, typeFilter, relationshipFilter, zoneLogicFlags, excludeRecent, visitTarget, workdayTargetHours]);
+  }, [user?.id, departureType, arrivalType, strategy, typeFilter, relationshipFilter, zoneLogicFlags, excludeRecent, workdayTargetHours]);
 
 
   // Load addresses from profile
@@ -209,7 +213,7 @@ export default function RouteOptimizerSheet({
     }));
 
     const config: OptimizationConfig = {
-      visitTarget, strategy, zoneLogic: 'strict', zoneLogicFlags, typeFilter,
+      visitTarget: HARD_VISIT_CAP, strategy, zoneLogic: 'strict', zoneLogicFlags, typeFilter,
       relationshipFilter,
       excludeRecentDays: excludeRecent ? 7 : null,
       departureLat: departurePos.lat, departureLng: departurePos.lng,
@@ -217,7 +221,7 @@ export default function RouteOptimizerSheet({
     };
 
     return filterCandidates(sourcePool, zoneCustomerIds, config);
-  }, [zoneCustomers, allCustomers, typeFilter, relationshipFilter, excludeRecent, departurePos, effectiveArrival, zoneLogicFlags, hasExtension, visitTarget, strategy]);
+  }, [zoneCustomers, allCustomers, typeFilter, relationshipFilter, excludeRecent, departurePos, effectiveArrival, zoneLogicFlags, hasExtension, strategy]);
 
   const eligibleClients = zoneCustomers.filter((c: any) =>
     c.customer_type !== 'prospect' && c.customer_type !== 'prospect_qualifie').length;
@@ -270,43 +274,60 @@ export default function RouteOptimizerSheet({
     }
   };
 
-  const handleGeneratePreview = () => {
-    // Time-aware preselection: stop adding visits once estimated total time
-    // (driving + visits) reaches the target workday duration. Visit count
-    // remains a hard upper cap.
+  /**
+   * Time-driven preselection: build the projected daily plan by greedily
+   * consuming candidates (already sorted by score) until the estimated total
+   * time (driving + visits + return to arrival) reaches the workday target.
+   *
+   * Returns both the picked customers and the running totals so the UI can
+   * display "X visites prévues (~Yh)" without recomputing.
+   */
+  const projectedPlan = useMemo(() => {
     const targetMin = workdayTargetHours * 60;
     const arrival = effectiveArrival || departurePos;
+    if (!departurePos) {
+      return { picked: [] as ScoredCustomer[], totalMin: 0, driveMin: 0, visitMin: 0 };
+    }
+
     const picked: ScoredCustomer[] = [];
-    let curLat = departurePos?.lat ?? 0;
-    let curLng = departurePos?.lng ?? 0;
-    let totalMin = 0;
-    const hardCap = Math.min(visitTarget + 2, candidates.length);
+    let curLat = departurePos.lat;
+    let curLng = departurePos.lng;
+    let driveMin = 0;
+    let visitMin = 0;
 
     for (const c of candidates) {
-      if (picked.length >= hardCap) break;
+      if (picked.length >= HARD_VISIT_CAP) break;
       if (c.latitude == null || c.longitude == null) continue;
-      const legKm = haversineKm(curLat, curLng, c.latitude, c.longitude);
-      const legMin = estimateDriveMin(legKm);
+      const legMin = estimateDriveMin(haversineKm(curLat, curLng, c.latitude, c.longitude));
       const returnMin = arrival
         ? estimateDriveMin(haversineKm(c.latitude, c.longitude, arrival.lat, arrival.lng))
         : 0;
-      const tentative = totalMin + legMin + (c.visitDuration || 0) + returnMin;
-      // Stop if adding this visit (with return to arrival) overshoots target
-      // by more than ~30 min and we already have a reasonable day.
-      if (picked.length >= 4 && tentative > targetMin + 30) break;
+      const tentativeWithReturn = driveMin + legMin + visitMin + (c.visitDuration || 0) + returnMin;
+      // Stop when adding this visit (with return leg) overshoots target by
+      // more than ~30 min, but always allow at least 2 visits for usability.
+      if (picked.length >= 2 && tentativeWithReturn > targetMin + 30) break;
       picked.push(c);
-      totalMin += legMin + (c.visitDuration || 0);
+      driveMin += legMin;
+      visitMin += (c.visitDuration || 0);
       curLat = c.latitude;
       curLng = c.longitude;
     }
 
-    // Fallback: ensure at least 2 visits if any candidates exist
-    if (picked.length < 2) {
-      const top = candidates.slice(0, Math.min(visitTarget + 2, candidates.length));
-      setSelectedIds(new Set(top.map(c => c.id)));
-    } else {
-      setSelectedIds(new Set(picked.map(c => c.id)));
-    }
+    // Add the final return leg into the displayed total time so the projection
+    // matches what the optimized route will actually take.
+    const lastReturnMin = picked.length > 0 && arrival
+      ? estimateDriveMin(haversineKm(curLat, curLng, arrival.lat, arrival.lng))
+      : 0;
+    return {
+      picked,
+      driveMin: driveMin + lastReturnMin,
+      visitMin,
+      totalMin: driveMin + lastReturnMin + visitMin,
+    };
+  }, [candidates, workdayTargetHours, departurePos, effectiveArrival]);
+
+  const handleGeneratePreview = () => {
+    setSelectedIds(new Set(projectedPlan.picked.map(c => c.id)));
     setStep('preview');
   };
 
@@ -325,7 +346,7 @@ export default function RouteOptimizerSheet({
     if (selected.length < 2) return;
 
     const config: OptimizationConfig = {
-      visitTarget, strategy, zoneLogic: 'strict', zoneLogicFlags, typeFilter,
+      visitTarget: HARD_VISIT_CAP, strategy, zoneLogic: 'strict', zoneLogicFlags, typeFilter,
       relationshipFilter,
       excludeRecentDays: excludeRecent ? 7 : null,
       departureLat: departurePos.lat, departureLng: departurePos.lng,
@@ -644,25 +665,22 @@ export default function RouteOptimizerSheet({
                   )}
                 </div>
 
-                {/* Visit count */}
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold flex items-center gap-1.5">
-                    <Target className="h-4 w-4 text-primary" />
-                    Nombre de visites
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <Slider
-                      value={[visitTarget]}
-                      onValueChange={v => setVisitTarget(v[0])}
-                      min={4}
-                      max={15}
-                      step={1}
-                      className="flex-1"
-                    />
-                    <span className="text-sm font-bold w-8 text-center">{visitTarget}</span>
+                {/* Projected visits — computed from target workday duration */}
+                {departurePos && candidates.length > 0 && (
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 space-y-1">
+                    <label className="text-xs font-semibold flex items-center gap-1.5 text-primary">
+                      <Target className="h-3.5 w-3.5" />
+                      Tournée projetée
+                    </label>
+                    <p className="text-sm font-bold">
+                      {projectedPlan.picked.length} visite{projectedPlan.picked.length > 1 ? 's' : ''} prévue{projectedPlan.picked.length > 1 ? 's' : ''}
+                      <span className="text-muted-foreground font-normal"> (~{formatDuration(projectedPlan.totalMin)})</span>
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      Calculé automatiquement pour viser {workdayTargetHours}h (trajet + visites). Le nombre s'adapte selon vos critères.
+                    </p>
                   </div>
-                  <p className="text-[10px] text-muted-foreground text-center">Plafond de visites — la durée cible reste prioritaire</p>
-                </div>
+                )}
 
                 {/* Workday target duration */}
                 <div className="space-y-2">
@@ -809,7 +827,7 @@ export default function RouteOptimizerSheet({
                       </div>
                       <div className="flex items-center gap-2">
                         <Target className="h-3 w-3 text-primary shrink-0" />
-                        <span>Visites : {visitTarget} max</span>
+                        <span>Visites : {projectedPlan.picked.length} prévues (~{formatDuration(projectedPlan.totalMin)})</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Clock className="h-3 w-3 text-primary shrink-0" />
@@ -827,9 +845,11 @@ export default function RouteOptimizerSheet({
               </div>
 
               <div className="p-4 border-t mt-auto">
-                <Button className="w-full h-12 font-semibold" disabled={candidates.length === 0 || !departurePos} onClick={handleGeneratePreview}>
+                <Button className="w-full h-12 font-semibold" disabled={candidates.length === 0 || !departurePos || projectedPlan.picked.length < 2} onClick={handleGeneratePreview}>
                   <Route className="h-4 w-4 mr-2" />
-                  Générer la tournée ({Math.min(visitTarget, candidates.length)} visites)
+                  {projectedPlan.picked.length >= 2
+                    ? `Générer la tournée (${projectedPlan.picked.length} visites · ~${formatDuration(projectedPlan.totalMin)})`
+                    : 'Journée non remplissable — ajustez vos critères'}
                 </Button>
               </div>
             </div>
@@ -843,7 +863,7 @@ export default function RouteOptimizerSheet({
                 <div className="flex flex-wrap gap-x-3 text-[11px] text-muted-foreground mt-0.5">
                   {zoneName && <span>Zone : {zoneName}</span>}
                   <span>{strategyLabel}</span>
-                  <span>Objectif : {visitTarget} visites</span>
+                  <span>Objectif : journée de {workdayTargetHours}h</span>
                 </div>
               </div>
               <ScrollArea className="flex-1">
