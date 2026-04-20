@@ -138,8 +138,9 @@ export default function RouteOptimizerSheet({
     savePrefs(user.id, {
       departureType, arrivalType, strategy, typeFilter,
       relationshipFilter, zoneLogicFlags, excludeRecent, visitTarget,
+      workdayTargetHours,
     });
-  }, [user?.id, departureType, arrivalType, strategy, typeFilter, relationshipFilter, zoneLogicFlags, excludeRecent, visitTarget]);
+  }, [user?.id, departureType, arrivalType, strategy, typeFilter, relationshipFilter, zoneLogicFlags, excludeRecent, visitTarget, workdayTargetHours]);
 
 
   // Load addresses from profile
