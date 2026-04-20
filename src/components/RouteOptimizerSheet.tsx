@@ -12,6 +12,7 @@ import {
 import { Slider } from '@/components/ui/slider';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { AddressAutocomplete, type AddressSelection } from '@/components/AddressAutocomplete';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
@@ -19,7 +20,7 @@ import {
   Loader2, Navigation, MapPin, Play, Route, Sparkles, Zap,
   LocateFixed, AlertTriangle, Users, Target, ArrowDown, ArrowUp,
   Building2, MapPinned, Flag, CircleDot, Clock, Home, MoreHorizontal,
-  Info, Pencil, Store, Hammer,
+  Info, Pencil, Store, Hammer, CheckCircle2,
 } from 'lucide-react';
 import { formatMonthly } from '@/lib/revenueUtils';
 import { toast } from 'sonner';
