@@ -3,12 +3,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { QuickReportDialog } from '@/components/QuickReportDialog';
 import { TourMode } from '@/components/TourMode';
 import {
   MapPin, Map as MapIcon, Zap,
   ChevronLeft, ChevronRight, Calendar, Target,
-  RotateCcw, Loader2,
+  RotateCcw, Loader2, Archive,
   Plus, Users, Route as RouteIcon,
   Navigation, Clock, Briefcase, Hourglass,
 } from 'lucide-react';
@@ -31,6 +32,10 @@ import { AddUnplannedVisitSheet } from '@/components/AddUnplannedVisitSheet';
 import { TourneeDualList } from '@/components/TourneeDualList';
 import { getCurrentWeekNumber, formatWeekRange } from '@/lib/weekCycleUtils';
 import { useCycleStartDate } from '@/hooks/useCycleStartDate';
+import { TourHistoryPanel } from '@/components/TourHistoryPanel';
+import { ReuseTourDialog, type ReuseTarget } from '@/components/ReuseTourDialog';
+import { useArchiveTour, type TourHistoryEntry } from '@/hooks/useTourHistory';
+import { format, addDays, startOfWeek } from 'date-fns';
 
 const DAY_NAMES = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
 const WEEK_LABELS = ['S1', 'S2', 'S3', 'S4'];
@@ -80,6 +85,8 @@ export default function RoutesPage() {
   const [zoneMapOpen, setZoneMapOpen] = useState(false);
   const [routeMapOpen, setRouteMapOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'planning' | 'history'>('planning');
+  const [reuseEntry, setReuseEntry] = useState<TourHistoryEntry | null>(null);
 
   const [manualStops, setManualStops] = useState<Record<string, ManualStop[]>>({});
   // Tracks user-customized planned stops per day key
@@ -87,6 +94,8 @@ export default function RoutesPage() {
   // Final optimized route per day key — single source of truth for the
   // "Trajet du jour" map AND the tournée list (A → clients → B).
   const [optimizedRoutes, setOptimizedRoutes] = useState<Record<string, OptimizedRoute>>({});
+
+  const archiveMutation = useArchiveTour();
 
   const { session, startSession } = useTourSession();
 
@@ -396,6 +405,100 @@ export default function RoutesPage() {
     setOptimizedRoutes(prev => ({ ...prev, [dayKey]: route }));
   };
 
+  // Compute the actual calendar date of a (week, day) pair from the cycle start.
+  const dayKeyToDate = (week: number, day: number): string => {
+    const base = cycleStart ? new Date(cycleStart) : new Date();
+    const monday = startOfWeek(base, { weekStartsOn: 1 });
+    const target = addDays(monday, week * 7 + (day - 1));
+    return format(target, 'yyyy-MM-dd');
+  };
+
+  const handleArchiveCurrent = async () => {
+    if (!activeUserId || !derivedRoute || allStops.length === 0) return;
+    const status = optimizedRoutes[dayKey] ? 'optimized' : 'manual';
+    try {
+      await archiveMutation.mutateAsync({
+        userId: activeUserId,
+        tourDate: dayKeyToDate(selectedWeek, selectedDay),
+        zoneId: todayZoneId,
+        zoneName: todayZone ? formatZoneName(todayZone) : null,
+        zoneColor: todayZone?.color ?? null,
+        weekNumber: selectedWeek,
+        dayOfWeek: selectedDay,
+        status,
+        source: optimizedRoutes[dayKey] ? 'auto' : 'manual',
+        route: derivedRoute,
+      });
+      toast.success('Tournée archivée dans l\'historique');
+    } catch {
+      toast.error('Échec de l\'archivage');
+    }
+  };
+
+  const isDayFilled = (week: number, day: number) => {
+    const k = `${week}-${day}`;
+    return (customPlanned[k]?.length ?? 0) + (manualStops[k]?.length ?? 0) > 0;
+  };
+
+  const handleConfirmReuse = (target: ReuseTarget) => {
+    if (!reuseEntry) return;
+    const targetKey = `${target.weekNumber}-${target.dayOfWeek}`;
+    // Build the customPlanned snapshot from validated stops — becomes the
+    // single source of truth for the target day. The route summary will
+    // recompute automatically from `allStops`.
+    const newStops = target.validStops.map(s => ({
+      customer: {
+        id: s.customer_id,
+        company_name: s.company_name,
+        address: s.address,
+        city: s.city,
+        phone: null,
+        visit_frequency: null,
+        number_of_vehicles: 0,
+        annual_revenue_potential: Number(s.annual_revenue_potential || 0),
+        latitude: s.latitude,
+        longitude: s.longitude,
+        sales_potential: null,
+      } as CustomerForRouting,
+      priority: Math.max(target.validStops.length - s.order, 1),
+      customerType: s.customer_type ?? undefined,
+      lastVisitDate: null as string | null,
+      visitDurationMinutes: s.visit_duration_minutes,
+    }));
+    setCustomPlanned(prev => ({ ...prev, [targetKey]: newStops }));
+    setManualStops(prev => ({ ...prev, [targetKey]: [] }));
+    // Reset any cached optimized route so derivedRoute recomputes fresh
+    // metrics (distance, drive time, total) from the reused order.
+    setOptimizedRoutes(prev => {
+      const next = { ...prev };
+      delete next[targetKey];
+      // Keep just the endpoints from the source if the target zone matches
+      if (reuseEntry.departure || reuseEntry.arrival) {
+        next[targetKey] = {
+          customers: [],
+          totalDistanceKm: 0,
+          totalTravelMin: 0,
+          totalVisitMin: 0,
+          estimatedDurationMin: 0,
+          departure: reuseEntry.departure,
+          arrival: reuseEntry.arrival,
+          usedRealRouting: false,
+          path: [],
+        };
+      }
+      return next;
+    });
+    setSelectedWeek(target.weekNumber);
+    setSelectedDay(target.dayOfWeek);
+    setActiveTab('planning');
+    setReuseEntry(null);
+    const skipped = target.warnings.filter(w => w.type === 'missing').length;
+    toast.success(
+      `Tournée réutilisée — ${newStops.length} étape(s)` +
+      (skipped > 0 ? ` (${skipped} ignorée(s))` : ''),
+    );
+  };
+
   const sessionCompletedCount = session ? Object.values(session.statuses).filter(s => s === 'completed').length : 0;
 
   const stopIds = new Set(allStops.map(s => s.customer.id));
@@ -436,11 +539,36 @@ export default function RoutesPage() {
       )}
 
       {/* Header */}
-      <div>
-        <h1 className="font-heading text-xl md:text-2xl font-bold">Tournée</h1>
-        <p className="text-xs text-muted-foreground">Planning 4 semaines par zone géographique</p>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="font-heading text-xl md:text-2xl font-bold">Tournée</h1>
+          <p className="text-xs text-muted-foreground">Planning 4 semaines par zone géographique</p>
+        </div>
+        {activeTab === 'planning' && allStops.length > 0 && todayZoneId && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 px-3 text-xs gap-1.5 shrink-0"
+            onClick={handleArchiveCurrent}
+            disabled={archiveMutation.isPending}
+          >
+            <Archive className="h-3.5 w-3.5" />
+            Archiver cette tournée
+          </Button>
+        )}
       </div>
 
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'planning' | 'history')}>
+        <TabsList className="grid w-full grid-cols-2 md:w-auto md:inline-grid">
+          <TabsTrigger value="planning" className="gap-1.5">
+            <Calendar className="h-3.5 w-3.5" />Planning
+          </TabsTrigger>
+          <TabsTrigger value="history" className="gap-1.5">
+            <RotateCcw className="h-3.5 w-3.5" />Historique
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="planning" className="space-y-4 mt-4">
       {/* Week selector with date ranges */}
       <div className="flex gap-1.5">
         {WEEK_LABELS.map((label, i) => {
@@ -736,6 +864,12 @@ export default function RoutesPage() {
           </div>
         </>
       )}
+        </TabsContent>
+
+        <TabsContent value="history" className="mt-4">
+          <TourHistoryPanel onReuse={(e) => setReuseEntry(e)} />
+        </TabsContent>
+      </Tabs>
 
       <QuickReportDialog open={reportOpen} onOpenChange={setReportOpen} clientName={activeClient} />
       <RouteOptimizerSheet
@@ -783,6 +917,15 @@ export default function RoutesPage() {
         totalStops={allStops.length}
         onAddProspect={handleAddProspect}
         onAddExistingCustomer={handleAddExistingCustomer}
+      />
+      <ReuseTourDialog
+        entry={reuseEntry}
+        open={!!reuseEntry}
+        onOpenChange={(o) => !o && setReuseEntry(null)}
+        defaultWeek={selectedWeek}
+        defaultDay={selectedDay}
+        isDayFilled={isDayFilled}
+        onConfirm={handleConfirmReuse}
       />
     </div>
   );

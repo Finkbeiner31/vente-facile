@@ -230,12 +230,39 @@ export function TourMode({ onExit, allCustomers = [] }: TourModeProps) {
       const today = new Date().toISOString().split('T')[0];
       const { data: tour } = await supabase
         .from('daily_tours')
-        .select('id')
+        .select('id, zone_id')
         .eq('user_id', activeUserId!)
         .eq('tour_date', today)
         .maybeSingle();
       if (tour) {
         await supabase.from('daily_tours').update({ status: 'completed' }).eq('id', tour.id);
+      }
+      // Auto-archive the realized tour into tour_history (read-only snapshot)
+      if (activeUserId && stops.length > 0) {
+        const completedStops = stops.filter((_, i) => statuses[i] === 'completed');
+        const stopsSnapshot = completedStops.map((s, i) => ({
+          customer_id: s.customer.id,
+          company_name: s.customer.company_name,
+          address: s.customer.address ?? null,
+          city: s.customer.city ?? null,
+          latitude: s.customer.latitude ?? null,
+          longitude: s.customer.longitude ?? null,
+          customer_type: null,
+          visit_duration_minutes: null,
+          annual_revenue_potential: s.customer.annual_revenue_potential ?? null,
+          order: i + 1,
+        }));
+        if (stopsSnapshot.length > 0) {
+          await (supabase as any).from('tour_history').insert({
+            user_id: activeUserId,
+            tour_date: today,
+            zone_id: tour?.zone_id ?? null,
+            stops: stopsSnapshot,
+            stops_count: stopsSnapshot.length,
+            status: 'completed',
+            source: 'auto',
+          });
+        }
       }
     } catch {
       // Continue anyway
