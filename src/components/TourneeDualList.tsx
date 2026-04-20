@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
-import { Search, Flame, Star, Clock } from 'lucide-react';
+import { Search, Flame, Star, Clock, CircleDot, Flag } from 'lucide-react';
 import { useVisitDurationDefaults, getVisitDurationWithDefaults } from '@/hooks/useVisitDurationDefaults';
-import { formatDuration } from '@/lib/tourneeOptimizer';
+import { formatDuration, type RouteEndpoint } from '@/lib/tourneeOptimizer';
 import {
   DndContext,
   closestCenter,
@@ -44,6 +44,10 @@ interface TourStop {
 interface TourneeDualListProps {
   plannedStops: TourStop[];
   availableCustomers: any[]; // raw customer rows from DB
+  /** Optional fixed departure point (A) of the optimized route. */
+  departure?: RouteEndpoint | null;
+  /** Optional fixed arrival point (B) of the optimized route. */
+  arrival?: RouteEndpoint | null;
   onUpdatePlanned: (stops: TourStop[]) => void;
 }
 
