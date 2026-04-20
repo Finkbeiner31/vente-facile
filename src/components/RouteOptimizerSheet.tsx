@@ -271,8 +271,42 @@ export default function RouteOptimizerSheet({
   };
 
   const handleGeneratePreview = () => {
-    const top = candidates.slice(0, Math.min(visitTarget + 2, candidates.length));
-    setSelectedIds(new Set(top.map(c => c.id)));
+    // Time-aware preselection: stop adding visits once estimated total time
+    // (driving + visits) reaches the target workday duration. Visit count
+    // remains a hard upper cap.
+    const targetMin = workdayTargetHours * 60;
+    const arrival = effectiveArrival || departurePos;
+    const picked: ScoredCustomer[] = [];
+    let curLat = departurePos?.lat ?? 0;
+    let curLng = departurePos?.lng ?? 0;
+    let totalMin = 0;
+    const hardCap = Math.min(visitTarget + 2, candidates.length);
+
+    for (const c of candidates) {
+      if (picked.length >= hardCap) break;
+      if (c.latitude == null || c.longitude == null) continue;
+      const legKm = haversineKm(curLat, curLng, c.latitude, c.longitude);
+      const legMin = estimateDriveMin(legKm);
+      const returnMin = arrival
+        ? estimateDriveMin(haversineKm(c.latitude, c.longitude, arrival.lat, arrival.lng))
+        : 0;
+      const tentative = totalMin + legMin + (c.visitDuration || 0) + returnMin;
+      // Stop if adding this visit (with return to arrival) overshoots target
+      // by more than ~30 min and we already have a reasonable day.
+      if (picked.length >= 4 && tentative > targetMin + 30) break;
+      picked.push(c);
+      totalMin += legMin + (c.visitDuration || 0);
+      curLat = c.latitude;
+      curLng = c.longitude;
+    }
+
+    // Fallback: ensure at least 2 visits if any candidates exist
+    if (picked.length < 2) {
+      const top = candidates.slice(0, Math.min(visitTarget + 2, candidates.length));
+      setSelectedIds(new Set(top.map(c => c.id)));
+    } else {
+      setSelectedIds(new Set(picked.map(c => c.id)));
+    }
     setStep('preview');
   };
 
