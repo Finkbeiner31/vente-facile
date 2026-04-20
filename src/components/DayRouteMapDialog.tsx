@@ -217,6 +217,7 @@ export default function DayRouteMapDialog({
   zoneColor,
   dayLabel,
   zoneName,
+  optimizedRoute,
 }: DayRouteMapDialogProps) {
   const { user } = useAuth();
   const { effectiveUserId } = useImpersonation();
