@@ -539,11 +539,36 @@ export default function RoutesPage() {
       )}
 
       {/* Header */}
-      <div>
-        <h1 className="font-heading text-xl md:text-2xl font-bold">Tournée</h1>
-        <p className="text-xs text-muted-foreground">Planning 4 semaines par zone géographique</p>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="font-heading text-xl md:text-2xl font-bold">Tournée</h1>
+          <p className="text-xs text-muted-foreground">Planning 4 semaines par zone géographique</p>
+        </div>
+        {activeTab === 'planning' && allStops.length > 0 && todayZoneId && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-9 px-3 text-xs gap-1.5 shrink-0"
+            onClick={handleArchiveCurrent}
+            disabled={archiveMutation.isPending}
+          >
+            <Archive className="h-3.5 w-3.5" />
+            Archiver cette tournée
+          </Button>
+        )}
       </div>
 
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'planning' | 'history')}>
+        <TabsList className="grid w-full grid-cols-2 md:w-auto md:inline-grid">
+          <TabsTrigger value="planning" className="gap-1.5">
+            <Calendar className="h-3.5 w-3.5" />Planning
+          </TabsTrigger>
+          <TabsTrigger value="history" className="gap-1.5">
+            <RotateCcw className="h-3.5 w-3.5" />Historique
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="planning" className="space-y-4 mt-4">
       {/* Week selector with date ranges */}
       <div className="flex gap-1.5">
         {WEEK_LABELS.map((label, i) => {
