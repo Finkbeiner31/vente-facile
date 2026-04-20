@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import RouteOptimizerSheet from '@/components/RouteOptimizerSheet';
 import type { OptimizedRoute } from '@/components/RouteOptimizerSheet';
+import { formatDuration } from '@/lib/tourneeOptimizer';
+import { loadTourneePrefs } from '@/lib/tourneePrefs';
 import ZoneMapPreviewDialog from '@/components/ZoneMapPreviewDialog';
 import DayRouteMapDialog from '@/components/DayRouteMapDialog';
 import { useTourSession } from '@/contexts/TourSessionContext';
