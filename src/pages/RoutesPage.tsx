@@ -863,7 +863,12 @@ export default function RoutesPage() {
             </Button>
           </div>
         </>
-      )}
+        </TabsContent>
+
+        <TabsContent value="history" className="mt-4">
+          <TourHistoryPanel onReuse={(e) => setReuseEntry(e)} />
+        </TabsContent>
+      </Tabs>
 
       <QuickReportDialog open={reportOpen} onOpenChange={setReportOpen} clientName={activeClient} />
       <RouteOptimizerSheet
@@ -911,6 +916,15 @@ export default function RoutesPage() {
         totalStops={allStops.length}
         onAddProspect={handleAddProspect}
         onAddExistingCustomer={handleAddExistingCustomer}
+      />
+      <ReuseTourDialog
+        entry={reuseEntry}
+        open={!!reuseEntry}
+        onOpenChange={(o) => !o && setReuseEntry(null)}
+        defaultWeek={selectedWeek}
+        defaultDay={selectedDay}
+        isDayFilled={isDayFilled}
+        onConfirm={handleConfirmReuse}
       />
     </div>
   );
