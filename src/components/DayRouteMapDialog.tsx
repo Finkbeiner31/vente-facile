@@ -270,20 +270,28 @@ export default function DayRouteMapDialog({
     () => resolvePoint(prefs.arrivalType, addresses),
     [prefs.arrivalType, addresses],
   );
-  const departurePoint: SavedPoint | null = useMemo(
-    () => resolvedDeparture || firstAvailablePoint(addresses),
-    [resolvedDeparture, addresses],
-  );
-  const arrivalPoint: SavedPoint | null = useMemo(
-    () => resolvedArrival || departurePoint,
-    [resolvedArrival, departurePoint],
-  );
+  // When an optimized route is provided, A/B come directly from it (single
+  // source of truth). Otherwise we fall back to the user's persisted prefs.
+  const departurePoint: SavedPoint | null = useMemo(() => {
+    if (optimizedRoute?.departure) {
+      const d = optimizedRoute.departure;
+      return { lat: d.lat, lng: d.lng, label: d.label, type: d.type };
+    }
+    return resolvedDeparture || firstAvailablePoint(addresses);
+  }, [optimizedRoute, resolvedDeparture, addresses]);
+  const arrivalPoint: SavedPoint | null = useMemo(() => {
+    if (optimizedRoute?.arrival) {
+      const a = optimizedRoute.arrival;
+      return { lat: a.lat, lng: a.lng, label: a.label, type: a.type };
+    }
+    return resolvedArrival || departurePoint;
+  }, [optimizedRoute, resolvedArrival, departurePoint]);
 
   // Warn explicitly when the selected departure/arrival type has no saved
-  // coordinates on the profile. This is the root cause of "A/B markers don't
-  // appear" for users who never configured their entreprise/domicile address.
-  const departureMissing = !!addresses && !resolvedDeparture;
-  const arrivalMissing = !!addresses && !resolvedArrival;
+  // coordinates on the profile. Skipped when an explicit optimized route is in
+  // use (A/B are guaranteed by construction in that case).
+  const departureMissing = !optimizedRoute && !!addresses && !resolvedDeparture;
+  const arrivalMissing = !optimizedRoute && !!addresses && !resolvedArrival;
 
   // Dev-friendly debug trace so the propagation of A/B is verifiable.
   useEffect(() => {
