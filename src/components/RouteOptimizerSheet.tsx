@@ -487,11 +487,10 @@ export default function RouteOptimizerSheet({
   const getPointDisplayAddress = (type: PointType) => getAddressLabel(type);
 
   const getZoneLogicLabels = (): string[] => {
-    const labels: string[] = [];
-    if (zoneLogicFlags.strict) labels.push('Zone stricte');
-    if (zoneLogicFlags.tolerance) labels.push('Tolérance 15 km');
-    if (zoneLogicFlags.route) labels.push('Trajet A/R');
-    return labels.length > 0 ? labels : ['Zone stricte'];
+    const labels: string[] = ['Base zone'];
+    if (zoneToleranceKm > 0) labels.push(`Tolérance ${zoneToleranceKm} km`);
+    if (routeInclusion) labels.push(`Trajet A/R ${detourToleranceMin} min`);
+    return labels;
   };
 
   const departureLabel = getPointLabel(departureType);
