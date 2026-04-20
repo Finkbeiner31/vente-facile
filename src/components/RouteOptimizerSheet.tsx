@@ -38,6 +38,7 @@ import {
 import { routeWithDirections } from '@/lib/directionsRouting';
 import {
   loadPrefs, savePrefs, type PointType,
+  type ZoneToleranceKm, type DetourToleranceMin,
   strategyLabel as strategyLabelFn, relationshipLabel, zoneLogicShortLabel,
   pointTypeLabel,
 } from '@/lib/tourneePrefs';
