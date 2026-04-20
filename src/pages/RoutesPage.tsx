@@ -14,8 +14,9 @@ import {
 } from 'lucide-react';
 import RouteOptimizerSheet from '@/components/RouteOptimizerSheet';
 import type { OptimizedRoute } from '@/components/RouteOptimizerSheet';
-import { formatDuration } from '@/lib/tourneeOptimizer';
+import { formatDuration, haversineKm, estimateDriveMin } from '@/lib/tourneeOptimizer';
 import { loadPrefs } from '@/lib/tourneePrefs';
+import { useVisitDurationDefaults, getVisitDurationWithDefaults } from '@/hooks/useVisitDurationDefaults';
 import ZoneMapPreviewDialog from '@/components/ZoneMapPreviewDialog';
 import DayRouteMapDialog from '@/components/DayRouteMapDialog';
 import { useTourSession } from '@/contexts/TourSessionContext';
