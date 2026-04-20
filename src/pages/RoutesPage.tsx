@@ -543,7 +543,71 @@ export default function RoutesPage() {
         </div>
       )}
 
-      {/* No zone selected */}
+      {/* Day route summary metrics — single source of truth from optimized route */}
+      {todayZoneId && (() => {
+        const route = optimizedRoutes[dayKey];
+        if (!route || route.customers.length === 0) {
+          return (
+            <Card className="border-dashed">
+              <CardContent className="p-3">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Navigation className="h-3.5 w-3.5" />
+                  <span>Trajet non encore optimisé — lancez « Optimiser ma tournée » pour voir le résumé du jour.</span>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        }
+        const targetMin = (loadPrefs(activeUserId).workdayTargetHours || 8) * 60;
+        const total = route.estimatedDurationMin;
+        const gap = total - targetMin;
+        const gapAbs = Math.abs(gap);
+        const gapTone =
+          gapAbs <= 30 ? 'text-primary' :
+          gap > 0 ? 'text-accent' : 'text-warning';
+        const gapLabel =
+          gapAbs <= 30 ? 'Alignée' :
+          gap > 0 ? `+${formatDuration(gapAbs)} vs objectif` : `−${formatDuration(gapAbs)} vs objectif`;
+        return (
+          <Card>
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Résumé du trajet</p>
+                <span className={`text-[11px] font-semibold ${gapTone}`}>
+                  Objectif {Math.round(targetMin / 60)}h — {gapLabel}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <div className="rounded-lg bg-muted/50 p-2.5">
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <Navigation className="h-3 w-3" />Distance
+                  </div>
+                  <p className="text-base font-bold mt-0.5">{route.totalDistanceKm} km</p>
+                </div>
+                <div className="rounded-lg bg-muted/50 p-2.5">
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <Clock className="h-3 w-3" />Conduite
+                  </div>
+                  <p className="text-base font-bold mt-0.5">{formatDuration(route.totalTravelMin)}</p>
+                </div>
+                <div className="rounded-lg bg-muted/50 p-2.5">
+                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <Briefcase className="h-3 w-3" />Visites
+                  </div>
+                  <p className="text-base font-bold mt-0.5">{formatDuration(route.totalVisitMin)}</p>
+                </div>
+                <div className="rounded-lg bg-primary/10 p-2.5">
+                  <div className="flex items-center gap-1.5 text-[11px] text-primary">
+                    <Hourglass className="h-3 w-3" />Total estimé
+                  </div>
+                  <p className="text-base font-bold mt-0.5 text-primary">{formatDuration(route.estimatedDurationMin)}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       {!todayZoneId && !zonesLoading && (
         <div className="py-12 text-center">
           <MapPin className="mx-auto h-10 w-10 text-muted-foreground/30" />
