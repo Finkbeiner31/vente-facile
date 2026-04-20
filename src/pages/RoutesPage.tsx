@@ -620,16 +620,16 @@ export default function RoutesPage() {
         </div>
       )}
 
-      {/* Day route summary metrics — single source of truth from optimized route */}
+      {/* Day route summary metrics — auto-derived from current "Tournée du jour" */}
       {todayZoneId && (() => {
-        const route = optimizedRoutes[dayKey];
+        const route = derivedRoute;
         if (!route || route.customers.length === 0) {
           return (
             <Card className="border-dashed">
               <CardContent className="p-3">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <Navigation className="h-3.5 w-3.5" />
-                  <span>Trajet non encore optimisé — lancez « Optimiser ma tournée » pour voir le résumé du jour.</span>
+                  <span>Trajet non encore défini — ajoutez des visites à la tournée du jour pour voir le résumé.</span>
                 </div>
               </CardContent>
             </Card>
@@ -680,6 +680,7 @@ export default function RoutesPage() {
                   <p className="text-base font-bold mt-0.5 text-primary">{formatDuration(route.estimatedDurationMin)}</p>
                 </div>
               </div>
+              <p className="text-[10px] text-muted-foreground mt-2">Résumé mis à jour automatiquement</p>
             </CardContent>
           </Card>
         );
