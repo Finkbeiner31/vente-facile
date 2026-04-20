@@ -311,6 +311,9 @@ export default function RoutesPage() {
         visitDurationMinutes: customer.visitDuration,
       })),
     }));
+    // Persist the FULL optimized route (with A/B + path) as the single source
+    // of truth for both the map and the tournée list.
+    setOptimizedRoutes(prev => ({ ...prev, [dayKey]: route }));
   };
 
   const sessionCompletedCount = session ? Object.values(session.statuses).filter(s => s === 'completed').length : 0;
