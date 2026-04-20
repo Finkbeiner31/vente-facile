@@ -274,43 +274,60 @@ export default function RouteOptimizerSheet({
     }
   };
 
-  const handleGeneratePreview = () => {
-    // Time-aware preselection: stop adding visits once estimated total time
-    // (driving + visits) reaches the target workday duration. Visit count
-    // remains a hard upper cap.
+  /**
+   * Time-driven preselection: build the projected daily plan by greedily
+   * consuming candidates (already sorted by score) until the estimated total
+   * time (driving + visits + return to arrival) reaches the workday target.
+   *
+   * Returns both the picked customers and the running totals so the UI can
+   * display "X visites prévues (~Yh)" without recomputing.
+   */
+  const projectedPlan = useMemo(() => {
     const targetMin = workdayTargetHours * 60;
     const arrival = effectiveArrival || departurePos;
+    if (!departurePos) {
+      return { picked: [] as ScoredCustomer[], totalMin: 0, driveMin: 0, visitMin: 0 };
+    }
+
     const picked: ScoredCustomer[] = [];
-    let curLat = departurePos?.lat ?? 0;
-    let curLng = departurePos?.lng ?? 0;
-    let totalMin = 0;
-    const hardCap = Math.min(visitTarget + 2, candidates.length);
+    let curLat = departurePos.lat;
+    let curLng = departurePos.lng;
+    let driveMin = 0;
+    let visitMin = 0;
 
     for (const c of candidates) {
-      if (picked.length >= hardCap) break;
+      if (picked.length >= HARD_VISIT_CAP) break;
       if (c.latitude == null || c.longitude == null) continue;
-      const legKm = haversineKm(curLat, curLng, c.latitude, c.longitude);
-      const legMin = estimateDriveMin(legKm);
+      const legMin = estimateDriveMin(haversineKm(curLat, curLng, c.latitude, c.longitude));
       const returnMin = arrival
         ? estimateDriveMin(haversineKm(c.latitude, c.longitude, arrival.lat, arrival.lng))
         : 0;
-      const tentative = totalMin + legMin + (c.visitDuration || 0) + returnMin;
-      // Stop if adding this visit (with return to arrival) overshoots target
-      // by more than ~30 min and we already have a reasonable day.
-      if (picked.length >= 4 && tentative > targetMin + 30) break;
+      const tentativeWithReturn = driveMin + legMin + visitMin + (c.visitDuration || 0) + returnMin;
+      // Stop when adding this visit (with return leg) overshoots target by
+      // more than ~30 min, but always allow at least 2 visits for usability.
+      if (picked.length >= 2 && tentativeWithReturn > targetMin + 30) break;
       picked.push(c);
-      totalMin += legMin + (c.visitDuration || 0);
+      driveMin += legMin;
+      visitMin += (c.visitDuration || 0);
       curLat = c.latitude;
       curLng = c.longitude;
     }
 
-    // Fallback: ensure at least 2 visits if any candidates exist
-    if (picked.length < 2) {
-      const top = candidates.slice(0, Math.min(visitTarget + 2, candidates.length));
-      setSelectedIds(new Set(top.map(c => c.id)));
-    } else {
-      setSelectedIds(new Set(picked.map(c => c.id)));
-    }
+    // Add the final return leg into the displayed total time so the projection
+    // matches what the optimized route will actually take.
+    const lastReturnMin = picked.length > 0 && arrival
+      ? estimateDriveMin(haversineKm(curLat, curLng, arrival.lat, arrival.lng))
+      : 0;
+    return {
+      picked,
+      driveMin: driveMin + lastReturnMin,
+      visitMin,
+      totalMin: driveMin + lastReturnMin + visitMin,
+    };
+  }, [candidates, workdayTargetHours, departurePos, effectiveArrival]);
+
+  const handleGeneratePreview = () => {
+    setSelectedIds(new Set(projectedPlan.picked.map(c => c.id)));
     setStep('preview');
   };
 
