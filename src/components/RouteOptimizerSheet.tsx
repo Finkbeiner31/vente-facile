@@ -110,6 +110,7 @@ export default function RouteOptimizerSheet({
   const [typeFilter, setTypeFilter] = useState<TypeFilter>(initialPrefs.typeFilter);
   const [relationshipFilter, setRelationshipFilter] = useState<RelationshipFilter>(initialPrefs.relationshipFilter);
   const [visitTarget, setVisitTarget] = useState(initialPrefs.visitTarget);
+  const [workdayTargetHours, setWorkdayTargetHours] = useState(initialPrefs.workdayTargetHours);
   const [excludeRecent, setExcludeRecent] = useState(initialPrefs.excludeRecent);
   const [strategy, setStrategy] = useState<RouteStrategy>(initialPrefs.strategy);
   const [departureType, setDepartureType] = useState<PointType>(initialPrefs.departureType);
@@ -137,8 +138,9 @@ export default function RouteOptimizerSheet({
     savePrefs(user.id, {
       departureType, arrivalType, strategy, typeFilter,
       relationshipFilter, zoneLogicFlags, excludeRecent, visitTarget,
+      workdayTargetHours,
     });
-  }, [user?.id, departureType, arrivalType, strategy, typeFilter, relationshipFilter, zoneLogicFlags, excludeRecent, visitTarget]);
+  }, [user?.id, departureType, arrivalType, strategy, typeFilter, relationshipFilter, zoneLogicFlags, excludeRecent, visitTarget, workdayTargetHours]);
 
 
   // Load addresses from profile
@@ -269,8 +271,42 @@ export default function RouteOptimizerSheet({
   };
 
   const handleGeneratePreview = () => {
-    const top = candidates.slice(0, Math.min(visitTarget + 2, candidates.length));
-    setSelectedIds(new Set(top.map(c => c.id)));
+    // Time-aware preselection: stop adding visits once estimated total time
+    // (driving + visits) reaches the target workday duration. Visit count
+    // remains a hard upper cap.
+    const targetMin = workdayTargetHours * 60;
+    const arrival = effectiveArrival || departurePos;
+    const picked: ScoredCustomer[] = [];
+    let curLat = departurePos?.lat ?? 0;
+    let curLng = departurePos?.lng ?? 0;
+    let totalMin = 0;
+    const hardCap = Math.min(visitTarget + 2, candidates.length);
+
+    for (const c of candidates) {
+      if (picked.length >= hardCap) break;
+      if (c.latitude == null || c.longitude == null) continue;
+      const legKm = haversineKm(curLat, curLng, c.latitude, c.longitude);
+      const legMin = estimateDriveMin(legKm);
+      const returnMin = arrival
+        ? estimateDriveMin(haversineKm(c.latitude, c.longitude, arrival.lat, arrival.lng))
+        : 0;
+      const tentative = totalMin + legMin + (c.visitDuration || 0) + returnMin;
+      // Stop if adding this visit (with return to arrival) overshoots target
+      // by more than ~30 min and we already have a reasonable day.
+      if (picked.length >= 4 && tentative > targetMin + 30) break;
+      picked.push(c);
+      totalMin += legMin + (c.visitDuration || 0);
+      curLat = c.latitude;
+      curLng = c.longitude;
+    }
+
+    // Fallback: ensure at least 2 visits if any candidates exist
+    if (picked.length < 2) {
+      const top = candidates.slice(0, Math.min(visitTarget + 2, candidates.length));
+      setSelectedIds(new Set(top.map(c => c.id)));
+    } else {
+      setSelectedIds(new Set(picked.map(c => c.id)));
+    }
     setStep('preview');
   };
 
@@ -625,7 +661,28 @@ export default function RouteOptimizerSheet({
                     />
                     <span className="text-sm font-bold w-8 text-center">{visitTarget}</span>
                   </div>
-                  <p className="text-[10px] text-muted-foreground text-center">Objectif recommandé : 8–12 visites</p>
+                  <p className="text-[10px] text-muted-foreground text-center">Plafond de visites — la durée cible reste prioritaire</p>
+                </div>
+
+                {/* Workday target duration */}
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold flex items-center gap-1.5">
+                    <Clock className="h-4 w-4 text-primary" />
+                    Temps de travail cible
+                  </label>
+                  <Select value={String(workdayTargetHours)} onValueChange={v => setWorkdayTargetHours(Number(v))}>
+                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="6">6h par jour</SelectItem>
+                      <SelectItem value="7">7h par jour</SelectItem>
+                      <SelectItem value="8">8h par jour (recommandé)</SelectItem>
+                      <SelectItem value="9">9h par jour</SelectItem>
+                      <SelectItem value="10">10h par jour</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[10px] text-muted-foreground text-center">
+                    Inclut trajet + visites — la tournée vise environ {workdayTargetHours}h
+                  </p>
                 </div>
 
                 {/* Zone logic */}
@@ -752,7 +809,11 @@ export default function RouteOptimizerSheet({
                       </div>
                       <div className="flex items-center gap-2">
                         <Target className="h-3 w-3 text-primary shrink-0" />
-                        <span>Visites : {visitTarget}</span>
+                        <span>Visites : {visitTarget} max</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-3 w-3 text-primary shrink-0" />
+                        <span>Objectif : {workdayTargetHours}h de travail</span>
                       </div>
                       {zone && (
                         <div className="flex items-start gap-2">
@@ -887,6 +948,31 @@ export default function RouteOptimizerSheet({
                     <p className="text-[10px] text-muted-foreground">🤝 visites</p>
                   </div>
                 </div>
+
+                {/* Workday target gap */}
+                {(() => {
+                  const targetMin = workdayTargetHours * 60;
+                  const gap = optimizedRoute.estimatedDurationMin - targetMin;
+                  const absGap = Math.abs(gap);
+                  const onTarget = absGap <= 30;
+                  const tone = onTarget
+                    ? 'bg-success/10 text-success border-success/30'
+                    : gap > 0
+                      ? 'bg-warning/10 text-warning border-warning/30'
+                      : 'bg-muted text-muted-foreground border-border';
+                  const label = onTarget
+                    ? `Journée alignée sur l'objectif`
+                    : gap > 0
+                      ? `Dépasse l'objectif de ${formatDuration(absGap)}`
+                      : `Sous l'objectif de ${formatDuration(absGap)}`;
+                  return (
+                    <div className={`rounded-lg border px-2.5 py-1.5 text-[11px] flex items-center justify-center gap-1.5 ${tone}`}>
+                      <Clock className="h-3 w-3" />
+                      <span className="font-medium">Objectif {workdayTargetHours}h — {label}</span>
+                    </div>
+                  );
+                })()}
+
                 <div className="grid grid-cols-2 gap-3 text-center pt-2 border-t">
                   <div>
                     <p className="text-sm font-bold">{optimizedRoute.customers.length}</p>

@@ -28,6 +28,8 @@ export interface TourneePrefs {
   zoneLogicFlags: ZoneLogicFlags;
   excludeRecent: boolean;
   visitTarget: number;
+  /** Target total workday duration in hours (driving + visits). Default 8h. */
+  workdayTargetHours: number;
 }
 
 export const DEFAULT_PREFS: TourneePrefs = {
@@ -39,6 +41,7 @@ export const DEFAULT_PREFS: TourneePrefs = {
   zoneLogicFlags: { strict: true, tolerance: false, route: false },
   excludeRecent: true,
   visitTarget: 10,
+  workdayTargetHours: 8,
 };
 
 const KEY = (userId: string | null | undefined) =>
