@@ -110,6 +110,7 @@ export default function RouteOptimizerSheet({
   const [typeFilter, setTypeFilter] = useState<TypeFilter>(initialPrefs.typeFilter);
   const [relationshipFilter, setRelationshipFilter] = useState<RelationshipFilter>(initialPrefs.relationshipFilter);
   const [visitTarget, setVisitTarget] = useState(initialPrefs.visitTarget);
+  const [workdayTargetHours, setWorkdayTargetHours] = useState(initialPrefs.workdayTargetHours);
   const [excludeRecent, setExcludeRecent] = useState(initialPrefs.excludeRecent);
   const [strategy, setStrategy] = useState<RouteStrategy>(initialPrefs.strategy);
   const [departureType, setDepartureType] = useState<PointType>(initialPrefs.departureType);
