@@ -217,6 +217,90 @@ export default function RoutesPage() {
   const isAtTarget = totalPlanned >= MIN_VISITS && totalPlanned <= MAX_VISITS;
   const isOverTarget = totalPlanned > MAX_VISITS;
 
+  const { data: durationDefaults } = useVisitDurationDefaults();
+
+  // ── Recompute route summary from the CURRENT manual order ──
+  // The "Tournée du jour" list is the single source of truth: any add /
+  // remove / reorder triggers an immediate recomputation of distance,
+  // drive time, visit time and total estimated time. Departure (A) and
+  // arrival (B) are preserved from the last optimization run.
+  useEffect(() => {
+    if (!todayZoneId) return;
+    const existing = optimizedRoutes[dayKey];
+    // Only recompute when we already have an optimized route (A/B known).
+    if (!existing) return;
+    if (!durationDefaults) return;
+
+    const stops = allStops;
+    const dep = existing.departure;
+    const arr = existing.arrival;
+
+    // Build cumulative distance / drive time A → stops → B
+    let totalKm = 0;
+    let prevLat = dep?.lat ?? null;
+    let prevLng = dep?.lng ?? null;
+    for (const s of stops) {
+      const lat = s.customer.latitude;
+      const lng = s.customer.longitude;
+      if (prevLat != null && prevLng != null && lat != null && lng != null) {
+        totalKm += haversineKm(prevLat, prevLng, lat, lng);
+      }
+      if (lat != null && lng != null) { prevLat = lat; prevLng = lng; }
+    }
+    if (arr && prevLat != null && prevLng != null) {
+      totalKm += haversineKm(prevLat, prevLng, arr.lat, arr.lng);
+    }
+
+    const totalTravelMin = estimateDriveMin(totalKm);
+    const totalVisitMin = stops.reduce((sum, s) => {
+      const type = ('customerType' in s ? (s as any).customerType : undefined) || 'client_actif';
+      const profileDur = ('visitDurationMinutes' in s ? (s as any).visitDurationMinutes : null) ?? null;
+      return sum + getVisitDurationWithDefaults(type, profileDur, durationDefaults);
+    }, 0);
+
+    const next: OptimizedRoute = {
+      ...existing,
+      customers: stops.map((s, i) => {
+        // Try to keep richer fields from previous optimized customer entry
+        const prior = existing.customers.find(c => c.id === s.customer.id);
+        const base = prior || ({
+          id: s.customer.id,
+          company_name: s.customer.company_name,
+          address: s.customer.address,
+          city: s.customer.city,
+          phone: s.customer.phone,
+          visit_frequency: s.customer.visit_frequency,
+          number_of_vehicles: s.customer.number_of_vehicles,
+          annual_revenue_potential: s.customer.annual_revenue_potential,
+          latitude: s.customer.latitude,
+          longitude: s.customer.longitude,
+          sales_potential: s.customer.sales_potential,
+        } as any);
+        return { ...base, order: i + 1 } as any;
+      }),
+      totalDistanceKm: Math.round(totalKm * 10) / 10,
+      totalTravelMin,
+      totalVisitMin,
+      estimatedDurationMin: totalTravelMin + totalVisitMin,
+      // Manual edits invalidate the real Google road polyline — drop it so
+      // the map renders a straight A→stops→B preview from the current order.
+      usedRealRouting: false,
+      path: [],
+    };
+
+    // Skip update if nothing meaningful changed (avoid render loops)
+    const same =
+      next.totalDistanceKm === existing.totalDistanceKm &&
+      next.totalTravelMin === existing.totalTravelMin &&
+      next.totalVisitMin === existing.totalVisitMin &&
+      next.customers.length === existing.customers.length &&
+      next.customers.every((c, i) => c.id === existing.customers[i]?.id);
+    if (same) return;
+
+    setOptimizedRoutes(prev => ({ ...prev, [dayKey]: next }));
+  }, [allStops, dayKey, todayZoneId, durationDefaults]); // eslint-disable-line react-hooks/exhaustive-deps
+
+
   const assignZoneMutation = useMutation({
     mutationFn: async ({ dayOfWeek, zoneId, weekNumber }: { dayOfWeek: number; zoneId: string | null; weekNumber: number }) => {
       if (!activeUserId) throw new Error('Non connecté');
