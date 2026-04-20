@@ -101,7 +101,14 @@ export interface OptimizationConfig {
   visitTarget: number;
   strategy: RouteStrategy;
   zoneLogic: ZoneLogic;
+  /** @deprecated remplacé par `zoneToleranceKm` + `routeInclusion`. Encore lu en fallback. */
   zoneLogicFlags?: ZoneLogicFlags;
+  /** Tolérance autour de la zone sélectionnée (km). 0 = strictement zone. */
+  zoneToleranceKm?: number;
+  /** Inclure les comptes accessibles avec un détour limité sur le trajet A/R. */
+  routeInclusion?: boolean;
+  /** Tolérance de détour (minutes) quand `routeInclusion` est actif. */
+  detourToleranceMin?: number;
   typeFilter: TypeFilter;
   /** Commercial relationship filter (Magasin / Atelier / Mixte). Defaults to 'magasin_priority'. */
   relationshipFilter?: RelationshipFilter;
