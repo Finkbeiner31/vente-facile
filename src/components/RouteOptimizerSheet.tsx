@@ -115,7 +115,17 @@ export default function RouteOptimizerSheet({
   const [strategy, setStrategy] = useState<RouteStrategy>(initialPrefs.strategy);
   const [departureType, setDepartureType] = useState<PointType>(initialPrefs.departureType);
   const [arrivalType, setArrivalType] = useState<PointType>(initialPrefs.arrivalType);
-  const [zoneLogicFlags, setZoneLogicFlags] = useState<ZoneLogicFlags>(initialPrefs.zoneLogicFlags);
+  // Nouvelle logique de zone : zone obligatoire + tolérance km + trajet A/R (min)
+  const [zoneToleranceKm, setZoneToleranceKm] = useState<ZoneToleranceKm>(initialPrefs.zoneToleranceKm);
+  const [routeInclusion, setRouteInclusion] = useState<boolean>(initialPrefs.routeInclusion);
+  const [detourToleranceMin, setDetourToleranceMin] = useState<DetourToleranceMin>(initialPrefs.detourToleranceMin);
+  // Compat : `zoneLogicFlags` n'est plus piloté par l'UI, mais reste persisté
+  // pour la rétro-compat des consommateurs encore sur l'ancien modèle.
+  const zoneLogicFlags: ZoneLogicFlags = useMemo(() => ({
+    strict: true,
+    tolerance: zoneToleranceKm > 0,
+    route: routeInclusion,
+  }), [zoneToleranceKm, routeInclusion]);
 
   // Hard safety cap on stops considered by the local heuristic. The system
   // is time-driven: this only prevents pathological cases where the candidate
@@ -144,8 +154,9 @@ export default function RouteOptimizerSheet({
       departureType, arrivalType, strategy, typeFilter,
       relationshipFilter, zoneLogicFlags, excludeRecent,
       workdayTargetHours,
+      zoneToleranceKm, routeInclusion, detourToleranceMin,
     });
-  }, [user?.id, departureType, arrivalType, strategy, typeFilter, relationshipFilter, zoneLogicFlags, excludeRecent, workdayTargetHours]);
+  }, [user?.id, departureType, arrivalType, strategy, typeFilter, relationshipFilter, zoneLogicFlags, excludeRecent, workdayTargetHours, zoneToleranceKm, routeInclusion, detourToleranceMin]);
 
 
   // Load addresses from profile
