@@ -944,6 +944,31 @@ export default function RouteOptimizerSheet({
                     <p className="text-[10px] text-muted-foreground">🤝 visites</p>
                   </div>
                 </div>
+
+                {/* Workday target gap */}
+                {(() => {
+                  const targetMin = workdayTargetHours * 60;
+                  const gap = optimizedRoute.estimatedDurationMin - targetMin;
+                  const absGap = Math.abs(gap);
+                  const onTarget = absGap <= 30;
+                  const tone = onTarget
+                    ? 'bg-success/10 text-success border-success/30'
+                    : gap > 0
+                      ? 'bg-warning/10 text-warning border-warning/30'
+                      : 'bg-muted text-muted-foreground border-border';
+                  const label = onTarget
+                    ? `Journée alignée sur l'objectif`
+                    : gap > 0
+                      ? `Dépasse l'objectif de ${formatDuration(absGap)}`
+                      : `Sous l'objectif de ${formatDuration(absGap)}`;
+                  return (
+                    <div className={`rounded-lg border px-2.5 py-1.5 text-[11px] flex items-center justify-center gap-1.5 ${tone}`}>
+                      <Clock className="h-3 w-3" />
+                      <span className="font-medium">Objectif {workdayTargetHours}h — {label}</span>
+                    </div>
+                  );
+                })()}
+
                 <div className="grid grid-cols-2 gap-3 text-center pt-2 border-t">
                   <div>
                     <p className="text-sm font-bold">{optimizedRoute.customers.length}</p>
