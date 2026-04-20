@@ -359,8 +359,9 @@ export default function RouteOptimizerSheet({
     if (selected.length < 2) return;
 
     const config: OptimizationConfig = {
-      visitTarget: HARD_VISIT_CAP, strategy, zoneLogic: 'strict', zoneLogicFlags, typeFilter,
-      relationshipFilter,
+      visitTarget: HARD_VISIT_CAP, strategy, zoneLogic: 'strict', zoneLogicFlags,
+      zoneToleranceKm, routeInclusion, detourToleranceMin,
+      typeFilter, relationshipFilter,
       excludeRecentDays: excludeRecent ? 7 : null,
       departureLat: departurePos.lat, departureLng: departurePos.lng,
       arrivalLat: arrival.lat, arrivalLng: arrival.lng,
