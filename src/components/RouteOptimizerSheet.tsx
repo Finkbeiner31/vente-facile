@@ -116,9 +116,11 @@ export default function RouteOptimizerSheet({
   const [arrivalType, setArrivalType] = useState<PointType>(initialPrefs.arrivalType);
   const [zoneLogicFlags, setZoneLogicFlags] = useState<ZoneLogicFlags>(initialPrefs.zoneLogicFlags);
 
-  // Address edit modal
+  // Address edit modal — uses live autocomplete (Nominatim) and stores
+  // a validated geocoded selection rather than raw text.
   const [editingField, setEditingField] = useState<'entreprise' | 'domicile' | 'autre' | null>(null);
   const [editAddress, setEditAddress] = useState('');
+  const [editSelection, setEditSelection] = useState<AddressSelection | null>(null);
   const [editSaving, setEditSaving] = useState(false);
 
   // Process state
