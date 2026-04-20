@@ -229,7 +229,7 @@ function DroppableZone({ id, children, className }: { id: string; children: Reac
 }
 
 // ─── Main component ───
-export function TourneeDualList({ plannedStops, availableCustomers, onUpdatePlanned }: TourneeDualListProps) {
+export function TourneeDualList({ plannedStops, availableCustomers, onUpdatePlanned, departure, arrival }: TourneeDualListProps) {
   const [isMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [showAllAvailable, setShowAllAvailable] = useState(false);
