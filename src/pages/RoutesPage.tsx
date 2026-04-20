@@ -3,12 +3,13 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { QuickReportDialog } from '@/components/QuickReportDialog';
 import { TourMode } from '@/components/TourMode';
 import {
   MapPin, Map as MapIcon, Zap,
   ChevronLeft, ChevronRight, Calendar, Target,
-  RotateCcw, Loader2,
+  RotateCcw, Loader2, Archive,
   Plus, Users, Route as RouteIcon,
   Navigation, Clock, Briefcase, Hourglass,
 } from 'lucide-react';
@@ -31,6 +32,10 @@ import { AddUnplannedVisitSheet } from '@/components/AddUnplannedVisitSheet';
 import { TourneeDualList } from '@/components/TourneeDualList';
 import { getCurrentWeekNumber, formatWeekRange } from '@/lib/weekCycleUtils';
 import { useCycleStartDate } from '@/hooks/useCycleStartDate';
+import { TourHistoryPanel } from '@/components/TourHistoryPanel';
+import { ReuseTourDialog, type ReuseTarget } from '@/components/ReuseTourDialog';
+import { useArchiveTour, type TourHistoryEntry } from '@/hooks/useTourHistory';
+import { format, addDays, startOfWeek } from 'date-fns';
 
 const DAY_NAMES = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
 const WEEK_LABELS = ['S1', 'S2', 'S3', 'S4'];
