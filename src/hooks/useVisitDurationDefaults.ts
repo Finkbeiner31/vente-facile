@@ -8,9 +8,9 @@ export interface VisitDurationDefaults {
 }
 
 const FALLBACKS: VisitDurationDefaults = {
-  client: 30,
-  prospect: 20,
-  prospect_qualifie: 30,
+  client: 20,
+  prospect: 15,
+  prospect_qualifie: 20,
 };
 
 export function useVisitDurationDefaults() {
