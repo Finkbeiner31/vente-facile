@@ -29,6 +29,7 @@ import {
   type RouteStrategy, type ZoneLogic, type ZoneLogicFlags, type TypeFilter,
   type RelationshipFilter,
   type OptimizationConfig,
+  type RouteEndpoint,
   filterCandidates, buildOptimizedRoute,
   haversineKm, estimateDriveMin, formatDuration, getReasonBadgeStyle,
   getRelationshipBadge,
@@ -39,6 +40,10 @@ import {
   strategyLabel as strategyLabelFn, relationshipLabel, zoneLogicShortLabel,
   pointTypeLabel,
 } from '@/lib/tourneePrefs';
+
+// Re-export key types so downstream consumers (RoutesPage, MapPage) only need
+// to import from this module.
+export type { OptimizedRoute, RouteEndpoint };
 
 interface SavedAddresses {
   entreprise_address: string | null;
