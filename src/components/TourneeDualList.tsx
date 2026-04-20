@@ -451,18 +451,39 @@ export function TourneeDualList({ plannedStops, availableCustomers, onUpdatePlan
                   <p className="text-[11px] text-muted-foreground">Glissez des comptes depuis la liste ci-dessous</p>
                 </div>
               ) : (
-                plannedStops.map((stop, i) => (
-                  <PlannedItem
-                    key={stop.customer.id}
-                    stop={stop}
-                    index={i}
-                    total={plannedStops.length}
-                    onMoveUp={() => moveItem(i, i - 1)}
-                    onMoveDown={() => moveItem(i, i + 1)}
-                    onRemove={() => removeFromPlanned(stop.customer.id)}
-                    isMobile={isMobile}
-                  />
-                ))
+                <>
+                  {/* A — Départ (only when an optimized route has been built) */}
+                  {departure && (
+                    <EndpointRow
+                      kind="departure"
+                      endpoint={departure}
+                      combined={
+                        !!arrival &&
+                        Math.abs(departure.lat - arrival.lat) < 1e-6 &&
+                        Math.abs(departure.lng - arrival.lng) < 1e-6
+                      }
+                    />
+                  )}
+                  {plannedStops.map((stop, i) => (
+                    <PlannedItem
+                      key={stop.customer.id}
+                      stop={stop}
+                      index={i}
+                      total={plannedStops.length}
+                      onMoveUp={() => moveItem(i, i - 1)}
+                      onMoveDown={() => moveItem(i, i + 1)}
+                      onRemove={() => removeFromPlanned(stop.customer.id)}
+                      isMobile={isMobile}
+                    />
+                  ))}
+                  {/* B — Arrivée (skipped when identical to A → already shown as A/B) */}
+                  {arrival &&
+                    !(
+                      departure &&
+                      Math.abs(departure.lat - arrival.lat) < 1e-6 &&
+                      Math.abs(departure.lng - arrival.lng) < 1e-6
+                    ) && <EndpointRow kind="arrival" endpoint={arrival} />}
+                </>
               )}
             </div>
           </SortableContext>
