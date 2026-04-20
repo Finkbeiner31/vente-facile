@@ -429,6 +429,7 @@ export default function RouteOptimizerSheet({
 
   const openEditModal = (field: 'entreprise' | 'domicile' | 'autre') => {
     setEditAddress(addresses[`${field}_address`] || '');
+    setEditSelection(null); // Force re-validation: existing text is not "freshly validated"
     setEditingField(field);
   };
 
