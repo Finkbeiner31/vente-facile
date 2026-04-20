@@ -725,14 +725,9 @@ export default function RoutesPage() {
             arrival={optimizedRoutes[dayKey]?.arrival ?? null}
             onUpdatePlanned={(newStops) => {
               setCustomPlanned(prev => ({ ...prev, [dayKey]: newStops }));
-              // Manual reorder/add invalidates the previous optimized route
-              // since A/B/order may no longer match. The user must re-run the
-              // optimizer to refresh the canonical A → clients → B structure.
-              setOptimizedRoutes(prev => {
-                if (!prev[dayKey]) return prev;
-                const { [dayKey]: _removed, ...rest } = prev;
-                return rest;
-              });
+              // The route summary auto-recomputes from the new manual order
+              // via the useEffect above (single source of truth = list).
+              // We keep the existing departure (A) / arrival (B) endpoints.
             }}
           />
 
