@@ -27,7 +27,12 @@ export interface TourneePrefs {
   relationshipFilter: RelationshipFilter;
   zoneLogicFlags: ZoneLogicFlags;
   excludeRecent: boolean;
-  visitTarget: number;
+  /**
+   * @deprecated Le système est désormais entièrement piloté par
+   * `workdayTargetHours`. Conservé uniquement pour la rétro-compatibilité
+   * des prefs déjà sauvegardées dans localStorage.
+   */
+  visitTarget?: number;
   /** Target total workday duration in hours (driving + visits). Default 8h. */
   workdayTargetHours: number;
 }
@@ -40,7 +45,6 @@ export const DEFAULT_PREFS: TourneePrefs = {
   relationshipFilter: 'magasin_priority',
   zoneLogicFlags: { strict: true, tolerance: false, route: false },
   excludeRecent: true,
-  visitTarget: 10,
   workdayTargetHours: 8,
 };
 
