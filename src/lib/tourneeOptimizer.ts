@@ -335,6 +335,26 @@ export function filterCandidates(
 ): ScoredCustomer[] {
   const results: ScoredCustomer[] = [];
 
+  // Précompute des positions de la zone — sert à mesurer la distance d'un point
+  // hors zone au point le plus proche du périmètre (proxy de la frontière).
+  const zonePoints: { lat: number; lng: number }[] = [];
+  for (const c of allCustomers) {
+    if (zoneCustomerIds.has(c.id) && c.latitude != null && c.longitude != null) {
+      zonePoints.push({ lat: c.latitude, lng: c.longitude });
+    }
+  }
+  const distToZoneKm = (lat: number, lng: number): number => {
+    if (zonePoints.length === 0) {
+      return haversineKm(config.departureLat, config.departureLng, lat, lng);
+    }
+    let min = Infinity;
+    for (const p of zonePoints) {
+      const d = haversineKm(p.lat, p.lng, lat, lng);
+      if (d < min) min = d;
+    }
+    return min;
+  };
+
   for (const c of allCustomers) {
     if (c.latitude == null || c.longitude == null) continue;
 
