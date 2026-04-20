@@ -863,6 +863,7 @@ export default function RoutesPage() {
             </Button>
           </div>
         </>
+      )}
         </TabsContent>
 
         <TabsContent value="history" className="mt-4">
