@@ -346,7 +346,7 @@ export default function RouteOptimizerSheet({
     if (selected.length < 2) return;
 
     const config: OptimizationConfig = {
-      visitTarget, strategy, zoneLogic: 'strict', zoneLogicFlags, typeFilter,
+      visitTarget: HARD_VISIT_CAP, strategy, zoneLogic: 'strict', zoneLogicFlags, typeFilter,
       relationshipFilter,
       excludeRecentDays: excludeRecent ? 7 : null,
       departureLat: departurePos.lat, departureLng: departurePos.lng,
@@ -665,25 +665,22 @@ export default function RouteOptimizerSheet({
                   )}
                 </div>
 
-                {/* Visit count */}
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold flex items-center gap-1.5">
-                    <Target className="h-4 w-4 text-primary" />
-                    Nombre de visites
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <Slider
-                      value={[visitTarget]}
-                      onValueChange={v => setVisitTarget(v[0])}
-                      min={4}
-                      max={15}
-                      step={1}
-                      className="flex-1"
-                    />
-                    <span className="text-sm font-bold w-8 text-center">{visitTarget}</span>
+                {/* Projected visits — computed from target workday duration */}
+                {departurePos && candidates.length > 0 && (
+                  <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 space-y-1">
+                    <label className="text-xs font-semibold flex items-center gap-1.5 text-primary">
+                      <Target className="h-3.5 w-3.5" />
+                      Tournée projetée
+                    </label>
+                    <p className="text-sm font-bold">
+                      {projectedPlan.picked.length} visite{projectedPlan.picked.length > 1 ? 's' : ''} prévue{projectedPlan.picked.length > 1 ? 's' : ''}
+                      <span className="text-muted-foreground font-normal"> (~{formatDuration(projectedPlan.totalMin)})</span>
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      Calculé automatiquement pour viser {workdayTargetHours}h (trajet + visites). Le nombre s'adapte selon vos critères.
+                    </p>
                   </div>
-                  <p className="text-[10px] text-muted-foreground text-center">Plafond de visites — la durée cible reste prioritaire</p>
-                </div>
+                )}
 
                 {/* Workday target duration */}
                 <div className="space-y-2">
@@ -830,7 +827,7 @@ export default function RouteOptimizerSheet({
                       </div>
                       <div className="flex items-center gap-2">
                         <Target className="h-3 w-3 text-primary shrink-0" />
-                        <span>Visites : {visitTarget} max</span>
+                        <span>Visites : {projectedPlan.picked.length} prévues (~{formatDuration(projectedPlan.totalMin)})</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Clock className="h-3 w-3 text-primary shrink-0" />
@@ -848,9 +845,11 @@ export default function RouteOptimizerSheet({
               </div>
 
               <div className="p-4 border-t mt-auto">
-                <Button className="w-full h-12 font-semibold" disabled={candidates.length === 0 || !departurePos} onClick={handleGeneratePreview}>
+                <Button className="w-full h-12 font-semibold" disabled={candidates.length === 0 || !departurePos || projectedPlan.picked.length < 2} onClick={handleGeneratePreview}>
                   <Route className="h-4 w-4 mr-2" />
-                  Générer la tournée ({Math.min(visitTarget, candidates.length)} visites)
+                  {projectedPlan.picked.length >= 2
+                    ? `Générer la tournée (${projectedPlan.picked.length} visites · ~${formatDuration(projectedPlan.totalMin)})`
+                    : 'Journée non remplissable — ajustez vos critères'}
                 </Button>
               </div>
             </div>
@@ -864,7 +863,7 @@ export default function RouteOptimizerSheet({
                 <div className="flex flex-wrap gap-x-3 text-[11px] text-muted-foreground mt-0.5">
                   {zoneName && <span>Zone : {zoneName}</span>}
                   <span>{strategyLabel}</span>
-                  <span>Objectif : {visitTarget} visites</span>
+                  <span>Objectif : journée de {workdayTargetHours}h</span>
                 </div>
               </div>
               <ScrollArea className="flex-1">
