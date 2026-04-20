@@ -809,7 +809,11 @@ export default function RouteOptimizerSheet({
                       </div>
                       <div className="flex items-center gap-2">
                         <Target className="h-3 w-3 text-primary shrink-0" />
-                        <span>Visites : {visitTarget}</span>
+                        <span>Visites : {visitTarget} max</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Clock className="h-3 w-3 text-primary shrink-0" />
+                        <span>Objectif : {workdayTargetHours}h de travail</span>
                       </div>
                       {zone && (
                         <div className="flex items-start gap-2">
