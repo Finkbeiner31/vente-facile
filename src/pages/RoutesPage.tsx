@@ -85,6 +85,8 @@ export default function RoutesPage() {
   const [zoneMapOpen, setZoneMapOpen] = useState(false);
   const [routeMapOpen, setRouteMapOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<'planning' | 'history'>('planning');
+  const [reuseEntry, setReuseEntry] = useState<TourHistoryEntry | null>(null);
 
   const [manualStops, setManualStops] = useState<Record<string, ManualStop[]>>({});
   // Tracks user-customized planned stops per day key
@@ -92,6 +94,8 @@ export default function RoutesPage() {
   // Final optimized route per day key — single source of truth for the
   // "Trajet du jour" map AND the tournée list (A → clients → B).
   const [optimizedRoutes, setOptimizedRoutes] = useState<Record<string, OptimizedRoute>>({});
+
+  const archiveMutation = useArchiveTour();
 
   const { session, startSession } = useTourSession();
 
