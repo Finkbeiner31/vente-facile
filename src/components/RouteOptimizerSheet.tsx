@@ -29,6 +29,7 @@ import {
   type RouteStrategy, type ZoneLogic, type ZoneLogicFlags, type TypeFilter,
   type RelationshipFilter,
   type OptimizationConfig,
+  type RouteEndpoint,
   filterCandidates, buildOptimizedRoute,
   haversineKm, estimateDriveMin, formatDuration, getReasonBadgeStyle,
   getRelationshipBadge,
@@ -39,6 +40,10 @@ import {
   strategyLabel as strategyLabelFn, relationshipLabel, zoneLogicShortLabel,
   pointTypeLabel,
 } from '@/lib/tourneePrefs';
+
+// Re-export key types so downstream consumers (RoutesPage, MapPage) only need
+// to import from this module.
+export type { OptimizedRoute, RouteEndpoint };
 
 interface SavedAddresses {
   entreprise_address: string | null;
@@ -285,6 +290,21 @@ export default function RouteOptimizerSheet({
       arrivalLat: arrival.lat, arrivalLng: arrival.lng,
     };
 
+    // Canonical A/B endpoints captured at optimization time so the tournée
+    // list and the map render the exact same A → clients → B structure.
+    const departureEndpoint = {
+      type: departureType,
+      label: getAddressLabel(departureType) || getPointLabel(departureType),
+      lat: departurePos.lat,
+      lng: departurePos.lng,
+    };
+    const arrivalEndpoint = {
+      type: arrivalType,
+      label: getAddressLabel(arrivalType) || getPointLabel(arrivalType),
+      lat: arrival.lat,
+      lng: arrival.lng,
+    };
+
     setOptimizing(true);
     setUsedRealRouting(false);
     try {
@@ -311,6 +331,11 @@ export default function RouteOptimizerSheet({
             totalTravelMin: totalDriveMin,
             totalVisitMin,
             estimatedDurationMin: totalDriveMin + totalVisitMin,
+            departure: departureEndpoint,
+            arrival: arrivalEndpoint,
+            strategy,
+            usedRealRouting: true,
+            path: dr.path,
           };
           setOptimizedRoute(route);
           setUsedRealRouting(true);
@@ -321,7 +346,14 @@ export default function RouteOptimizerSheet({
 
       // 2. Fallback: local heuristic (already strategy-aware via config.strategy)
       const route = buildOptimizedRoute(selected, config);
-      setOptimizedRoute(route);
+      const enriched: OptimizedRoute = {
+        ...route,
+        departure: departureEndpoint,
+        arrival: arrivalEndpoint,
+        strategy,
+        usedRealRouting: false,
+      };
+      setOptimizedRoute(enriched);
       setUsedRealRouting(false);
       setStep('result');
     } finally {
@@ -1016,5 +1048,5 @@ export default function RouteOptimizerSheet({
   );
 }
 
-// Re-export types for consumers
-export type { OptCustomer, OptimizedRoute };
+// (OptimizedRoute / RouteEndpoint already re-exported near the imports.)
+export type { OptCustomer };

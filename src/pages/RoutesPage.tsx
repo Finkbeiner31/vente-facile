@@ -80,6 +80,9 @@ export default function RoutesPage() {
   const [manualStops, setManualStops] = useState<Record<string, ManualStop[]>>({});
   // Tracks user-customized planned stops per day key
   const [customPlanned, setCustomPlanned] = useState<Record<string, { customer: CustomerForRouting; priority: number; customerType?: string; lastVisitDate?: string | null; visitDurationMinutes?: number | null }[]>>({});
+  // Final optimized route per day key — single source of truth for the
+  // "Trajet du jour" map AND the tournée list (A → clients → B).
+  const [optimizedRoutes, setOptimizedRoutes] = useState<Record<string, OptimizedRoute>>({});
 
   const { session, startSession } = useTourSession();
 
@@ -308,6 +311,9 @@ export default function RoutesPage() {
         visitDurationMinutes: customer.visitDuration,
       })),
     }));
+    // Persist the FULL optimized route (with A/B + path) as the single source
+    // of truth for both the map and the tournée list.
+    setOptimizedRoutes(prev => ({ ...prev, [dayKey]: route }));
   };
 
   const sessionCompletedCount = session ? Object.values(session.statuses).filter(s => s === 'completed').length : 0;
@@ -563,8 +569,18 @@ export default function RoutesPage() {
               visitDurationMinutes: 'visitDurationMinutes' in s ? (s as any).visitDurationMinutes : null,
             }))}
             availableCustomers={zoneCustomers}
+            departure={optimizedRoutes[dayKey]?.departure ?? null}
+            arrival={optimizedRoutes[dayKey]?.arrival ?? null}
             onUpdatePlanned={(newStops) => {
               setCustomPlanned(prev => ({ ...prev, [dayKey]: newStops }));
+              // Manual reorder/add invalidates the previous optimized route
+              // since A/B/order may no longer match. The user must re-run the
+              // optimizer to refresh the canonical A → clients → B structure.
+              setOptimizedRoutes(prev => {
+                if (!prev[dayKey]) return prev;
+                const { [dayKey]: _removed, ...rest } = prev;
+                return rest;
+              });
             }}
           />
 
@@ -602,6 +618,7 @@ export default function RoutesPage() {
         zoneColor={todayZone?.color || null}
         zoneName={todayZone ? formatZoneName(todayZone) : null}
         dayLabel={`${WEEK_LABELS[selectedWeek]} · ${DAY_NAMES[selectedDay - 1]}`}
+        optimizedRoute={optimizedRoutes[dayKey] || null}
         stops={allStops.map(s => {
           const full = zoneCustomers.find((c: any) => c.id === s.customer.id) as any;
           return {

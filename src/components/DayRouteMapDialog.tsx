@@ -46,6 +46,14 @@ interface DayRouteMapDialogProps {
   zoneColor?: string | null;
   dayLabel?: string;
   zoneName?: string | null;
+  /**
+   * Final optimized route built by "Optimiser ma tournée".
+   * When provided, it is the SINGLE SOURCE OF TRUTH: A, B, stop order,
+   * distance, drive time and polyline are taken from this object — the
+   * map dialog does NOT recompute anything. When null, the dialog falls
+   * back to its own A/B resolution + Directions call.
+   */
+  optimizedRoute?: import('@/lib/tourneeOptimizer').OptimizedRoute | null;
 }
 
 interface SavedPoint {
@@ -209,6 +217,7 @@ export default function DayRouteMapDialog({
   zoneColor,
   dayLabel,
   zoneName,
+  optimizedRoute,
 }: DayRouteMapDialogProps) {
   const { user } = useAuth();
   const { effectiveUserId } = useImpersonation();
@@ -261,20 +270,28 @@ export default function DayRouteMapDialog({
     () => resolvePoint(prefs.arrivalType, addresses),
     [prefs.arrivalType, addresses],
   );
-  const departurePoint: SavedPoint | null = useMemo(
-    () => resolvedDeparture || firstAvailablePoint(addresses),
-    [resolvedDeparture, addresses],
-  );
-  const arrivalPoint: SavedPoint | null = useMemo(
-    () => resolvedArrival || departurePoint,
-    [resolvedArrival, departurePoint],
-  );
+  // When an optimized route is provided, A/B come directly from it (single
+  // source of truth). Otherwise we fall back to the user's persisted prefs.
+  const departurePoint: SavedPoint | null = useMemo(() => {
+    if (optimizedRoute?.departure) {
+      const d = optimizedRoute.departure;
+      return { lat: d.lat, lng: d.lng, label: d.label, type: d.type };
+    }
+    return resolvedDeparture || firstAvailablePoint(addresses);
+  }, [optimizedRoute, resolvedDeparture, addresses]);
+  const arrivalPoint: SavedPoint | null = useMemo(() => {
+    if (optimizedRoute?.arrival) {
+      const a = optimizedRoute.arrival;
+      return { lat: a.lat, lng: a.lng, label: a.label, type: a.type };
+    }
+    return resolvedArrival || departurePoint;
+  }, [optimizedRoute, resolvedArrival, departurePoint]);
 
   // Warn explicitly when the selected departure/arrival type has no saved
-  // coordinates on the profile. This is the root cause of "A/B markers don't
-  // appear" for users who never configured their entreprise/domicile address.
-  const departureMissing = !!addresses && !resolvedDeparture;
-  const arrivalMissing = !!addresses && !resolvedArrival;
+  // coordinates on the profile. Skipped when an explicit optimized route is in
+  // use (A/B are guaranteed by construction in that case).
+  const departureMissing = !optimizedRoute && !!addresses && !resolvedDeparture;
+  const arrivalMissing = !optimizedRoute && !!addresses && !resolvedArrival;
 
   // Dev-friendly debug trace so the propagation of A/B is verifiable.
   useEffect(() => {
@@ -303,6 +320,48 @@ export default function DayRouteMapDialog({
   useEffect(() => {
     if (!open || !ready || geocodedStops.length === 0) {
       setRoute(null);
+      return;
+    }
+
+    // ── Single source of truth: when an OptimizedRoute was passed in,
+    //    use its order + polyline + metrics directly. NO recomputation.
+    if (optimizedRoute && optimizedRoute.customers.length > 0) {
+      const idToIdx = new Map(geocodedStops.map((s, i) => [s.id, i]));
+      const order: number[] = [];
+      optimizedRoute.customers.forEach(c => {
+        const idx = idToIdx.get(c.id);
+        if (idx !== undefined) order.push(idx);
+      });
+      // Append any geocoded stops not in the optimized list (defensive).
+      geocodedStops.forEach((_, i) => { if (!order.includes(i)) order.push(i); });
+
+      const start = departurePoint
+        ? { lat: departurePoint.lat, lng: departurePoint.lng }
+        : { lat: geocodedStops[order[0]].latitude as number, lng: geocodedStops[order[0]].longitude as number };
+      const end = arrivalPoint
+        ? { lat: arrivalPoint.lat, lng: arrivalPoint.lng }
+        : start;
+
+      let path: google.maps.LatLngLiteral[];
+      if (optimizedRoute.path && optimizedRoute.path.length >= 2) {
+        path = optimizedRoute.path.map(p => ({ lat: p.lat, lng: p.lng }));
+      } else {
+        path = [start];
+        order.forEach(i => path.push({
+          lat: geocodedStops[i].latitude as number,
+          lng: geocodedStops[i].longitude as number,
+        }));
+        path.push(end);
+      }
+
+      setRoute({
+        order,
+        path,
+        km: optimizedRoute.totalDistanceKm,
+        driveMin: optimizedRoute.totalTravelMin,
+        usedRouting: !!optimizedRoute.usedRealRouting,
+      });
+      setRouting(false);
       return;
     }
 
@@ -369,7 +428,7 @@ export default function DayRouteMapDialog({
 
     run();
     return () => { cancelled = true; };
-  }, [open, ready, geocodedStops, departurePoint, arrivalPoint, prefs.strategy]);
+  }, [open, ready, geocodedStops, departurePoint, arrivalPoint, prefs.strategy, optimizedRoute]);
 
   // Effective ordered stops, derived from route.order if available
   const orderedStops = useMemo(() => {
