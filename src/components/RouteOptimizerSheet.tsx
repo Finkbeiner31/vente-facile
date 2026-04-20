@@ -109,13 +109,17 @@ export default function RouteOptimizerSheet({
   const initialPrefs = useMemo(() => loadPrefs(user?.id), [user?.id]);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>(initialPrefs.typeFilter);
   const [relationshipFilter, setRelationshipFilter] = useState<RelationshipFilter>(initialPrefs.relationshipFilter);
-  const [visitTarget, setVisitTarget] = useState(initialPrefs.visitTarget);
   const [workdayTargetHours, setWorkdayTargetHours] = useState(initialPrefs.workdayTargetHours);
   const [excludeRecent, setExcludeRecent] = useState(initialPrefs.excludeRecent);
   const [strategy, setStrategy] = useState<RouteStrategy>(initialPrefs.strategy);
   const [departureType, setDepartureType] = useState<PointType>(initialPrefs.departureType);
   const [arrivalType, setArrivalType] = useState<PointType>(initialPrefs.arrivalType);
   const [zoneLogicFlags, setZoneLogicFlags] = useState<ZoneLogicFlags>(initialPrefs.zoneLogicFlags);
+
+  // Hard safety cap on stops considered by the local heuristic. The system
+  // is time-driven: this only prevents pathological cases where the candidate
+  // pool is huge and the workday target is very high.
+  const HARD_VISIT_CAP = 20;
 
   // Address edit modal — uses live autocomplete (Nominatim) and stores
   // a validated geocoded selection rather than raw text.
@@ -137,10 +141,10 @@ export default function RouteOptimizerSheet({
     if (!user?.id) return;
     savePrefs(user.id, {
       departureType, arrivalType, strategy, typeFilter,
-      relationshipFilter, zoneLogicFlags, excludeRecent, visitTarget,
+      relationshipFilter, zoneLogicFlags, excludeRecent,
       workdayTargetHours,
     });
-  }, [user?.id, departureType, arrivalType, strategy, typeFilter, relationshipFilter, zoneLogicFlags, excludeRecent, visitTarget, workdayTargetHours]);
+  }, [user?.id, departureType, arrivalType, strategy, typeFilter, relationshipFilter, zoneLogicFlags, excludeRecent, workdayTargetHours]);
 
 
   // Load addresses from profile
