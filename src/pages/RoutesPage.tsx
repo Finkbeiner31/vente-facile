@@ -80,6 +80,9 @@ export default function RoutesPage() {
   const [manualStops, setManualStops] = useState<Record<string, ManualStop[]>>({});
   // Tracks user-customized planned stops per day key
   const [customPlanned, setCustomPlanned] = useState<Record<string, { customer: CustomerForRouting; priority: number; customerType?: string; lastVisitDate?: string | null; visitDurationMinutes?: number | null }[]>>({});
+  // Final optimized route per day key — single source of truth for the
+  // "Trajet du jour" map AND the tournée list (A → clients → B).
+  const [optimizedRoutes, setOptimizedRoutes] = useState<Record<string, OptimizedRoute>>({});
 
   const { session, startSession } = useTourSession();
 
