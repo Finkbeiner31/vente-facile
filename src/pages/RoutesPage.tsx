@@ -405,6 +405,100 @@ export default function RoutesPage() {
     setOptimizedRoutes(prev => ({ ...prev, [dayKey]: route }));
   };
 
+  // Compute the actual calendar date of a (week, day) pair from the cycle start.
+  const dayKeyToDate = (week: number, day: number): string => {
+    const base = cycleStart ? new Date(cycleStart) : new Date();
+    const monday = startOfWeek(base, { weekStartsOn: 1 });
+    const target = addDays(monday, week * 7 + (day - 1));
+    return format(target, 'yyyy-MM-dd');
+  };
+
+  const handleArchiveCurrent = async () => {
+    if (!activeUserId || !derivedRoute || allStops.length === 0) return;
+    const status = optimizedRoutes[dayKey] ? 'optimized' : 'manual';
+    try {
+      await archiveMutation.mutateAsync({
+        userId: activeUserId,
+        tourDate: dayKeyToDate(selectedWeek, selectedDay),
+        zoneId: todayZoneId,
+        zoneName: todayZone ? formatZoneName(todayZone) : null,
+        zoneColor: todayZone?.color ?? null,
+        weekNumber: selectedWeek,
+        dayOfWeek: selectedDay,
+        status,
+        source: optimizedRoutes[dayKey] ? 'auto' : 'manual',
+        route: derivedRoute,
+      });
+      toast.success('Tournée archivée dans l\'historique');
+    } catch {
+      toast.error('Échec de l\'archivage');
+    }
+  };
+
+  const isDayFilled = (week: number, day: number) => {
+    const k = `${week}-${day}`;
+    return (customPlanned[k]?.length ?? 0) + (manualStops[k]?.length ?? 0) > 0;
+  };
+
+  const handleConfirmReuse = (target: ReuseTarget) => {
+    if (!reuseEntry) return;
+    const targetKey = `${target.weekNumber}-${target.dayOfWeek}`;
+    // Build the customPlanned snapshot from validated stops — becomes the
+    // single source of truth for the target day. The route summary will
+    // recompute automatically from `allStops`.
+    const newStops = target.validStops.map(s => ({
+      customer: {
+        id: s.customer_id,
+        company_name: s.company_name,
+        address: s.address,
+        city: s.city,
+        phone: null,
+        visit_frequency: null,
+        number_of_vehicles: 0,
+        annual_revenue_potential: Number(s.annual_revenue_potential || 0),
+        latitude: s.latitude,
+        longitude: s.longitude,
+        sales_potential: null,
+      } as CustomerForRouting,
+      priority: Math.max(target.validStops.length - s.order, 1),
+      customerType: s.customer_type ?? undefined,
+      lastVisitDate: null as string | null,
+      visitDurationMinutes: s.visit_duration_minutes,
+    }));
+    setCustomPlanned(prev => ({ ...prev, [targetKey]: newStops }));
+    setManualStops(prev => ({ ...prev, [targetKey]: [] }));
+    // Reset any cached optimized route so derivedRoute recomputes fresh
+    // metrics (distance, drive time, total) from the reused order.
+    setOptimizedRoutes(prev => {
+      const next = { ...prev };
+      delete next[targetKey];
+      // Keep just the endpoints from the source if the target zone matches
+      if (reuseEntry.departure || reuseEntry.arrival) {
+        next[targetKey] = {
+          customers: [],
+          totalDistanceKm: 0,
+          totalTravelMin: 0,
+          totalVisitMin: 0,
+          estimatedDurationMin: 0,
+          departure: reuseEntry.departure,
+          arrival: reuseEntry.arrival,
+          usedRealRouting: false,
+          path: [],
+        };
+      }
+      return next;
+    });
+    setSelectedWeek(target.weekNumber);
+    setSelectedDay(target.dayOfWeek);
+    setActiveTab('planning');
+    setReuseEntry(null);
+    const skipped = target.warnings.filter(w => w.type === 'missing').length;
+    toast.success(
+      `Tournée réutilisée — ${newStops.length} étape(s)` +
+      (skipped > 0 ? ` (${skipped} ignorée(s))` : ''),
+    );
+  };
+
   const sessionCompletedCount = session ? Object.values(session.statuses).filter(s => s === 'completed').length : 0;
 
   const stopIds = new Set(allStops.map(s => s.customer.id));
