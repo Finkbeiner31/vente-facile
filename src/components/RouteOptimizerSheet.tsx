@@ -285,6 +285,21 @@ export default function RouteOptimizerSheet({
       arrivalLat: arrival.lat, arrivalLng: arrival.lng,
     };
 
+    // Canonical A/B endpoints captured at optimization time so the tournée
+    // list and the map render the exact same A → clients → B structure.
+    const departureEndpoint = {
+      type: departureType,
+      label: getAddressLabel(departureType) || getPointLabel(departureType),
+      lat: departurePos.lat,
+      lng: departurePos.lng,
+    };
+    const arrivalEndpoint = {
+      type: arrivalType,
+      label: getAddressLabel(arrivalType) || getPointLabel(arrivalType),
+      lat: arrival.lat,
+      lng: arrival.lng,
+    };
+
     setOptimizing(true);
     setUsedRealRouting(false);
     try {
@@ -311,6 +326,11 @@ export default function RouteOptimizerSheet({
             totalTravelMin: totalDriveMin,
             totalVisitMin,
             estimatedDurationMin: totalDriveMin + totalVisitMin,
+            departure: departureEndpoint,
+            arrival: arrivalEndpoint,
+            strategy,
+            usedRealRouting: true,
+            path: dr.path,
           };
           setOptimizedRoute(route);
           setUsedRealRouting(true);
@@ -321,7 +341,14 @@ export default function RouteOptimizerSheet({
 
       // 2. Fallback: local heuristic (already strategy-aware via config.strategy)
       const route = buildOptimizedRoute(selected, config);
-      setOptimizedRoute(route);
+      const enriched: OptimizedRoute = {
+        ...route,
+        departure: departureEndpoint,
+        arrival: arrivalEndpoint,
+        strategy,
+        usedRealRouting: false,
+      };
+      setOptimizedRoute(enriched);
       setUsedRealRouting(false);
       setStep('result');
     } finally {
