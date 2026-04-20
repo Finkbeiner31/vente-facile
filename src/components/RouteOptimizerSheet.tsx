@@ -1048,5 +1048,5 @@ export default function RouteOptimizerSheet({
   );
 }
 
-// Re-export types for consumers
-export type { OptCustomer, OptimizedRoute };
+// (OptimizedRoute / RouteEndpoint already re-exported near the imports.)
+export type { OptCustomer };
