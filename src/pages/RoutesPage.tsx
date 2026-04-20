@@ -758,7 +758,7 @@ export default function RoutesPage() {
         zoneColor={todayZone?.color || null}
         zoneName={todayZone ? formatZoneName(todayZone) : null}
         dayLabel={`${WEEK_LABELS[selectedWeek]} · ${DAY_NAMES[selectedDay - 1]}`}
-        optimizedRoute={optimizedRoutes[dayKey] || null}
+        optimizedRoute={derivedRoute || optimizedRoutes[dayKey] || null}
         stops={allStops.map(s => {
           const full = zoneCustomers.find((c: any) => c.id === s.customer.id) as any;
           return {
