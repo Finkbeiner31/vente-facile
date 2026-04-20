@@ -716,45 +716,74 @@ export default function RouteOptimizerSheet({
                   </p>
                 </div>
 
-                {/* Zone logic */}
+                {/* Zone logic — base zone obligatoire + extensions optionnelles */}
                 {zone && (
                   <div className="space-y-2">
                     <label className="text-sm font-semibold flex items-center gap-1.5">
                       <MapPin className="h-4 w-4 text-primary" />
                       Logique de zone
                     </label>
-                    <div className="space-y-1.5">
-                      <label className={`flex items-start gap-2.5 w-full rounded-lg border p-2.5 cursor-pointer transition-all ${
-                        zoneLogicFlags.strict ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-primary/30'
-                      }`}>
-                        <Checkbox checked={zoneLogicFlags.strict} disabled className="mt-0.5" />
-                        <div>
-                          <p className="text-xs font-semibold">Respect strict de la zone</p>
-                          <p className="text-[10px] text-muted-foreground">Toujours actif — base de la tournée</p>
+
+                    {/* A. Base obligatoire */}
+                    <div className="flex items-start gap-2.5 w-full rounded-lg border border-primary/40 bg-primary/5 p-2.5">
+                      <CheckCircle2 className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-xs font-semibold">Base : clients de la zone sélectionnée</p>
+                        <p className="text-[10px] text-muted-foreground">Toujours inclus — fondation de la tournée</p>
+                      </div>
+                    </div>
+
+                    {/* B. Tolérance autour de la zone */}
+                    <div className="rounded-lg border p-2.5 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold">Tolérance autour de la zone</p>
+                          <p className="text-[10px] text-muted-foreground">Inclut les clients proches du périmètre</p>
+                        </div>
+                        <Select
+                          value={String(zoneToleranceKm)}
+                          onValueChange={v => setZoneToleranceKm(Number(v) as ZoneToleranceKm)}
+                        >
+                          <SelectTrigger className="h-8 w-[88px] text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="0">0 km</SelectItem>
+                            <SelectItem value="5">5 km</SelectItem>
+                            <SelectItem value="10">10 km</SelectItem>
+                            <SelectItem value="15">15 km</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    {/* C. Clients sur le trajet A/R */}
+                    <div className="rounded-lg border p-2.5 space-y-2">
+                      <label className="flex items-start gap-2.5 cursor-pointer"
+                        onClick={() => setRouteInclusion(v => !v)}>
+                        <Checkbox checked={routeInclusion} className="mt-0.5"
+                          onCheckedChange={v => setRouteInclusion(!!v)} />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-semibold">Inclure les clients sur le trajet aller / retour</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            Inclut les clients accessibles avec un détour limité sur le trajet vers la zone ou au retour.
+                          </p>
                         </div>
                       </label>
-                      <label className={`flex items-start gap-2.5 w-full rounded-lg border p-2.5 cursor-pointer transition-all ${
-                        zoneLogicFlags.tolerance ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-primary/30'
-                      }`}
-                        onClick={() => setZoneLogicFlags(f => ({ ...f, tolerance: !f.tolerance }))}>
-                        <Checkbox checked={zoneLogicFlags.tolerance} className="mt-0.5"
-                          onCheckedChange={v => setZoneLogicFlags(f => ({ ...f, tolerance: !!v }))} />
-                        <div>
-                          <p className="text-xs font-semibold">Tolérance zone (15 km)</p>
-                          <p className="text-[10px] text-muted-foreground">Inclut les clients proches de la zone</p>
+                      {routeInclusion && (
+                        <div className="flex items-center justify-between gap-2 pl-6">
+                          <span className="text-[11px] font-medium">Tolérance de détour</span>
+                          <Select
+                            value={String(detourToleranceMin)}
+                            onValueChange={v => setDetourToleranceMin(Number(v) as DetourToleranceMin)}
+                          >
+                            <SelectTrigger className="h-8 w-[100px] text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="5">5 min</SelectItem>
+                              <SelectItem value="10">10 min</SelectItem>
+                              <SelectItem value="15">15 min</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
-                      </label>
-                      <label className={`flex items-start gap-2.5 w-full rounded-lg border p-2.5 cursor-pointer transition-all ${
-                        zoneLogicFlags.route ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'hover:border-primary/30'
-                      }`}
-                        onClick={() => setZoneLogicFlags(f => ({ ...f, route: !f.route }))}>
-                        <Checkbox checked={zoneLogicFlags.route} className="mt-0.5"
-                          onCheckedChange={v => setZoneLogicFlags(f => ({ ...f, route: !!v }))} />
-                        <div>
-                          <p className="text-xs font-semibold">Clients sur le trajet aller/retour</p>
-                          <p className="text-[10px] text-muted-foreground">Accepte les clients sur votre route</p>
-                        </div>
-                      </label>
+                      )}
                     </div>
                   </div>
                 )}
