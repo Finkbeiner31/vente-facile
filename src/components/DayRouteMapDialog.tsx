@@ -323,6 +323,48 @@ export default function DayRouteMapDialog({
       return;
     }
 
+    // ── Single source of truth: when an OptimizedRoute was passed in,
+    //    use its order + polyline + metrics directly. NO recomputation.
+    if (optimizedRoute && optimizedRoute.customers.length > 0) {
+      const idToIdx = new Map(geocodedStops.map((s, i) => [s.id, i]));
+      const order: number[] = [];
+      optimizedRoute.customers.forEach(c => {
+        const idx = idToIdx.get(c.id);
+        if (idx !== undefined) order.push(idx);
+      });
+      // Append any geocoded stops not in the optimized list (defensive).
+      geocodedStops.forEach((_, i) => { if (!order.includes(i)) order.push(i); });
+
+      const start = departurePoint
+        ? { lat: departurePoint.lat, lng: departurePoint.lng }
+        : { lat: geocodedStops[order[0]].latitude as number, lng: geocodedStops[order[0]].longitude as number };
+      const end = arrivalPoint
+        ? { lat: arrivalPoint.lat, lng: arrivalPoint.lng }
+        : start;
+
+      let path: google.maps.LatLngLiteral[];
+      if (optimizedRoute.path && optimizedRoute.path.length >= 2) {
+        path = optimizedRoute.path.map(p => ({ lat: p.lat, lng: p.lng }));
+      } else {
+        path = [start];
+        order.forEach(i => path.push({
+          lat: geocodedStops[i].latitude as number,
+          lng: geocodedStops[i].longitude as number,
+        }));
+        path.push(end);
+      }
+
+      setRoute({
+        order,
+        path,
+        km: optimizedRoute.totalDistanceKm,
+        driveMin: optimizedRoute.totalTravelMin,
+        usedRouting: !!optimizedRoute.usedRealRouting,
+      });
+      setRouting(false);
+      return;
+    }
+
     const ids = geocodedStops.map(s => s.id);
     const key = cacheKey(departurePoint, arrivalPoint, prefs.strategy, ids);
     const cached = routeCache.get(key);
@@ -386,7 +428,7 @@ export default function DayRouteMapDialog({
 
     run();
     return () => { cancelled = true; };
-  }, [open, ready, geocodedStops, departurePoint, arrivalPoint, prefs.strategy]);
+  }, [open, ready, geocodedStops, departurePoint, arrivalPoint, prefs.strategy, optimizedRoute]);
 
   // Effective ordered stops, derived from route.order if available
   const orderedStops = useMemo(() => {
