@@ -864,6 +864,78 @@ export type Database = {
           },
         ]
       }
+      tour_history: {
+        Row: {
+          arrival: Json | null
+          created_at: string
+          day_of_week: number | null
+          departure: Json | null
+          estimated_duration_min: number | null
+          id: string
+          notes: string | null
+          source: string
+          status: string
+          stops: Json
+          stops_count: number
+          total_distance_km: number | null
+          total_travel_min: number | null
+          total_visit_min: number | null
+          tour_date: string
+          used_real_routing: boolean
+          user_id: string
+          week_number: number | null
+          zone_color: string | null
+          zone_id: string | null
+          zone_name: string | null
+        }
+        Insert: {
+          arrival?: Json | null
+          created_at?: string
+          day_of_week?: number | null
+          departure?: Json | null
+          estimated_duration_min?: number | null
+          id?: string
+          notes?: string | null
+          source?: string
+          status?: string
+          stops?: Json
+          stops_count?: number
+          total_distance_km?: number | null
+          total_travel_min?: number | null
+          total_visit_min?: number | null
+          tour_date: string
+          used_real_routing?: boolean
+          user_id: string
+          week_number?: number | null
+          zone_color?: string | null
+          zone_id?: string | null
+          zone_name?: string | null
+        }
+        Update: {
+          arrival?: Json | null
+          created_at?: string
+          day_of_week?: number | null
+          departure?: Json | null
+          estimated_duration_min?: number | null
+          id?: string
+          notes?: string | null
+          source?: string
+          status?: string
+          stops?: Json
+          stops_count?: number
+          total_distance_km?: number | null
+          total_travel_min?: number | null
+          total_visit_min?: number | null
+          tour_date?: string
+          used_real_routing?: boolean
+          user_id?: string
+          week_number?: number | null
+          zone_color?: string | null
+          zone_id?: string | null
+          zone_name?: string | null
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           id: string
