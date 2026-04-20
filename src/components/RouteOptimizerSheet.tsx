@@ -204,7 +204,7 @@ export default function RouteOptimizerSheet({
     }
   }, [open]);
 
-  const hasExtension = zoneLogicFlags.tolerance || zoneLogicFlags.route;
+  const hasExtension = zoneToleranceKm > 0 || routeInclusion;
 
   const candidates = useMemo(() => {
     if (!departurePos) return [];
@@ -225,15 +225,16 @@ export default function RouteOptimizerSheet({
     }));
 
     const config: OptimizationConfig = {
-      visitTarget: HARD_VISIT_CAP, strategy, zoneLogic: 'strict', zoneLogicFlags, typeFilter,
-      relationshipFilter,
+      visitTarget: HARD_VISIT_CAP, strategy, zoneLogic: 'strict', zoneLogicFlags,
+      zoneToleranceKm, routeInclusion, detourToleranceMin,
+      typeFilter, relationshipFilter,
       excludeRecentDays: excludeRecent ? 7 : null,
       departureLat: departurePos.lat, departureLng: departurePos.lng,
       arrivalLat: arrival.lat, arrivalLng: arrival.lng,
     };
 
     return filterCandidates(sourcePool, zoneCustomerIds, config);
-  }, [zoneCustomers, allCustomers, typeFilter, relationshipFilter, excludeRecent, departurePos, effectiveArrival, zoneLogicFlags, hasExtension, strategy]);
+  }, [zoneCustomers, allCustomers, typeFilter, relationshipFilter, excludeRecent, departurePos, effectiveArrival, zoneLogicFlags, zoneToleranceKm, routeInclusion, detourToleranceMin, hasExtension, strategy]);
 
   const eligibleClients = zoneCustomers.filter((c: any) =>
     c.customer_type !== 'prospect' && c.customer_type !== 'prospect_qualifie').length;
