@@ -1072,7 +1072,7 @@ export default function RouteOptimizerSheet({
                     <div className="flex items-center gap-1.5">
                       <MapPin className="h-3 w-3 text-primary shrink-0" />
                       <span className="font-medium">Zone :</span>
-                      <span className="text-muted-foreground truncate">{zoneName} · {zoneLogicShortLabel(zoneLogicFlags)}</span>
+                      <span className="text-muted-foreground truncate">{zoneName} · {zoneLogicShortLabel({ zoneToleranceKm, routeInclusion, detourToleranceMin })}</span>
                     </div>
                   )}
                 </div>
