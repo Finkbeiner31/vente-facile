@@ -376,36 +376,56 @@ export function filterCandidates(
       if (days !== null && days <= config.excludeRecentDays) continue;
     }
 
-    // Zone logic — support combined flags
+    // Logique de zone — la zone sélectionnée est TOUJOURS la base obligatoire.
+    // Extensions optionnelles : tolérance autour de la zone (km) + clients sur
+    // le trajet A/R (détour en minutes).
+    const inZone = zoneCustomerIds.has(c.id);
+    let isOutsideZone = false;
+    let outsideReason: 'tolerance' | 'route' | null = null;
+
+    // Compat : si l'appelant n'a pas encore migré, on déduit les nouveaux
+    // champs depuis l'ancien `zoneLogicFlags`.
     const flags: ZoneLogicFlags = config.zoneLogicFlags || {
       strict: config.zoneLogic === 'strict',
       tolerance: config.zoneLogic === 'tolerance',
       route: config.zoneLogic === 'route',
     };
-
-    const inZone = zoneCustomerIds.has(c.id);
-    let isOutsideZone = false;
+    const toleranceKm = config.zoneToleranceKm !== undefined
+      ? config.zoneToleranceKm
+      : (flags.tolerance ? ZONE_TOLERANCE_KM : 0);
+    const routeInclusion = config.routeInclusion !== undefined
+      ? config.routeInclusion
+      : !!flags.route;
+    const detourMaxMin = config.detourToleranceMin !== undefined
+      ? config.detourToleranceMin
+      : 10;
 
     if (!inZone) {
-      // If only strict is active, skip non-zone accounts
-      const hasExtension = flags.tolerance || flags.route;
+      const hasExtension = toleranceKm > 0 || routeInclusion;
       if (!hasExtension) continue;
 
       let accepted = false;
 
-      if (flags.tolerance) {
-        const dist = haversineKm(config.departureLat, config.departureLng, c.latitude, c.longitude);
-        if (dist <= ZONE_TOLERANCE_KM * 3) accepted = true;
+      // Étape 1 : tolérance autour de la zone (proximité du périmètre)
+      if (toleranceKm > 0) {
+        const dKm = distToZoneKm(c.latitude, c.longitude);
+        if (dKm <= toleranceKm) {
+          accepted = true;
+          outsideReason = 'tolerance';
+        }
       }
 
-      if (!accepted && flags.route) {
-        const onRoute = isOnRoute(
+      // Étape 2 : clients sur le trajet A/R avec détour ≤ X minutes
+      if (!accepted && routeInclusion) {
+        const dMin = detourMinutes(
           c.latitude, c.longitude,
           config.departureLat, config.departureLng,
           config.arrivalLat, config.arrivalLng,
-          ROUTE_CORRIDOR_KM,
         );
-        if (onRoute) accepted = true;
+        if (dMin <= detourMaxMin) {
+          accepted = true;
+          outsideReason = 'route';
+        }
       }
 
       if (!accepted) continue;
@@ -424,7 +444,7 @@ export function filterCandidates(
     if (relReason && !reasons.includes(relReason)) reasons.push(relReason);
 
     if (isOutsideZone) {
-      reasons.push('Hors zone');
+      reasons.push(outsideReason === 'route' ? 'Sur le trajet' : 'Hors zone');
     }
 
     results.push({
