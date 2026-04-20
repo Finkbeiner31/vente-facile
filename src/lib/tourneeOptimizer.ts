@@ -65,12 +65,36 @@ export interface ScoredCustomer extends OptCustomer {
   isOutsideZone: boolean;
 }
 
+/**
+ * Endpoint of an optimized day route (départ "A" or arrivée "B").
+ * Captured at optimization time so the tournée list and the map can render
+ * the exact same A → clients → B structure without re-resolving anything.
+ */
+export interface RouteEndpoint {
+  /** 'company' | 'home' | 'custom' — what the user picked in the optimizer */
+  type: 'company' | 'home' | 'custom';
+  /** Human label displayed in the UI (e.g. "Entreprise — 10 rue X, Lyon") */
+  label: string;
+  lat: number;
+  lng: number;
+}
+
 export interface OptimizedRoute {
   customers: ScoredCustomer[];
   totalDistanceKm: number;
   estimatedDurationMin: number;
   totalTravelMin: number;
   totalVisitMin: number;
+  /** Final departure point used to build the route (A). */
+  departure?: RouteEndpoint | null;
+  /** Final arrival point used to build the route (B). */
+  arrival?: RouteEndpoint | null;
+  /** Strategy actually applied (nearest / farthest). */
+  strategy?: RouteStrategy;
+  /** True if Google Directions road routing produced this order/distance. */
+  usedRealRouting?: boolean;
+  /** Real road polyline (Google Directions). Empty when fallback heuristic was used. */
+  path?: { lat: number; lng: number }[];
 }
 
 export interface OptimizationConfig {
