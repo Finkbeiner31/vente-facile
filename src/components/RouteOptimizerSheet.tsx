@@ -237,26 +237,29 @@ export default function RouteOptimizerSheet({
     return { magasin, atelier, mixte, none };
   }, [candidates]);
 
-  // Save address to profile
-  const saveAddress = async (field: 'entreprise' | 'domicile' | 'autre', address: string) => {
+  // Save address to profile — requires a validated AddressSelection
+  // (i.e. user picked a suggestion, so we already have lat/lng).
+  const saveAddress = async (
+    field: 'entreprise' | 'domicile' | 'autre',
+    selection: AddressSelection,
+  ) => {
     if (!user?.id) return;
     setEditSaving(true);
     try {
-      const geo = await geocodeAddress(address);
-      if (!geo) { toast.error('Adresse introuvable. Vérifiez la saisie.'); setEditSaving(false); return; }
-      
       const updateData = field === 'entreprise'
-        ? { entreprise_address: address, entreprise_lat: geo.lat, entreprise_lng: geo.lng }
+        ? { entreprise_address: selection.fullAddress, entreprise_lat: selection.latitude, entreprise_lng: selection.longitude }
         : field === 'domicile'
-        ? { domicile_address: address, domicile_lat: geo.lat, domicile_lng: geo.lng }
-        : { autre_address: address, autre_lat: geo.lat, autre_lng: geo.lng };
-      
+        ? { domicile_address: selection.fullAddress, domicile_lat: selection.latitude, domicile_lng: selection.longitude }
+        : { autre_address: selection.fullAddress, autre_lat: selection.latitude, autre_lng: selection.longitude };
+
       const { error } = await supabase.from('profiles').update(updateData).eq('id', user.id);
       if (error) throw error;
-      
+
       setAddresses(prev => ({ ...prev, ...updateData }));
-      toast.success('Adresse enregistrée');
+      toast.success('Adresse validée et enregistrée');
       setEditingField(null);
+      setEditSelection(null);
+      setEditAddress('');
     } catch (e) {
       console.error(e);
       toast.error("Erreur lors de l'enregistrement");
