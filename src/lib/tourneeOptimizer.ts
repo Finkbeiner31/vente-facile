@@ -178,6 +178,21 @@ function isOnRoute(
   return (detour - directDist) <= corridorKm;
 }
 
+/**
+ * Estime, en minutes, le détour induit par l'insertion d'un point sur le trajet
+ * direct A → B. Plus précis pour le terrain qu'une simple tolérance en km.
+ */
+function detourMinutes(
+  lat: number, lng: number,
+  depLat: number, depLng: number,
+  arrLat: number, arrLng: number,
+): number {
+  const directKm = haversineKm(depLat, depLng, arrLat, arrLng);
+  const viaKm = haversineKm(depLat, depLng, lat, lng) + haversineKm(lat, lng, arrLat, arrLng);
+  const extraKm = Math.max(0, viaKm - directKm);
+  return estimateDriveMin(extraKm);
+}
+
 // ── Priority Scoring ──
 
 /**
