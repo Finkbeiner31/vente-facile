@@ -661,7 +661,28 @@ export default function RouteOptimizerSheet({
                     />
                     <span className="text-sm font-bold w-8 text-center">{visitTarget}</span>
                   </div>
-                  <p className="text-[10px] text-muted-foreground text-center">Objectif recommandé : 8–12 visites</p>
+                  <p className="text-[10px] text-muted-foreground text-center">Plafond de visites — la durée cible reste prioritaire</p>
+                </div>
+
+                {/* Workday target duration */}
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold flex items-center gap-1.5">
+                    <Clock className="h-4 w-4 text-primary" />
+                    Temps de travail cible
+                  </label>
+                  <Select value={String(workdayTargetHours)} onValueChange={v => setWorkdayTargetHours(Number(v))}>
+                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="6">6h par jour</SelectItem>
+                      <SelectItem value="7">7h par jour</SelectItem>
+                      <SelectItem value="8">8h par jour (recommandé)</SelectItem>
+                      <SelectItem value="9">9h par jour</SelectItem>
+                      <SelectItem value="10">10h par jour</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[10px] text-muted-foreground text-center">
+                    Inclut trajet + visites — la tournée vise environ {workdayTargetHours}h
+                  </p>
                 </div>
 
                 {/* Zone logic */}
