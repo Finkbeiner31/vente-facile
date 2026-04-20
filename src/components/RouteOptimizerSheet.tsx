@@ -12,6 +12,7 @@ import {
 import { Slider } from '@/components/ui/slider';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { AddressAutocomplete, type AddressSelection } from '@/components/AddressAutocomplete';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from '@/components/ui/dialog';
@@ -19,7 +20,7 @@ import {
   Loader2, Navigation, MapPin, Play, Route, Sparkles, Zap,
   LocateFixed, AlertTriangle, Users, Target, ArrowDown, ArrowUp,
   Building2, MapPinned, Flag, CircleDot, Clock, Home, MoreHorizontal,
-  Info, Pencil, Store, Hammer,
+  Info, Pencil, Store, Hammer, CheckCircle2,
 } from 'lucide-react';
 import { formatMonthly } from '@/lib/revenueUtils';
 import { toast } from 'sonner';
@@ -115,9 +116,11 @@ export default function RouteOptimizerSheet({
   const [arrivalType, setArrivalType] = useState<PointType>(initialPrefs.arrivalType);
   const [zoneLogicFlags, setZoneLogicFlags] = useState<ZoneLogicFlags>(initialPrefs.zoneLogicFlags);
 
-  // Address edit modal
+  // Address edit modal — uses live autocomplete (Nominatim) and stores
+  // a validated geocoded selection rather than raw text.
   const [editingField, setEditingField] = useState<'entreprise' | 'domicile' | 'autre' | null>(null);
   const [editAddress, setEditAddress] = useState('');
+  const [editSelection, setEditSelection] = useState<AddressSelection | null>(null);
   const [editSaving, setEditSaving] = useState(false);
 
   // Process state
@@ -234,26 +237,29 @@ export default function RouteOptimizerSheet({
     return { magasin, atelier, mixte, none };
   }, [candidates]);
 
-  // Save address to profile
-  const saveAddress = async (field: 'entreprise' | 'domicile' | 'autre', address: string) => {
+  // Save address to profile — requires a validated AddressSelection
+  // (i.e. user picked a suggestion, so we already have lat/lng).
+  const saveAddress = async (
+    field: 'entreprise' | 'domicile' | 'autre',
+    selection: AddressSelection,
+  ) => {
     if (!user?.id) return;
     setEditSaving(true);
     try {
-      const geo = await geocodeAddress(address);
-      if (!geo) { toast.error('Adresse introuvable. Vérifiez la saisie.'); setEditSaving(false); return; }
-      
       const updateData = field === 'entreprise'
-        ? { entreprise_address: address, entreprise_lat: geo.lat, entreprise_lng: geo.lng }
+        ? { entreprise_address: selection.fullAddress, entreprise_lat: selection.latitude, entreprise_lng: selection.longitude }
         : field === 'domicile'
-        ? { domicile_address: address, domicile_lat: geo.lat, domicile_lng: geo.lng }
-        : { autre_address: address, autre_lat: geo.lat, autre_lng: geo.lng };
-      
+        ? { domicile_address: selection.fullAddress, domicile_lat: selection.latitude, domicile_lng: selection.longitude }
+        : { autre_address: selection.fullAddress, autre_lat: selection.latitude, autre_lng: selection.longitude };
+
       const { error } = await supabase.from('profiles').update(updateData).eq('id', user.id);
       if (error) throw error;
-      
+
       setAddresses(prev => ({ ...prev, ...updateData }));
-      toast.success('Adresse enregistrée');
+      toast.success('Adresse validée et enregistrée');
       setEditingField(null);
+      setEditSelection(null);
+      setEditAddress('');
     } catch (e) {
       console.error(e);
       toast.error("Erreur lors de l'enregistrement");
@@ -423,6 +429,7 @@ export default function RouteOptimizerSheet({
 
   const openEditModal = (field: 'entreprise' | 'domicile' | 'autre') => {
     setEditAddress(addresses[`${field}_address`] || '');
+    setEditSelection(null); // Force re-validation: existing text is not "freshly validated"
     setEditingField(field);
   };
 
@@ -1017,27 +1024,63 @@ export default function RouteOptimizerSheet({
         </SheetContent>
       </Sheet>
 
-      {/* Address edit modal */}
-      <Dialog open={!!editingField} onOpenChange={(o) => { if (!o) setEditingField(null); }}>
+      {/* Address edit modal — live autocomplete + validated geocoded selection */}
+      <Dialog open={!!editingField} onOpenChange={(o) => {
+        if (!o) { setEditingField(null); setEditSelection(null); }
+      }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{editingField ? fieldLabelMap[editingField] : ''}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
-            <Input
-              placeholder="Entrez l'adresse complète..."
+            <AddressAutocomplete
               value={editAddress}
-              onChange={e => setEditAddress(e.target.value)}
-              className="h-11"
+              onChange={(v) => {
+                setEditAddress(v);
+                // Editing the text invalidates any previous selection
+                if (editSelection && v !== editSelection.fullAddress) {
+                  setEditSelection(null);
+                }
+              }}
+              onSelect={(sel) => {
+                setEditSelection(sel);
+                setEditAddress(sel.fullAddress);
+              }}
+              placeholder="Tapez et choisissez une adresse…"
             />
-            <p className="text-xs text-muted-foreground">
-              L'adresse sera géocodée et sauvegardée automatiquement dans votre profil.
-            </p>
+
+            {/* Validation status */}
+            {editSelection ? (
+              <div className="flex items-start gap-2 rounded-lg border border-success/30 bg-success/5 px-3 py-2 text-xs">
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-success mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-success">Adresse validée</p>
+                  <p className="text-muted-foreground truncate">{editSelection.fullAddress}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    {editSelection.postalCode} {editSelection.city} · {editSelection.latitude.toFixed(5)}, {editSelection.longitude.toFixed(5)}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-xs">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-warning mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-warning">Adresse à confirmer</p>
+                  <p className="text-muted-foreground">
+                    Veuillez sélectionner une adresse proposée pour la valider et la géocoder.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingField(null)}>Annuler</Button>
-            <Button disabled={!editAddress.trim() || editSaving}
-              onClick={() => editingField && saveAddress(editingField, editAddress.trim())}>
+            <Button variant="outline" onClick={() => { setEditingField(null); setEditSelection(null); }}>
+              Annuler
+            </Button>
+            <Button
+              disabled={!editSelection || editSaving}
+              onClick={() => editingField && editSelection && saveAddress(editingField, editSelection)}
+            >
               {editSaving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
               Enregistrer
             </Button>
