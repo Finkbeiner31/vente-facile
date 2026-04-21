@@ -78,7 +78,11 @@ export function ConfigureAddressesDialog({
       // Build a partial payload: each address group is only included when the
       // user picked a real suggestion (lat/lng present). Free-text without
       // geocoding is rejected because the optimizer needs coordinates.
-      const payload: Record<string, string | number | null> = {};
+      const payload: {
+        entreprise_address?: string; entreprise_lat?: number; entreprise_lng?: number;
+        domicile_address?: string; domicile_lat?: number; domicile_lng?: number;
+        autre_address?: string; autre_lat?: number; autre_lng?: number;
+      } = {};
 
       const hasEntrepriseInput = entreprise.address.trim().length > 0;
       const hasDomicileInput = domicile.address.trim().length > 0;
