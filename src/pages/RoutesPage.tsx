@@ -12,7 +12,9 @@ import {
   RotateCcw, Loader2, Archive,
   Plus, Users, Route as RouteIcon,
   Navigation, Clock, Briefcase, Hourglass,
+  AlertTriangle, Building2,
 } from 'lucide-react';
+import type { RouteEndpoint } from '@/lib/tourneeOptimizer';
 import RouteOptimizerSheet from '@/components/RouteOptimizerSheet';
 import type { OptimizedRoute } from '@/components/RouteOptimizerSheet';
 import { formatDuration, haversineKm, estimateDriveMin } from '@/lib/tourneeOptimizer';
@@ -120,6 +122,43 @@ export default function RoutesPage() {
   }, [planning, selectedDay, selectedWeek]);
 
   const todayZone = zones.find(z => z.id === todayZoneId);
+
+  // ── Default A/B = "Entreprise" from the logged-in user's profile ──
+  // Loaded once and used as the implicit departure (A) and arrival (B) of every
+  // tournée du jour, unless the user explicitly overrides them via the
+  // optimizer. Single source of truth: optimizedRoutes[dayKey] takes priority,
+  // otherwise we fall back to this entreprise endpoint.
+  const { data: entrepriseProfile } = useQuery({
+    queryKey: ['profile-entreprise', activeUserId],
+    queryFn: async () => {
+      if (!activeUserId) return null;
+      const { data } = await supabase
+        .from('profiles')
+        .select('entreprise_address, entreprise_lat, entreprise_lng')
+        .eq('id', activeUserId)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!activeUserId,
+  });
+
+  const entrepriseEndpoint: RouteEndpoint | null = useMemo(() => {
+    if (!entrepriseProfile?.entreprise_lat || !entrepriseProfile?.entreprise_lng) return null;
+    return {
+      type: 'company',
+      label: entrepriseProfile.entreprise_address || 'Entreprise',
+      lat: entrepriseProfile.entreprise_lat,
+      lng: entrepriseProfile.entreprise_lng,
+    };
+  }, [entrepriseProfile]);
+
+  /** Effective endpoints for the current day: optimizer-set values win,
+   *  otherwise default to the user's entreprise address. */
+  const effectiveDeparture: RouteEndpoint | null =
+    optimizedRoutes[dayKey]?.departure ?? entrepriseEndpoint;
+  const effectiveArrival: RouteEndpoint | null =
+    optimizedRoutes[dayKey]?.arrival ?? entrepriseEndpoint;
+
 
   const { data: zoneCustomers = [], isLoading: customersLoading } = useQuery({
     queryKey: ['zone-customers', todayZoneId, activeUserId],
@@ -240,8 +279,9 @@ export default function RoutesPage() {
     if (allStops.length === 0) return null;
 
     const existing = optimizedRoutes[dayKey];
-    const dep = existing?.departure ?? null;
-    const arr = existing?.arrival ?? null;
+    // Default A/B = entreprise from profile, overridden by optimizer choice.
+    const dep = existing?.departure ?? entrepriseEndpoint;
+    const arr = existing?.arrival ?? entrepriseEndpoint;
 
     let totalKm = 0;
     let prevLat: number | null = dep?.lat ?? null;
@@ -299,7 +339,7 @@ export default function RoutesPage() {
         && existing.customers.every((c, i) => c.id === allStops[i]?.customer.id)
         ? existing.path : [],
     } as OptimizedRoute;
-  }, [allStops, dayKey, todayZoneId, durationDefaults, optimizedRoutes]);
+  }, [allStops, dayKey, todayZoneId, durationDefaults, optimizedRoutes, entrepriseEndpoint]);
 
 
   const assignZoneMutation = useMutation({
@@ -748,6 +788,52 @@ export default function RoutesPage() {
         </div>
       )}
 
+      {/* Default A/B status: confirms entreprise as start/end, or warns if missing. */}
+      {todayZoneId && entrepriseEndpoint && !optimizedRoutes[dayKey] && (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="p-2.5">
+            <div className="flex items-center gap-2 text-[11px]">
+              <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
+              <span className="text-foreground">
+                Départ et arrivée par défaut : <span className="font-semibold">Entreprise</span>
+                {entrepriseProfile?.entreprise_address && (
+                  <span className="text-muted-foreground"> · {entrepriseProfile.entreprise_address}</span>
+                )}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto h-7 px-2 text-[11px] text-primary hover:text-primary"
+                onClick={() => setOptimizerOpen(true)}
+              >
+                Modifier
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      {todayZoneId && !entrepriseEndpoint && !optimizedRoutes[dayKey] && (
+        <Card className="border-warning/40 bg-warning/5">
+          <CardContent className="p-2.5">
+            <div className="flex items-center gap-2 text-[11px]">
+              <AlertTriangle className="h-3.5 w-3.5 text-warning shrink-0" />
+              <span className="text-foreground">
+                Aucune adresse entreprise renseignée dans votre profil — départ et arrivée
+                resteront vides tant qu'ils n'auront pas été configurés dans l'optimiseur.
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto h-7 px-2 text-[11px] text-warning hover:text-warning"
+                onClick={() => setOptimizerOpen(true)}
+              >
+                Configurer
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Day route summary metrics — auto-derived from current "Tournée du jour" */}
       {todayZoneId && (() => {
         const route = derivedRoute;
@@ -842,8 +928,8 @@ export default function RoutesPage() {
               visitDurationMinutes: 'visitDurationMinutes' in s ? (s as any).visitDurationMinutes : null,
             }))}
             availableCustomers={zoneCustomers}
-            departure={optimizedRoutes[dayKey]?.departure ?? null}
-            arrival={optimizedRoutes[dayKey]?.arrival ?? null}
+            departure={effectiveDeparture}
+            arrival={effectiveArrival}
             onUpdatePlanned={(newStops) => {
               setCustomPlanned(prev => ({ ...prev, [dayKey]: newStops }));
               // The route summary auto-recomputes from the new manual order
