@@ -37,6 +37,7 @@ import { useCycleStartDate } from '@/hooks/useCycleStartDate';
 import { TourHistoryPanel } from '@/components/TourHistoryPanel';
 import { ReuseTourDialog, type ReuseTarget } from '@/components/ReuseTourDialog';
 import { useArchiveTour, type TourHistoryEntry } from '@/hooks/useTourHistory';
+import { ConfigureAddressesDialog } from '@/components/ConfigureAddressesDialog';
 import { format, addDays, startOfWeek } from 'date-fns';
 
 const DAY_NAMES = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
@@ -84,6 +85,7 @@ export default function RoutesPage() {
   const [activeClient, setActiveClient] = useState('');
   const [tourMode, setTourMode] = useState(false);
   const [optimizerOpen, setOptimizerOpen] = useState(false);
+  const [addressDialogOpen, setAddressDialogOpen] = useState(false);
   const [zoneMapOpen, setZoneMapOpen] = useState(false);
   const [routeMapOpen, setRouteMapOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -134,7 +136,7 @@ export default function RoutesPage() {
       if (!activeUserId) return null;
       const { data } = await supabase
         .from('profiles')
-        .select('entreprise_address, entreprise_lat, entreprise_lng')
+        .select('entreprise_address, entreprise_lat, entreprise_lng, domicile_address, domicile_lat, domicile_lng, full_name')
         .eq('id', activeUserId)
         .maybeSingle();
       return data;
@@ -825,7 +827,7 @@ export default function RoutesPage() {
                 variant="ghost"
                 size="sm"
                 className="ml-auto h-7 px-2 text-[11px] text-warning hover:text-warning"
-                onClick={() => setOptimizerOpen(true)}
+                onClick={() => setAddressDialogOpen(true)}
               >
                 Configurer
               </Button>
@@ -958,6 +960,23 @@ export default function RoutesPage() {
       </Tabs>
 
       <QuickReportDialog open={reportOpen} onOpenChange={setReportOpen} clientName={activeClient} />
+      <ConfigureAddressesDialog
+        open={addressDialogOpen}
+        onOpenChange={setAddressDialogOpen}
+        userId={activeUserId}
+        userLabel={entrepriseProfile?.full_name ?? undefined}
+        focusField={entrepriseProfile?.entreprise_address ? 'domicile' : 'entreprise'}
+        initialEntreprise={{
+          address: entrepriseProfile?.entreprise_address ?? '',
+          lat: entrepriseProfile?.entreprise_lat ?? null,
+          lng: entrepriseProfile?.entreprise_lng ?? null,
+        }}
+        initialDomicile={{
+          address: entrepriseProfile?.domicile_address ?? '',
+          lat: entrepriseProfile?.domicile_lat ?? null,
+          lng: entrepriseProfile?.domicile_lng ?? null,
+        }}
+      />
       <RouteOptimizerSheet
         open={optimizerOpen}
         onOpenChange={setOptimizerOpen}
