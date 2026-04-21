@@ -613,8 +613,10 @@ export default function MapPage() {
                   );
                 })}
                 {filtered.length === 0 && (
-                  <div className="py-8 text-center text-sm text-muted-foreground">
-                    Aucun résultat avec ces filtres
+                  <div className="py-8 text-center text-sm text-muted-foreground px-4">
+                    {!isAdmin && allCustomers.length === 0
+                      ? 'Aucun client affecté'
+                      : 'Aucun résultat avec ces filtres'}
                   </div>
                 )}
               </div>
