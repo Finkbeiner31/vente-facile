@@ -69,13 +69,16 @@ export function TourReportSheet({ open, onOpenChange, clientName, onSubmit, onAd
 
   const [submitting, setSubmitting] = useState(false);
 
+  const notesValid = notes.trim().length > 0;
+
   const handleSubmit = async () => {
+    if (!notesValid) return;
     setSubmitting(true);
     try {
       await onSubmit({
         outcome,
         notes,
-        nextActionDate,
+        nextActionDate: '',
         followUpAction,
         promotionPresented,
         promotionId: selectedPromotion?.id || null,
