@@ -960,6 +960,23 @@ export default function RoutesPage() {
       </Tabs>
 
       <QuickReportDialog open={reportOpen} onOpenChange={setReportOpen} clientName={activeClient} />
+      <ConfigureAddressesDialog
+        open={addressDialogOpen}
+        onOpenChange={setAddressDialogOpen}
+        userId={activeUserId}
+        userLabel={entrepriseProfile?.full_name ?? undefined}
+        focusField={entrepriseProfile?.entreprise_address ? 'domicile' : 'entreprise'}
+        initialEntreprise={{
+          address: entrepriseProfile?.entreprise_address ?? '',
+          lat: entrepriseProfile?.entreprise_lat ?? null,
+          lng: entrepriseProfile?.entreprise_lng ?? null,
+        }}
+        initialDomicile={{
+          address: entrepriseProfile?.domicile_address ?? '',
+          lat: entrepriseProfile?.domicile_lat ?? null,
+          lng: entrepriseProfile?.domicile_lng ?? null,
+        }}
+      />
       <RouteOptimizerSheet
         open={optimizerOpen}
         onOpenChange={setOptimizerOpen}
