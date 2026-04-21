@@ -191,7 +191,7 @@ export function TourReportSheet({ open, onOpenChange, clientName, onSubmit, onAd
           )}
 
           {/* Submit */}
-          <Button onClick={handleSubmit} disabled={!outcome || submitting}
+          <Button onClick={handleSubmit} disabled={!outcome || !notesValid || submitting}
             className="w-full h-14 text-base font-bold">
             {submitting ? 'Enregistrement…' : 'Enregistrer & Suivant'}
             {!submitting && <ArrowRight className="h-5 w-5 ml-2" />}
