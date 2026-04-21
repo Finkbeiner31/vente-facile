@@ -201,6 +201,17 @@ export default function RouteOptimizerSheet({
 
   useEffect(() => {
     if (open) {
+      const prefs = loadPrefs(activeUserId);
+      setTypeFilter(prefs.typeFilter);
+      setRelationshipFilter(prefs.relationshipFilter);
+      setWorkdayTargetHours(prefs.workdayTargetHours);
+      setExcludeRecent(prefs.excludeRecent);
+      setStrategy(prefs.strategy);
+      setDepartureType(prefs.departureType);
+      setArrivalType(prefs.arrivalType);
+      setZoneToleranceKm(prefs.zoneToleranceKm);
+      setRouteInclusion(prefs.routeInclusion);
+      setDetourToleranceMin(prefs.detourToleranceMin);
       setStep('config');
       setOptimizedRoute(null);
       setSelectedIds(new Set());
@@ -209,7 +220,7 @@ export default function RouteOptimizerSheet({
       // reflected immediately in the départ/arrivée selectors.
       setAddressesLoaded(false);
     }
-  }, [open]);
+  }, [open, activeUserId]);
 
   const hasExtension = zoneToleranceKm > 0 || routeInclusion;
 
