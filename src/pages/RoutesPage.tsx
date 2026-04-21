@@ -134,7 +134,7 @@ export default function RoutesPage() {
       if (!activeUserId) return null;
       const { data } = await supabase
         .from('profiles')
-        .select('entreprise_address, entreprise_lat, entreprise_lng')
+        .select('entreprise_address, entreprise_lat, entreprise_lng, domicile_address, domicile_lat, domicile_lng, full_name')
         .eq('id', activeUserId)
         .maybeSingle();
       return data;
