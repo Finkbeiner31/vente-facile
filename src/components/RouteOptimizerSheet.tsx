@@ -201,6 +201,10 @@ export default function RouteOptimizerSheet({
       setStep('config');
       setOptimizedRoute(null);
       setSelectedIds(new Set());
+      // Re-pull saved addresses every time the sheet opens so changes made
+      // from the ConfigureAddressesDialog (entreprise/domicile/autre) are
+      // reflected immediately in the départ/arrivée selectors.
+      setAddressesLoaded(false);
     }
   }, [open]);
 
