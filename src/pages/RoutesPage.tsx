@@ -37,6 +37,7 @@ import { useCycleStartDate } from '@/hooks/useCycleStartDate';
 import { TourHistoryPanel } from '@/components/TourHistoryPanel';
 import { ReuseTourDialog, type ReuseTarget } from '@/components/ReuseTourDialog';
 import { useArchiveTour, type TourHistoryEntry } from '@/hooks/useTourHistory';
+import { ConfigureAddressesDialog } from '@/components/ConfigureAddressesDialog';
 import { format, addDays, startOfWeek } from 'date-fns';
 
 const DAY_NAMES = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
@@ -84,6 +85,7 @@ export default function RoutesPage() {
   const [activeClient, setActiveClient] = useState('');
   const [tourMode, setTourMode] = useState(false);
   const [optimizerOpen, setOptimizerOpen] = useState(false);
+  const [addressDialogOpen, setAddressDialogOpen] = useState(false);
   const [zoneMapOpen, setZoneMapOpen] = useState(false);
   const [routeMapOpen, setRouteMapOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -825,7 +827,7 @@ export default function RoutesPage() {
                 variant="ghost"
                 size="sm"
                 className="ml-auto h-7 px-2 text-[11px] text-warning hover:text-warning"
-                onClick={() => setOptimizerOpen(true)}
+                onClick={() => setAddressDialogOpen(true)}
               >
                 Configurer
               </Button>
