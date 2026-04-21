@@ -225,7 +225,7 @@ export default function DayRouteMapDialog({
 
   // Persisted optimizer prefs drive A, B and strategy so this view stays
   // consistent with what the user configured in "Optimiser ma tournée".
-  const prefs = useMemo(() => loadPrefs(user?.id), [user?.id, open]);
+  const prefs = useMemo(() => loadPrefs(activeUserId), [activeUserId, open]);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const overlaysRef = useRef<Array<google.maps.Marker | google.maps.Polyline>>([]);
