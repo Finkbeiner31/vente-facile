@@ -107,6 +107,7 @@ export function AdminZoneManager() {
   const [editingZone, setEditingZone] = useState<CommercialZone | null>(null);
   const [editForm, setEditForm] = useState(defaultForm);
   const [mapMode, setMapMode] = useState<'create' | 'edit' | null>(null);
+  const [mapFullscreen, setMapFullscreen] = useState(false);
   const [showMapOverview, setShowMapOverview] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
   const { bulkRecalculate } = useZoneAssignment();
