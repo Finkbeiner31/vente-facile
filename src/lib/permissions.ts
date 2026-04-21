@@ -20,6 +20,7 @@ export type ModuleId =
   | 'tasks'
   | 'opportunities'
   | 'promotions'
+  | 'my_info'
   | 'admin'
   | 'admin_import'
   | 'admin_import_ca'
@@ -64,6 +65,7 @@ const routeModuleMap: Array<{ path: string; exact?: boolean; module: ModuleId }>
   { path: '/taches', module: 'tasks' },
   { path: '/opportunites', module: 'opportunities' },
   { path: '/promotions', module: 'promotions' },
+  { path: '/mes-infos', exact: true, module: 'my_info' },
   { path: '/admin/import-ca', exact: true, module: 'admin_import_ca' },
   { path: '/admin/historique-ca', exact: true, module: 'admin_history_ca' },
   { path: '/admin/import', exact: true, module: 'admin_import' },
@@ -80,6 +82,7 @@ const moduleAccess: Record<ModuleId, AppRole[]> = {
   tasks:            ['admin', 'manager', 'sales_rep'],
   opportunities:    ['admin', 'manager', 'sales_rep'],
   promotions:       ['admin', 'manager', 'sales_rep', 'executive'],
+  my_info:          ['admin', 'manager', 'sales_rep', 'executive'],
   admin:            ['admin', 'manager'],
   admin_import:     ['admin'],
   admin_import_ca:  ['admin'],
