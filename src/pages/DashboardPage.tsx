@@ -435,6 +435,55 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
 
+      {/* ═══ RÉSUMÉ TRAJET DU JOUR (mêmes métriques que la page Tournées) ═══ */}
+      {routeSummary && (
+        <section>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div className="rounded-lg border bg-muted/40 p-2.5">
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <Navigation className="h-3 w-3" />Distance
+              </div>
+              <p className="text-base font-bold mt-0.5">{routeSummary.totalDistanceKm} km</p>
+            </div>
+            <div className="rounded-lg border bg-muted/40 p-2.5">
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <Clock className="h-3 w-3" />Conduite
+              </div>
+              <p className="text-base font-bold mt-0.5">{formatDuration(routeSummary.totalTravelMin)}</p>
+            </div>
+            <div className="rounded-lg border bg-muted/40 p-2.5">
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <Briefcase className="h-3 w-3" />Visites
+              </div>
+              <p className="text-base font-bold mt-0.5">{formatDuration(routeSummary.totalVisitMin)}</p>
+            </div>
+            <div className="rounded-lg border bg-primary/10 p-2.5">
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <Hourglass className="h-3 w-3" />Total estimé
+              </div>
+              <p className="text-base font-bold mt-0.5 text-primary">{formatDuration(routeSummary.estimatedDurationMin)}</p>
+            </div>
+          </div>
+          {(() => {
+            const gap = routeSummary.estimatedDurationMin - targetMin;
+            const gapAbs = Math.abs(gap);
+            const aligned = gapAbs <= 30;
+            return (
+              <p className="text-[10px] text-muted-foreground mt-1.5 text-right">
+                Objectif {Math.round(targetMin / 60)}h —{' '}
+                {aligned ? (
+                  <span className="text-accent font-medium">alignée</span>
+                ) : gap > 0 ? (
+                  <span className="text-warning font-medium">+{formatDuration(gapAbs)}</span>
+                ) : (
+                  <span className="text-muted-foreground font-medium">-{formatDuration(gapAbs)}</span>
+                )}
+              </p>
+            );
+          })()}
+        </section>
+      )}
+
       {/* ═══ B. VISITES DU JOUR ═══ */}
       <section>
         <div className="flex items-center justify-between mb-2">
