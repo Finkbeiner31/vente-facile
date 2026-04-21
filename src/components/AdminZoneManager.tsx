@@ -112,6 +112,18 @@ export function AdminZoneManager() {
   const [showMapOverview, setShowMapOverview] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
   const { bulkRecalculate } = useZoneAssignment();
+
+  // Esc closes fullscreen first (back to windowed), then closes the map drawer
+  useEffect(() => {
+    if (!mapMode) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (mapFullscreen) setMapFullscreen(false);
+      else setMapMode(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [mapMode, mapFullscreen]);
   const { data: profiles = [] } = useQuery({
     queryKey: ['profiles-list'],
     queryFn: async () => {
