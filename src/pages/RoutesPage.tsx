@@ -123,6 +123,43 @@ export default function RoutesPage() {
 
   const todayZone = zones.find(z => z.id === todayZoneId);
 
+  // ── Default A/B = "Entreprise" from the logged-in user's profile ──
+  // Loaded once and used as the implicit departure (A) and arrival (B) of every
+  // tournée du jour, unless the user explicitly overrides them via the
+  // optimizer. Single source of truth: optimizedRoutes[dayKey] takes priority,
+  // otherwise we fall back to this entreprise endpoint.
+  const { data: entrepriseProfile } = useQuery({
+    queryKey: ['profile-entreprise', activeUserId],
+    queryFn: async () => {
+      if (!activeUserId) return null;
+      const { data } = await supabase
+        .from('profiles')
+        .select('entreprise_address, entreprise_lat, entreprise_lng')
+        .eq('id', activeUserId)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!activeUserId,
+  });
+
+  const entrepriseEndpoint: RouteEndpoint | null = useMemo(() => {
+    if (!entrepriseProfile?.entreprise_lat || !entrepriseProfile?.entreprise_lng) return null;
+    return {
+      type: 'company',
+      label: entrepriseProfile.entreprise_address || 'Entreprise',
+      lat: entrepriseProfile.entreprise_lat,
+      lng: entrepriseProfile.entreprise_lng,
+    };
+  }, [entrepriseProfile]);
+
+  /** Effective endpoints for the current day: optimizer-set values win,
+   *  otherwise default to the user's entreprise address. */
+  const effectiveDeparture: RouteEndpoint | null =
+    optimizedRoutes[dayKey]?.departure ?? entrepriseEndpoint;
+  const effectiveArrival: RouteEndpoint | null =
+    optimizedRoutes[dayKey]?.arrival ?? entrepriseEndpoint;
+
+
   const { data: zoneCustomers = [], isLoading: customersLoading } = useQuery({
     queryKey: ['zone-customers', todayZoneId, activeUserId],
     queryFn: async () => {
