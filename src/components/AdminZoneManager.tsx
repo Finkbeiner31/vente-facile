@@ -446,14 +446,22 @@ export function AdminZoneManager() {
 
       {/* Map drawer dialog */}
       <Dialog open={!!mapMode} onOpenChange={open => !open && setMapMode(null)}>
-        <DialogContent className="sm:max-w-3xl h-[80vh] p-0 gap-0 flex flex-col">
+        <DialogContent
+          className={
+            mapFullscreen
+              ? "max-w-none w-screen h-screen sm:rounded-none p-0 gap-0 flex flex-col top-0 left-0 translate-x-0 translate-y-0 border-0"
+              : "sm:max-w-3xl h-[80vh] p-0 gap-0 flex flex-col"
+          }
+        >
           <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}>
             {mapMode && (
               <MapZoneDrawer
                 initialPolygon={mapMode === 'edit' ? editForm.polygonCoordinates : form.polygonCoordinates}
                 zoneColor={mapMode === 'edit' ? (editForm.color || FALLBACK_COLOR) : (form.color || pickAutoColor(usedColors))}
                 onConfirm={handleMapConfirm}
-                onCancel={() => setMapMode(null)}
+                onCancel={() => { setMapMode(null); setMapFullscreen(false); }}
+                isFullscreen={mapFullscreen}
+                onToggleFullscreen={() => setMapFullscreen(v => !v)}
               />
             )}
           </Suspense>
