@@ -12,7 +12,9 @@ import {
   RotateCcw, Loader2, Archive,
   Plus, Users, Route as RouteIcon,
   Navigation, Clock, Briefcase, Hourglass,
+  AlertTriangle, Building2,
 } from 'lucide-react';
+import type { RouteEndpoint } from '@/lib/tourneeOptimizer';
 import RouteOptimizerSheet from '@/components/RouteOptimizerSheet';
 import type { OptimizedRoute } from '@/components/RouteOptimizerSheet';
 import { formatDuration, haversineKm, estimateDriveMin } from '@/lib/tourneeOptimizer';
