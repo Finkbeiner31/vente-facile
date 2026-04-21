@@ -343,7 +343,10 @@ function AddressRow({
             <span className="text-[10px] font-medium text-warning">Non géolocalisée</span>
           )}
         </div>
-        <p className={`text-sm mt-0.5 truncate ${isEmpty ? 'text-muted-foreground italic' : 'text-foreground'}`}>
+        <p
+          className={`text-sm mt-0.5 break-words ${isEmpty ? 'text-muted-foreground italic' : 'text-foreground'}`}
+          title={isEmpty ? undefined : address ?? undefined}
+        >
           {isEmpty ? 'Aucune adresse définie' : address}
         </p>
       </div>
