@@ -788,6 +788,52 @@ export default function RoutesPage() {
         </div>
       )}
 
+      {/* Default A/B status: confirms entreprise as start/end, or warns if missing. */}
+      {todayZoneId && entrepriseEndpoint && !optimizedRoutes[dayKey] && (
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="p-2.5">
+            <div className="flex items-center gap-2 text-[11px]">
+              <Building2 className="h-3.5 w-3.5 text-primary shrink-0" />
+              <span className="text-foreground">
+                Départ et arrivée par défaut : <span className="font-semibold">Entreprise</span>
+                {entrepriseProfile?.entreprise_address && (
+                  <span className="text-muted-foreground"> · {entrepriseProfile.entreprise_address}</span>
+                )}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto h-7 px-2 text-[11px] text-primary hover:text-primary"
+                onClick={() => setOptimizerOpen(true)}
+              >
+                Modifier
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      {todayZoneId && !entrepriseEndpoint && !optimizedRoutes[dayKey] && (
+        <Card className="border-warning/40 bg-warning/5">
+          <CardContent className="p-2.5">
+            <div className="flex items-center gap-2 text-[11px]">
+              <AlertTriangle className="h-3.5 w-3.5 text-warning shrink-0" />
+              <span className="text-foreground">
+                Aucune adresse entreprise renseignée dans votre profil — départ et arrivée
+                resteront vides tant qu'ils n'auront pas été configurés dans l'optimiseur.
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto h-7 px-2 text-[11px] text-warning hover:text-warning"
+                onClick={() => setOptimizerOpen(true)}
+              >
+                Configurer
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Day route summary metrics — auto-derived from current "Tournée du jour" */}
       {todayZoneId && (() => {
         const route = derivedRoute;
