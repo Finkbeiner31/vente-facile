@@ -13,6 +13,7 @@ import {
   Upload,
   DollarSign,
   BarChart3,
+  UserCircle,
 } from 'lucide-react';
 import { NavLink } from '@/components/NavLink';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
@@ -42,6 +43,7 @@ const mainNav: { title: string; url: string; icon: any; module: ModuleId }[] = [
   { title: 'Tâches', url: '/taches', icon: CheckSquare, module: 'tasks' },
   { title: 'Opportunités', url: '/opportunites', icon: TrendingUp, module: 'opportunities' },
   { title: 'Promotions', url: '/promotions', icon: Tag, module: 'promotions' },
+  { title: 'Mes infos', url: '/mes-infos', icon: UserCircle, module: 'my_info' },
 ];
 
 const adminNav: { title: string; url: string; icon: any; module: ModuleId }[] = [

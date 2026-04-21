@@ -21,6 +21,7 @@ import RevenueImportPage from "@/pages/RevenueImportPage";
 import RevenueHistoryPage from "@/pages/RevenueHistoryPage";
 import MapPage from "@/pages/MapPage";
 import PromotionsPage from "@/pages/PromotionsPage";
+import MyInfoPage from "@/pages/MyInfoPage";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -59,6 +60,7 @@ const App = () => (
               <Route path="/taches" element={<TasksPage />} />
               <Route path="/opportunites" element={<OpportunitiesPage />} />
               <Route path="/promotions" element={<PromotionsPage />} />
+              <Route path="/mes-infos" element={<MyInfoPage />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="/admin/import" element={<BulkImportPage />} />
               <Route path="/admin/import-ca" element={<RevenueImportPage />} />
