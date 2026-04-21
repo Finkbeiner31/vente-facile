@@ -211,6 +211,18 @@ export default function MapZoneDrawer({ initialPolygon, zoneColor = '#3b82f6', o
             <Trash2 className="h-3 w-3" />Effacer
           </Button>
         )}
+        {onToggleFullscreen && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs gap-1"
+            onClick={onToggleFullscreen}
+            title={isFullscreen ? 'Quitter le plein écran' : 'Éditer en plein écran'}
+          >
+            {isFullscreen ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
+            {isFullscreen ? 'Réduire' : 'Plein écran'}
+          </Button>
+        )}
         <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onCancel}>
           Annuler
         </Button>
