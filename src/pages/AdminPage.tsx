@@ -33,19 +33,13 @@ import { AssignmentIssuesSheet } from '@/components/AssignmentIssuesSheet';
 import { useCycleStartDate, useUpdateCycleStartDate } from '@/hooks/useCycleStartDate';
 import { isMonday, formatWeekRange, getCurrentWeekNumber } from '@/lib/weekCycleUtils';
 
-const roleLabels: Record<string, string> = {
-  admin: 'Administrateur',
-  manager: 'Responsable',
-  sales_rep: 'Commercial',
-  executive: 'Observateur',
-};
+const roleLabels: Record<string, string> = Object.fromEntries(
+  Object.values(ROLE_DEFINITIONS).map(r => [r.key, r.label])
+);
 
-const roleBadgeColors: Record<string, string> = {
-  admin: 'bg-destructive/10 text-destructive border-destructive/20',
-  manager: 'bg-blue-500/10 text-blue-700 border-blue-200',
-  sales_rep: 'bg-primary/10 text-primary border-primary/20',
-  executive: 'bg-muted text-muted-foreground border-border',
-};
+const roleBadgeColors: Record<string, string> = Object.fromEntries(
+  Object.values(ROLE_DEFINITIONS).map(r => [r.key, r.badgeClass])
+);
 
 interface UserWithRole {
   id: string;
