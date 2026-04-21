@@ -1,4 +1,5 @@
-import { useState, useCallback, lazy, Suspense } from 'react';
+import { useState, useCallback, lazy, Suspense, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
