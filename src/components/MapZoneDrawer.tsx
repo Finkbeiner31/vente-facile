@@ -1,7 +1,7 @@
 /// <reference types="google.maps" />
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Loader2, Trash2, Check } from 'lucide-react';
+import { Loader2, Trash2, Check, Maximize2, Minimize2 } from 'lucide-react';
 
 export interface LatLng { lat: number; lng: number; }
 
@@ -13,6 +13,10 @@ interface MapZoneDrawerProps {
   /** Called when the user confirms the polygon */
   onConfirm: (polygon: LatLng[], suggestedPostalCodes: string[], suggestedCities: string[]) => void;
   onCancel: () => void;
+  /** Whether the drawer is currently rendered in full-screen mode */
+  isFullscreen?: boolean;
+  /** Toggle full-screen mode (handled by the parent dialog) */
+  onToggleFullscreen?: () => void;
 }
 
 const FRANCE_CENTER = { lat: 43.6, lng: 1.44 }; // Toulouse area default
@@ -21,7 +25,7 @@ const FRANCE_CENTER = { lat: 43.6, lng: 1.44 }; // Toulouse area default
  * Full-screen-ish map that lets the admin draw ONE polygon,
  * then reverse-geocodes sample points to suggest postal codes & cities.
  */
-export default function MapZoneDrawer({ initialPolygon, zoneColor = '#3b82f6', onConfirm, onCancel }: MapZoneDrawerProps) {
+export default function MapZoneDrawer({ initialPolygon, zoneColor = '#3b82f6', onConfirm, onCancel, isFullscreen, onToggleFullscreen }: MapZoneDrawerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const polygonRef = useRef<google.maps.Polygon | null>(null);
@@ -98,6 +102,18 @@ export default function MapZoneDrawer({ initialPolygon, zoneColor = '#3b82f6', o
       });
     }
   }, [ready, initialPolygon, zoneColor]);
+
+  // When fullscreen toggles, the map container resizes — tell Google Maps to recompute
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const map = mapRef.current;
+    const t = setTimeout(() => {
+      const center = map.getCenter();
+      google.maps.event.trigger(map, 'resize');
+      if (center) map.setCenter(center);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [isFullscreen]);
 
   const clearPolygon = useCallback(() => {
     polygonRef.current?.setMap(null);
@@ -205,6 +221,18 @@ export default function MapZoneDrawer({ initialPolygon, zoneColor = '#3b82f6', o
         {hasPolygon && (
           <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={clearPolygon}>
             <Trash2 className="h-3 w-3" />Effacer
+          </Button>
+        )}
+        {onToggleFullscreen && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs gap-1"
+            onClick={onToggleFullscreen}
+            title={isFullscreen ? 'Quitter le plein écran' : 'Éditer en plein écran'}
+          >
+            {isFullscreen ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
+            {isFullscreen ? 'Réduire' : 'Plein écran'}
           </Button>
         )}
         <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onCancel}>
