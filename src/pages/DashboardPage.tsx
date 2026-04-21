@@ -19,11 +19,12 @@ import { Progress } from '@/components/ui/progress';
 import {
   Play, RotateCcw, MapPin, CheckCircle2, Clock,
   AlertTriangle, ArrowRight, Plus, Flame,
-  Eye, Calendar, RefreshCw, Loader2,
+  Eye, Calendar, RefreshCw, Loader2, Route as RouteIcon,
 } from 'lucide-react';
 
 import { computeVisitStatus } from '@/lib/visitFrequencyUtils';
 import { formatZoneName, useCommercialZones } from '@/hooks/useCommercialZones';
+import DayRouteMapDialog from '@/components/DayRouteMapDialog';
 
 /* ────────────────────────── helpers ────────────────────────── */
 
