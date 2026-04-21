@@ -39,6 +39,7 @@ export default function DashboardPage() {
   const { session, startSession } = useTourSession();
   const [tourMode, setTourMode] = useState(false);
   const [confirmRegenerate, setConfirmRegenerate] = useState(false);
+  const [routeMapOpen, setRouteMapOpen] = useState(false);
   
   const activeUserId = effectiveUserId || user?.id;
   const role = (isImpersonating ? effectiveRole : authRole) as AppRole | null;
