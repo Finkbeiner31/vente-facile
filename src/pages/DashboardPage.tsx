@@ -19,11 +19,12 @@ import { Progress } from '@/components/ui/progress';
 import {
   Play, RotateCcw, MapPin, CheckCircle2, Clock,
   AlertTriangle, ArrowRight, Plus, Flame,
-  Eye, Calendar, RefreshCw, Loader2,
+  Eye, Calendar, RefreshCw, Loader2, Route as RouteIcon,
 } from 'lucide-react';
 
 import { computeVisitStatus } from '@/lib/visitFrequencyUtils';
 import { formatZoneName, useCommercialZones } from '@/hooks/useCommercialZones';
+import DayRouteMapDialog from '@/components/DayRouteMapDialog';
 
 /* ────────────────────────── helpers ────────────────────────── */
 
@@ -38,6 +39,7 @@ export default function DashboardPage() {
   const { session, startSession } = useTourSession();
   const [tourMode, setTourMode] = useState(false);
   const [confirmRegenerate, setConfirmRegenerate] = useState(false);
+  const [routeMapOpen, setRouteMapOpen] = useState(false);
   
   const activeUserId = effectiveUserId || user?.id;
   const role = (isImpersonating ? effectiveRole : authRole) as AppRole | null;
@@ -378,6 +380,17 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between mb-2">
           <h2 className="font-heading text-sm font-semibold">Visites du jour</h2>
           <div className="flex items-center gap-1">
+            {totalPlanned > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs h-7 gap-1"
+                onClick={() => setRouteMapOpen(true)}
+                title="Voir le trajet du jour"
+              >
+                <RouteIcon className="h-3 w-3" /> Trajet
+              </Button>
+            )}
             {dailyTour && (
               confirmRegenerate ? (
                 <div className="flex items-center gap-1">
@@ -522,6 +535,26 @@ export default function DashboardPage() {
           </div>
         </section>
       )}
+
+      {/* ═══ TRAJET DU JOUR (réutilise le même dialog que la page Tournées) ═══ */}
+      <DayRouteMapDialog
+        open={routeMapOpen}
+        onOpenChange={setRouteMapOpen}
+        zoneColor={todayZone?.color || null}
+        zoneName={todayZone ? formatZoneName(todayZone) : null}
+        dayLabel={new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+        stops={todayVisits.map(s => ({
+          id: s.customer.id,
+          company_name: s.customer.company_name,
+          city: s.customer.city,
+          latitude: s.customer.latitude,
+          longitude: s.customer.longitude,
+          customer_type: s.customer.customer_type,
+          visit_duration_minutes: s.visit_duration_minutes,
+          annual_revenue_potential: s.customer.annual_revenue_potential,
+          last_visit_date: s.customer.last_visit_date,
+        }))}
+      />
     </div>
   );
 }
