@@ -535,6 +535,26 @@ export default function DashboardPage() {
           </div>
         </section>
       )}
+
+      {/* ═══ TRAJET DU JOUR (réutilise le même dialog que la page Tournées) ═══ */}
+      <DayRouteMapDialog
+        open={routeMapOpen}
+        onOpenChange={setRouteMapOpen}
+        zoneColor={todayZone?.color || null}
+        zoneName={todayZone ? formatZoneName(todayZone) : null}
+        dayLabel={new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
+        stops={todayVisits.map(s => ({
+          id: s.customer.id,
+          company_name: s.customer.company_name,
+          city: s.customer.city,
+          latitude: s.customer.latitude,
+          longitude: s.customer.longitude,
+          customer_type: s.customer.customer_type,
+          visit_duration_minutes: s.visit_duration_minutes,
+          annual_revenue_potential: s.customer.annual_revenue_potential,
+          last_visit_date: s.customer.last_visit_date,
+        }))}
+      />
     </div>
   );
 }
