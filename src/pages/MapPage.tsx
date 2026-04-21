@@ -152,8 +152,11 @@ function getPotential(c: MapCustomer): string {
 
 export default function MapPage() {
   const { user, loading, role } = useAuth();
-  const { effectiveUserId } = useImpersonation();
+  const { effectiveUserId, effectiveRole, isImpersonating } = useImpersonation();
   const activeUserId = effectiveUserId || user?.id;
+  // Effective role respects impersonation mode (admin acting as a sales rep
+  // must see the rep's restricted scope, not their own global access).
+  const activeRole = isImpersonating ? effectiveRole : role;
   const isMobile = useIsMobile();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<google.maps.Map | null>(null);
