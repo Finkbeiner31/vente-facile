@@ -69,13 +69,16 @@ export function TourReportSheet({ open, onOpenChange, clientName, onSubmit, onAd
 
   const [submitting, setSubmitting] = useState(false);
 
+  const notesValid = notes.trim().length > 0;
+
   const handleSubmit = async () => {
+    if (!notesValid) return;
     setSubmitting(true);
     try {
       await onSubmit({
         outcome,
         notes,
-        nextActionDate,
+        nextActionDate: '',
         followUpAction,
         promotionPresented,
         promotionId: selectedPromotion?.id || null,
@@ -120,37 +123,28 @@ export function TourReportSheet({ open, onOpenChange, clientName, onSubmit, onAd
             })}
           </div>
 
-          {/* Next action date */}
-          <div>
-            <p className="text-xs font-medium text-muted-foreground mb-1.5">Prochaine action</p>
-            <div className="flex gap-1.5 mb-1.5">
-              {[
-                { label: 'Demain', d: 1 },
-                { label: '1 sem', d: 7 },
-                { label: '2 sem', d: 14 },
-                { label: '3 sem', d: 21 },
-              ].map(q => (
-                <Button key={q.d} variant="outline" size="sm"
-                  className={`flex-1 h-9 text-xs ${nextActionDate === (() => { const x = new Date(); x.setDate(x.getDate() + q.d); return x.toISOString().split('T')[0]; })() ? 'bg-primary/10 border-primary/30' : ''}`}
-                  onClick={() => setQuickDate(q.d)}>
-                  {q.label}
-                </Button>
-              ))}
-            </div>
-            <Input type="date" value={nextActionDate} onChange={e => setNextActionDate(e.target.value)} className="h-10" />
-          </div>
-
-          {/* Notes */}
+          {/* Compte-rendu (mandatory) */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <p className="text-xs font-medium text-muted-foreground">Notes (optionnel)</p>
+              <p className="text-sm font-medium">
+                Compte-rendu du rendez-vous <span className="text-destructive">*</span>
+              </p>
               <Button variant="ghost" size="sm" className={`h-7 text-xs ${isListening ? 'text-destructive animate-pulse' : 'text-muted-foreground'}`}
                 onClick={handleVoice}>
                 {isListening ? <MicOff className="h-3.5 w-3.5 mr-1" /> : <Mic className="h-3.5 w-3.5 mr-1" />}
                 {isListening ? 'Stop' : 'Dicter'}
               </Button>
             </div>
-            <Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes rapides..." rows={2} />
+            <Textarea
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder="Résumez le rendez-vous : ressenti client, besoins détectés, objections, informations importantes, suites à donner."
+              rows={4}
+              className={!notesValid && outcome ? 'border-destructive focus-visible:ring-destructive' : ''}
+            />
+            {!notesValid && outcome && (
+              <p className="text-xs text-destructive mt-1">Le compte-rendu du rendez-vous est obligatoire.</p>
+            )}
           </div>
 
           {/* Promotion */}
@@ -197,7 +191,7 @@ export function TourReportSheet({ open, onOpenChange, clientName, onSubmit, onAd
           )}
 
           {/* Submit */}
-          <Button onClick={handleSubmit} disabled={!outcome || submitting}
+          <Button onClick={handleSubmit} disabled={!outcome || !notesValid || submitting}
             className="w-full h-14 text-base font-bold">
             {submitting ? 'Enregistrement…' : 'Enregistrer & Suivant'}
             {!submitting && <ArrowRight className="h-5 w-5 ml-2" />}
