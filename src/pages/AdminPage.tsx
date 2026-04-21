@@ -13,8 +13,10 @@ import {
 import {
   Users, Shield, Settings as SettingsIcon, Truck, Plus, Edit, Trash2, Save,
   Loader2, ArrowRightCircle, MapPin, Building2, Calendar, UserPlus, Power, LogIn,
-  Clock, MoreHorizontal, AlertTriangle,
+  Clock, MoreHorizontal, AlertTriangle, Check, X,
 } from 'lucide-react';
+import { ROLE_DEFINITIONS, getRoleDefinition, getRolePermissionsSummary } from '@/lib/roleDefinitions';
+import type { AppRole } from '@/lib/permissions';
 import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { useNavigate } from 'react-router-dom';
 import { AdminZoneManager } from '@/components/AdminZoneManager';
