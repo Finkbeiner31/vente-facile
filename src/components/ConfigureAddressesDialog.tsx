@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Building2, Home, Loader2 } from 'lucide-react';
+import { Building2, Home, MapPin, Loader2, AlertTriangle } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
@@ -26,14 +26,21 @@ interface ConfigureAddressesDialogProps {
   /** Initial values pre-loaded from profile */
   initialEntreprise?: AddressDraft;
   initialDomicile?: AddressDraft;
+  initialAutre?: AddressDraft;
   /** Which field should be focused / required first */
-  focusField?: 'entreprise' | 'domicile';
+  focusField?: 'entreprise' | 'domicile' | 'autre';
+  /** When true, dialog is editing someone other than the logged-in user
+   *  (admin impersonation). Used to surface a clear notice. */
+  isImpersonating?: boolean;
 }
 
+const EMPTY: AddressDraft = { address: '', lat: null, lng: null };
+
 /**
- * Focused modal to fix a missing entreprise/domicile address directly from
- * the tournée warning banner. Saves to the profile and invalidates the
- * dependent queries so the optimizer picks the new endpoint immediately.
+ * Focused modal to configure the entreprise/domicile/autre addresses used as
+ * the default departure/arrival points of every tournée. Saves directly to
+ * the targeted profile and invalidates every dependent query so the optimizer
+ * & route summary pick up the change immediately, with no reload.
  */
 export function ConfigureAddressesDialog({
   open,
@@ -42,55 +49,85 @@ export function ConfigureAddressesDialog({
   userLabel,
   initialEntreprise,
   initialDomicile,
+  initialAutre,
   focusField = 'entreprise',
+  isImpersonating,
 }: ConfigureAddressesDialogProps) {
   const queryClient = useQueryClient();
-  const [entreprise, setEntreprise] = useState<AddressDraft>(
-    initialEntreprise ?? { address: '', lat: null, lng: null },
-  );
-  const [domicile, setDomicile] = useState<AddressDraft>(
-    initialDomicile ?? { address: '', lat: null, lng: null },
-  );
+  const [entreprise, setEntreprise] = useState<AddressDraft>(initialEntreprise ?? EMPTY);
+  const [domicile, setDomicile] = useState<AddressDraft>(initialDomicile ?? EMPTY);
+  const [autre, setAutre] = useState<AddressDraft>(initialAutre ?? EMPTY);
 
+  // Track the open transition so we only re-seed state when the dialog is
+  // actually (re)opened. Re-seeding on every parent render would erase the
+  // user's typing and is the root cause of "save does nothing" reports.
+  const wasOpenRef = useRef(false);
   useEffect(() => {
-    if (open) {
-      setEntreprise(initialEntreprise ?? { address: '', lat: null, lng: null });
-      setDomicile(initialDomicile ?? { address: '', lat: null, lng: null });
+    if (open && !wasOpenRef.current) {
+      setEntreprise(initialEntreprise ?? EMPTY);
+      setDomicile(initialDomicile ?? EMPTY);
+      setAutre(initialAutre ?? EMPTY);
     }
-  }, [open, initialEntreprise, initialDomicile]);
+    wasOpenRef.current = open;
+  }, [open, initialEntreprise, initialDomicile, initialAutre]);
 
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!userId) throw new Error('Aucun utilisateur ciblé');
+
+      // Build a partial payload: each address group is only included when the
+      // user picked a real suggestion (lat/lng present). Free-text without
+      // geocoding is rejected because the optimizer needs coordinates.
       const payload: {
         entreprise_address?: string; entreprise_lat?: number; entreprise_lng?: number;
         domicile_address?: string; domicile_lat?: number; domicile_lng?: number;
+        autre_address?: string; autre_lat?: number; autre_lng?: number;
       } = {};
 
-      if (entreprise.address.trim() && entreprise.lat != null && entreprise.lng != null) {
+      const hasEntrepriseInput = entreprise.address.trim().length > 0;
+      const hasDomicileInput = domicile.address.trim().length > 0;
+      const hasAutreInput = autre.address.trim().length > 0;
+
+      if (hasEntrepriseInput) {
+        if (entreprise.lat == null || entreprise.lng == null) {
+          throw new Error("Adresse entreprise : sélectionnez une suggestion pour la géolocaliser.");
+        }
         payload.entreprise_address = entreprise.address.trim();
         payload.entreprise_lat = entreprise.lat;
         payload.entreprise_lng = entreprise.lng;
       }
-      if (domicile.address.trim() && domicile.lat != null && domicile.lng != null) {
+      if (hasDomicileInput) {
+        if (domicile.lat == null || domicile.lng == null) {
+          throw new Error("Adresse domicile : sélectionnez une suggestion pour la géolocaliser.");
+        }
         payload.domicile_address = domicile.address.trim();
         payload.domicile_lat = domicile.lat;
         payload.domicile_lng = domicile.lng;
       }
+      if (hasAutreInput) {
+        if (autre.lat == null || autre.lng == null) {
+          throw new Error("Autre adresse : sélectionnez une suggestion pour la géolocaliser.");
+        }
+        payload.autre_address = autre.address.trim();
+        payload.autre_lat = autre.lat;
+        payload.autre_lng = autre.lng;
+      }
 
       if (Object.keys(payload).length === 0) {
-        throw new Error('Sélectionnez au moins une adresse depuis les suggestions');
+        throw new Error('Renseignez au moins une adresse.');
       }
 
       const { error } = await supabase.from('profiles').update(payload).eq('id', userId);
       if (error) throw error;
     },
     onSuccess: () => {
-      // Refresh every query that depends on the profile addresses so the
-      // optimizer / route summary / map pick them up immediately.
+      // Invalidate every cache that derives from profile addresses so the
+      // warning banner, optimizer panel, route summary and day-route map all
+      // refresh in place — no manual reload needed.
       queryClient.invalidateQueries({ queryKey: ['profile-entreprise', userId] });
       queryClient.invalidateQueries({ queryKey: ['profile-addresses'] });
       queryClient.invalidateQueries({ queryKey: ['profile'] });
+      queryClient.invalidateQueries({ queryKey: ['day-route-addresses'] });
       toast.success('Adresses enregistrées');
       onOpenChange(false);
     },
@@ -99,20 +136,21 @@ export function ConfigureAddressesDialog({
     },
   });
 
-  const handleEntrepriseSelect = (sel: AddressSelection) => {
+  const handleEntrepriseSelect = (sel: AddressSelection) =>
     setEntreprise({ address: sel.fullAddress, lat: sel.latitude, lng: sel.longitude });
-  };
-  const handleDomicileSelect = (sel: AddressSelection) => {
+  const handleDomicileSelect = (sel: AddressSelection) =>
     setDomicile({ address: sel.fullAddress, lat: sel.latitude, lng: sel.longitude });
-  };
+  const handleAutreSelect = (sel: AddressSelection) =>
+    setAutre({ address: sel.fullAddress, lat: sel.latitude, lng: sel.longitude });
 
   const entrepriseValid = !!entreprise.address.trim() && entreprise.lat != null && entreprise.lng != null;
   const domicileValid = !!domicile.address.trim() && domicile.lat != null && domicile.lng != null;
-  const canSave = entrepriseValid || domicileValid;
+  const autreValid = !!autre.address.trim() && autre.lat != null && autre.lng != null;
+  const canSave = entrepriseValid || domicileValid || autreValid;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Configurer les adresses</DialogTitle>
           <DialogDescription>
@@ -122,7 +160,18 @@ export function ConfigureAddressesDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {isImpersonating && (
+          <div className="rounded-md border border-warning/40 bg-warning/10 p-2 text-[11px] text-warning flex gap-2 items-start">
+            <AlertTriangle className="h-3.5 w-3.5 mt-px shrink-0" />
+            <span>
+              Vous modifiez le profil de <strong>{userLabel ?? 'cet utilisateur'}</strong> via
+              l'impersonation. Les adresses seront enregistrées sur son compte.
+            </span>
+          </div>
+        )}
+
         <div className="space-y-4">
+          {/* Entreprise — primary endpoint, almost always required */}
           <div className="space-y-2">
             <Label htmlFor="entreprise-addr" className="flex items-center gap-2">
               <Building2 className="h-4 w-4 text-primary" />
@@ -144,6 +193,7 @@ export function ConfigureAddressesDialog({
             )}
           </div>
 
+          {/* Domicile — optional, used as alternative départ/arrivée */}
           <div className="space-y-2">
             <Label htmlFor="domicile-addr" className="flex items-center gap-2">
               <Home className="h-4 w-4 text-primary" />
@@ -157,6 +207,26 @@ export function ConfigureAddressesDialog({
               placeholder="Tapez une adresse domicile…"
             />
             {domicile.address && !domicileValid && (
+              <p className="text-[11px] text-muted-foreground">
+                Sélectionnez une adresse dans la liste pour la géolocaliser.
+              </p>
+            )}
+          </div>
+
+          {/* Autre — optional secondary depot / starting point */}
+          <div className="space-y-2">
+            <Label htmlFor="autre-addr" className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-primary" />
+              Autre adresse
+              <span className="text-[10px] text-muted-foreground">(optionnel)</span>
+            </Label>
+            <AddressAutocomplete
+              value={autre.address}
+              onChange={addr => setAutre(prev => ({ ...prev, address: addr, lat: null, lng: null }))}
+              onSelect={handleAutreSelect}
+              placeholder="Dépôt, bureau secondaire, etc."
+            />
+            {autre.address && !autreValid && (
               <p className="text-[11px] text-muted-foreground">
                 Sélectionnez une adresse dans la liste pour la géolocaliser.
               </p>

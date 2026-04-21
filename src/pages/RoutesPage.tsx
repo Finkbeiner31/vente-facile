@@ -136,7 +136,7 @@ export default function RoutesPage() {
       if (!activeUserId) return null;
       const { data } = await supabase
         .from('profiles')
-        .select('entreprise_address, entreprise_lat, entreprise_lng, domicile_address, domicile_lat, domicile_lng, full_name')
+        .select('entreprise_address, entreprise_lat, entreprise_lng, domicile_address, domicile_lat, domicile_lng, autre_address, autre_lat, autre_lng, full_name')
         .eq('id', activeUserId)
         .maybeSingle();
       return data;
@@ -965,6 +965,7 @@ export default function RoutesPage() {
         onOpenChange={setAddressDialogOpen}
         userId={activeUserId}
         userLabel={entrepriseProfile?.full_name ?? undefined}
+        isImpersonating={!!effectiveUserId && effectiveUserId !== user?.id}
         focusField={entrepriseProfile?.entreprise_address ? 'domicile' : 'entreprise'}
         initialEntreprise={{
           address: entrepriseProfile?.entreprise_address ?? '',
@@ -975,6 +976,11 @@ export default function RoutesPage() {
           address: entrepriseProfile?.domicile_address ?? '',
           lat: entrepriseProfile?.domicile_lat ?? null,
           lng: entrepriseProfile?.domicile_lng ?? null,
+        }}
+        initialAutre={{
+          address: entrepriseProfile?.autre_address ?? '',
+          lat: entrepriseProfile?.autre_lat ?? null,
+          lng: entrepriseProfile?.autre_lng ?? null,
         }}
       />
       <RouteOptimizerSheet
