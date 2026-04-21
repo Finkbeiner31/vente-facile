@@ -190,6 +190,62 @@ export default function DashboardPage() {
   const totalPlanned = todayVisits.length;
   const progressPct = totalPlanned > 0 ? (completedCount / totalPlanned) * 100 : 0;
 
+  /* ── Route summary metrics — same source of truth as RoutesPage / DayRouteMapDialog ──
+     We derive distance / drive / visit / total from the SAME ordered stops
+     and the SAME entreprise A/B endpoint used everywhere else. No separate
+     logic, no cache: any change in todayVisits propagates immediately. */
+  const { data: durationDefaults } = useVisitDurationDefaults();
+  const { data: entrepriseProfile } = useQuery({
+    queryKey: ['dashboard-entreprise-endpoint', activeUserId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('entreprise_address, entreprise_lat, entreprise_lng')
+        .eq('id', activeUserId!)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!activeUserId,
+  });
+
+  const routeSummary = useMemo(() => {
+    if (todayVisits.length === 0 || !durationDefaults) return null;
+    const dep = entrepriseProfile?.entreprise_lat != null && entrepriseProfile?.entreprise_lng != null
+      ? { lat: entrepriseProfile.entreprise_lat as number, lng: entrepriseProfile.entreprise_lng as number }
+      : null;
+    let totalKm = 0;
+    let prevLat: number | null = dep?.lat ?? null;
+    let prevLng: number | null = dep?.lng ?? null;
+    for (const s of todayVisits) {
+      const lat = s.customer.latitude;
+      const lng = s.customer.longitude;
+      if (prevLat != null && prevLng != null && lat != null && lng != null) {
+        totalKm += haversineKm(prevLat, prevLng, lat, lng);
+      }
+      if (lat != null && lng != null) { prevLat = lat; prevLng = lng; }
+    }
+    if (dep && prevLat != null && prevLng != null) {
+      totalKm += haversineKm(prevLat, prevLng, dep.lat, dep.lng);
+    }
+    const totalTravelMin = estimateDriveMin(totalKm);
+    const totalVisitMin = todayVisits.reduce((sum, s) => {
+      const type = (s.customer as any).customer_type || 'client_actif';
+      const profileDur = s.visit_duration_minutes ?? null;
+      return sum + getVisitDurationWithDefaults(type, profileDur, durationDefaults);
+    }, 0);
+    return {
+      totalDistanceKm: Math.round(totalKm * 10) / 10,
+      totalTravelMin,
+      totalVisitMin,
+      estimatedDurationMin: totalTravelMin + totalVisitMin,
+    };
+  }, [todayVisits, durationDefaults, entrepriseProfile]);
+
+  const targetMin = useMemo(
+    () => (loadPrefs(activeUserId).workdayTargetHours || 8) * 60,
+    [activeUserId],
+  );
+
   /* ── Customers (for alerts) ── */
   const { data: allCustomers = [] } = useQuery({
     queryKey: ['dashboard-customers', activeUserId],
