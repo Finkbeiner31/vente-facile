@@ -25,6 +25,10 @@ import {
 import { computeVisitStatus } from '@/lib/visitFrequencyUtils';
 import { formatZoneName, useCommercialZones } from '@/hooks/useCommercialZones';
 import DayRouteMapDialog from '@/components/DayRouteMapDialog';
+import { haversineKm, estimateDriveMin, formatDuration } from '@/lib/tourneeOptimizer';
+import { useVisitDurationDefaults, getVisitDurationWithDefaults } from '@/hooks/useVisitDurationDefaults';
+import { loadPrefs } from '@/lib/tourneePrefs';
+import { Navigation, Briefcase, Hourglass } from 'lucide-react';
 
 /* ────────────────────────── helpers ────────────────────────── */
 
