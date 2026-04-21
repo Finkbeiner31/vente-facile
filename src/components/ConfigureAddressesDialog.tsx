@@ -62,7 +62,10 @@ export function ConfigureAddressesDialog({
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!userId) throw new Error('Aucun utilisateur ciblé');
-      const payload: Record<string, unknown> = {};
+      const payload: {
+        entreprise_address?: string; entreprise_lat?: number; entreprise_lng?: number;
+        domicile_address?: string; domicile_lat?: number; domicile_lng?: number;
+      } = {};
 
       if (entreprise.address.trim() && entreprise.lat != null && entreprise.lng != null) {
         payload.entreprise_address = entreprise.address.trim();
