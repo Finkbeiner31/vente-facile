@@ -446,42 +446,41 @@ export function AdminZoneManager() {
         </DialogContent>
       </Dialog>
 
-      {/* Map drawer — windowed mode uses Dialog, fullscreen uses a true 100vw/100vh portal layer */}
-      {mapMode && !mapFullscreen && (
-        <Dialog open={true} onOpenChange={open => !open && setMapMode(null)}>
-          <DialogContent className="sm:max-w-3xl h-[80vh] p-0 gap-0 flex flex-col">
-            <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}>
-              <MapZoneDrawer
-                initialPolygon={mapMode === 'edit' ? editForm.polygonCoordinates : form.polygonCoordinates}
-                zoneColor={mapMode === 'edit' ? (editForm.color || FALLBACK_COLOR) : (form.color || pickAutoColor(usedColors))}
-                onConfirm={handleMapConfirm}
-                onCancel={() => { setMapMode(null); setMapFullscreen(false); }}
-                isFullscreen={false}
-                onToggleFullscreen={() => setMapFullscreen(true)}
-              />
-            </Suspense>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {mapMode && mapFullscreen && createPortal(
-        <div
-          className="fixed inset-0 z-[100] bg-background animate-in fade-in-0 duration-200"
-          style={{ width: '100vw', height: '100vh' }}
-        >
+      {/* Map drawer — single mount; rendered into a Dialog (windowed) or directly into body (true fullscreen) */}
+      {mapMode && (() => {
+        const drawer = (
           <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}>
             <MapZoneDrawer
               initialPolygon={mapMode === 'edit' ? editForm.polygonCoordinates : form.polygonCoordinates}
               zoneColor={mapMode === 'edit' ? (editForm.color || FALLBACK_COLOR) : (form.color || pickAutoColor(usedColors))}
               onConfirm={handleMapConfirm}
               onCancel={() => { setMapMode(null); setMapFullscreen(false); }}
-              isFullscreen={true}
-              onToggleFullscreen={() => setMapFullscreen(false)}
+              isFullscreen={mapFullscreen}
+              onToggleFullscreen={() => setMapFullscreen(v => !v)}
             />
           </Suspense>
-        </div>,
-        document.body
-      )}
+        );
+
+        if (mapFullscreen) {
+          return createPortal(
+            <div
+              className="fixed inset-0 z-[100] bg-background animate-in fade-in-0 duration-200"
+              style={{ width: '100vw', height: '100vh' }}
+            >
+              {drawer}
+            </div>,
+            document.body
+          );
+        }
+
+        return (
+          <Dialog open={true} onOpenChange={open => !open && setMapMode(null)}>
+            <DialogContent className="sm:max-w-3xl h-[80vh] p-0 gap-0 flex flex-col">
+              {drawer}
+            </DialogContent>
+          </Dialog>
+        );
+      })()}
     </>
   );
 }
