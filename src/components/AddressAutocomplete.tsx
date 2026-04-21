@@ -116,9 +116,22 @@ export function AddressAutocomplete({
     const city = addr.city || addr.town || addr.village || addr.municipality || '';
     const postalCode = addr.postcode || '';
 
-    onChange(street || result.display_name.split(',')[0]);
+    // Build a full, human-readable label: "street, postal city" — so downstream
+    // displays (Mes infos, optimizer, route summary) show the complete address
+    // and not just the street name.
+    const cityLine = [postalCode, city].filter(Boolean).join(' ');
+    const composed = [street, cityLine].filter(Boolean).join(', ');
+    const fallback = result.display_name
+      .split(',')
+      .slice(0, 4)
+      .map(s => s.trim())
+      .filter(Boolean)
+      .join(', ');
+    const fullAddress = composed || fallback || result.display_name;
+
+    onChange(fullAddress);
     onSelect({
-      fullAddress: street || result.display_name.split(',')[0],
+      fullAddress,
       city,
       postalCode,
       latitude: parseFloat(result.lat),
