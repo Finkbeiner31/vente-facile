@@ -906,23 +906,42 @@ export default function AdminPage() {
 
         {/* Roles tab */}
         <TabsContent value="roles" className="mt-4">
+          <p className="text-xs text-muted-foreground mb-3">
+            Définitions globales des rôles. Le détail par utilisateur est aussi visible
+            directement dans l'onglet <span className="font-medium text-foreground">Profils</span>.
+          </p>
           <div className="grid gap-4 sm:grid-cols-2">
-            {Object.entries(roleLabels).map(([key, label]) => (
-              <Card key={key}>
-                <CardContent className="p-5">
-                  <div className="flex items-center gap-3 mb-3">
-                    <Shield className="h-5 w-5 text-primary" />
-                    <p className="font-medium">{label}</p>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {key === 'admin' && 'Accès complet à toutes les fonctionnalités et données.'}
-                    {key === 'manager' && 'Peut voir les données de son équipe et gérer les commerciaux.'}
-                    {key === 'sales_rep' && 'Accès à ses propres clients, visites, tâches et rapports.'}
-                    {key === 'executive' && 'Accès en lecture seule aux tableaux de bord et rapports.'}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
+            {Object.values(ROLE_DEFINITIONS).map(def => {
+              const perms = getRolePermissionsSummary(def.key);
+              return (
+                <Card key={def.key}>
+                  <CardContent className="p-5 space-y-3">
+                    <div className="flex items-center gap-3">
+                      <Shield className="h-5 w-5 text-primary" />
+                      <p className="font-medium">{def.label}</p>
+                      <Badge variant="outline" className={`ml-auto text-[10px] ${def.badgeClass}`}>
+                        {def.scopeLabel}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{def.shortDescription}</p>
+                    <ul className="space-y-1.5 pt-1">
+                      {perms.map((p, i) => (
+                        <li key={i} className="flex items-start gap-2 text-xs">
+                          {p.allowed ? (
+                            <Check className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                          ) : (
+                            <X className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0 mt-0.5" />
+                          )}
+                          <span className={p.allowed ? 'text-foreground' : 'text-muted-foreground line-through'}>
+                            {p.label}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         </TabsContent>
 
