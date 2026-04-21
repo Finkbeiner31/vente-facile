@@ -117,13 +117,20 @@ export function ConfigureAddressesDialog({
         throw new Error('Renseignez au moins une adresse.');
       }
 
-      const { error } = await supabase.from('profiles').update(payload).eq('id', userId);
+      const { data, error } = await supabase.functions.invoke('update-profile-addresses', {
+        body: { user_id: userId, ...payload },
+      });
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data?.profile ?? null;
     },
-    onSuccess: () => {
+    onSuccess: (savedProfile) => {
       // Invalidate every cache that derives from profile addresses so the
       // warning banner, optimizer panel, route summary and day-route map all
       // refresh in place — no manual reload needed.
+      if (savedProfile) {
+        queryClient.setQueryData(['profile-entreprise', userId], savedProfile);
+      }
       queryClient.invalidateQueries({ queryKey: ['profile-entreprise', userId] });
       queryClient.invalidateQueries({ queryKey: ['profile-addresses'] });
       queryClient.invalidateQueries({ queryKey: ['profile'] });

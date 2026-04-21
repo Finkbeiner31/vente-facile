@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useImpersonation } from '@/contexts/ImpersonationContext';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -101,13 +102,15 @@ export default function RouteOptimizerSheet({
   zone, zoneCustomers = [], allCustomers, dayLabel,
 }: Props) {
   const { user } = useAuth();
+  const { effectiveUserId } = useImpersonation();
+  const activeUserId = effectiveUserId || user?.id;
 
   // Saved addresses from profile
   const [addresses, setAddresses] = useState<SavedAddresses>(EMPTY_ADDRESSES);
   const [addressesLoaded, setAddressesLoaded] = useState(false);
 
   // Config — initialised from persisted prefs (per-user)
-  const initialPrefs = useMemo(() => loadPrefs(user?.id), [user?.id]);
+  const initialPrefs = useMemo(() => loadPrefs(activeUserId), [activeUserId]);
   const [typeFilter, setTypeFilter] = useState<TypeFilter>(initialPrefs.typeFilter);
   const [relationshipFilter, setRelationshipFilter] = useState<RelationshipFilter>(initialPrefs.relationshipFilter);
   const [workdayTargetHours, setWorkdayTargetHours] = useState(initialPrefs.workdayTargetHours);
@@ -149,25 +152,25 @@ export default function RouteOptimizerSheet({
 
   // Persist prefs whenever the user changes any optimization input
   useEffect(() => {
-    if (!user?.id) return;
-    savePrefs(user.id, {
+    if (!activeUserId) return;
+    savePrefs(activeUserId, {
       departureType, arrivalType, strategy, typeFilter,
       relationshipFilter, zoneLogicFlags, excludeRecent,
       workdayTargetHours,
       zoneToleranceKm, routeInclusion, detourToleranceMin,
     });
-  }, [user?.id, departureType, arrivalType, strategy, typeFilter, relationshipFilter, zoneLogicFlags, excludeRecent, workdayTargetHours, zoneToleranceKm, routeInclusion, detourToleranceMin]);
+  }, [activeUserId, departureType, arrivalType, strategy, typeFilter, relationshipFilter, zoneLogicFlags, excludeRecent, workdayTargetHours, zoneToleranceKm, routeInclusion, detourToleranceMin]);
 
 
   // Load addresses from profile
   useEffect(() => {
-    if (!user?.id || addressesLoaded) return;
+    if (!activeUserId || addressesLoaded) return;
     supabase.from('profiles').select('entreprise_address, entreprise_lat, entreprise_lng, domicile_address, domicile_lat, domicile_lng, autre_address, autre_lat, autre_lng')
-      .eq('id', user.id).single().then(({ data }) => {
+      .eq('id', activeUserId).single().then(({ data }) => {
         if (data) setAddresses(data as SavedAddresses);
         setAddressesLoaded(true);
       });
-  }, [user?.id, addressesLoaded]);
+  }, [activeUserId, addressesLoaded]);
 
   // Resolve position for a point type
   const getPosition = useCallback((type: PointType): { lat: number; lng: number } | null => {
@@ -198,6 +201,17 @@ export default function RouteOptimizerSheet({
 
   useEffect(() => {
     if (open) {
+      const prefs = loadPrefs(activeUserId);
+      setTypeFilter(prefs.typeFilter);
+      setRelationshipFilter(prefs.relationshipFilter);
+      setWorkdayTargetHours(prefs.workdayTargetHours);
+      setExcludeRecent(prefs.excludeRecent);
+      setStrategy(prefs.strategy);
+      setDepartureType(prefs.departureType);
+      setArrivalType(prefs.arrivalType);
+      setZoneToleranceKm(prefs.zoneToleranceKm);
+      setRouteInclusion(prefs.routeInclusion);
+      setDetourToleranceMin(prefs.detourToleranceMin);
       setStep('config');
       setOptimizedRoute(null);
       setSelectedIds(new Set());
@@ -206,7 +220,7 @@ export default function RouteOptimizerSheet({
       // reflected immediately in the départ/arrivée selectors.
       setAddressesLoaded(false);
     }
-  }, [open]);
+  }, [open, activeUserId]);
 
   const hasExtension = zoneToleranceKm > 0 || routeInclusion;
 
@@ -266,7 +280,7 @@ export default function RouteOptimizerSheet({
     field: 'entreprise' | 'domicile' | 'autre',
     selection: AddressSelection,
   ) => {
-    if (!user?.id) return;
+    if (!activeUserId) return;
     setEditSaving(true);
     try {
       const updateData = field === 'entreprise'
@@ -275,10 +289,13 @@ export default function RouteOptimizerSheet({
         ? { domicile_address: selection.fullAddress, domicile_lat: selection.latitude, domicile_lng: selection.longitude }
         : { autre_address: selection.fullAddress, autre_lat: selection.latitude, autre_lng: selection.longitude };
 
-      const { error } = await supabase.from('profiles').update(updateData).eq('id', user.id);
+      const { data, error } = await supabase.functions.invoke('update-profile-addresses', {
+        body: { user_id: activeUserId, ...updateData },
+      });
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
 
-      setAddresses(prev => ({ ...prev, ...updateData }));
+      setAddresses(prev => ({ ...prev, ...(data?.profile || updateData) }));
       toast.success('Adresse validée et enregistrée');
       setEditingField(null);
       setEditSelection(null);
@@ -502,8 +519,21 @@ export default function RouteOptimizerSheet({
   const strategyLabel = strategy === 'nearest' ? 'Plus proche d\'abord' : 'Plus loin d\'abord';
 
   const openEditModal = (field: 'entreprise' | 'domicile' | 'autre') => {
-    setEditAddress(addresses[`${field}_address`] || '');
-    setEditSelection(null); // Force re-validation: existing text is not "freshly validated"
+    const existingAddress = addresses[`${field}_address`];
+    const existingLat = addresses[`${field}_lat`];
+    const existingLng = addresses[`${field}_lng`];
+    setEditAddress(existingAddress || '');
+    setEditSelection(
+      existingAddress && existingLat != null && existingLng != null
+        ? {
+            fullAddress: existingAddress,
+            city: '',
+            postalCode: '',
+            latitude: existingLat,
+            longitude: existingLng,
+          }
+        : null,
+    );
     setEditingField(field);
   };
 
