@@ -103,6 +103,18 @@ export default function MapZoneDrawer({ initialPolygon, zoneColor = '#3b82f6', o
     }
   }, [ready, initialPolygon, zoneColor]);
 
+  // When fullscreen toggles, the map container resizes — tell Google Maps to recompute
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const map = mapRef.current;
+    const t = setTimeout(() => {
+      const center = map.getCenter();
+      google.maps.event.trigger(map, 'resize');
+      if (center) map.setCenter(center);
+    }, 250);
+    return () => clearTimeout(t);
+  }, [isFullscreen]);
+
   const clearPolygon = useCallback(() => {
     polygonRef.current?.setMap(null);
     polygonRef.current = null;
