@@ -445,29 +445,42 @@ export function AdminZoneManager() {
         </DialogContent>
       </Dialog>
 
-      {/* Map drawer dialog */}
-      <Dialog open={!!mapMode} onOpenChange={open => !open && setMapMode(null)}>
-        <DialogContent
-          className={
-            mapFullscreen
-              ? "max-w-none w-screen h-screen sm:rounded-none p-0 gap-0 flex flex-col top-0 left-0 translate-x-0 translate-y-0 border-0"
-              : "sm:max-w-3xl h-[80vh] p-0 gap-0 flex flex-col"
-          }
-        >
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}>
-            {mapMode && (
+      {/* Map drawer — windowed mode uses Dialog, fullscreen uses a true 100vw/100vh portal layer */}
+      {mapMode && !mapFullscreen && (
+        <Dialog open={true} onOpenChange={open => !open && setMapMode(null)}>
+          <DialogContent className="sm:max-w-3xl h-[80vh] p-0 gap-0 flex flex-col">
+            <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}>
               <MapZoneDrawer
                 initialPolygon={mapMode === 'edit' ? editForm.polygonCoordinates : form.polygonCoordinates}
                 zoneColor={mapMode === 'edit' ? (editForm.color || FALLBACK_COLOR) : (form.color || pickAutoColor(usedColors))}
                 onConfirm={handleMapConfirm}
                 onCancel={() => { setMapMode(null); setMapFullscreen(false); }}
-                isFullscreen={mapFullscreen}
-                onToggleFullscreen={() => setMapFullscreen(v => !v)}
+                isFullscreen={false}
+                onToggleFullscreen={() => setMapFullscreen(true)}
               />
-            )}
+            </Suspense>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {mapMode && mapFullscreen && createPortal(
+        <div
+          className="fixed inset-0 z-[100] bg-background animate-in fade-in-0 duration-200"
+          style={{ width: '100vw', height: '100vh' }}
+        >
+          <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}>
+            <MapZoneDrawer
+              initialPolygon={mapMode === 'edit' ? editForm.polygonCoordinates : form.polygonCoordinates}
+              zoneColor={mapMode === 'edit' ? (editForm.color || FALLBACK_COLOR) : (form.color || pickAutoColor(usedColors))}
+              onConfirm={handleMapConfirm}
+              onCancel={() => { setMapMode(null); setMapFullscreen(false); }}
+              isFullscreen={true}
+              onToggleFullscreen={() => setMapFullscreen(false)}
+            />
           </Suspense>
-        </DialogContent>
-      </Dialog>
+        </div>,
+        document.body
+      )}
     </>
   );
 }
