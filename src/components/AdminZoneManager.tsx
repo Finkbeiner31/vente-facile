@@ -446,41 +446,39 @@ export function AdminZoneManager() {
         </DialogContent>
       </Dialog>
 
-      {/* Map drawer — single mount; rendered into a Dialog (windowed) or directly into body (true fullscreen) */}
-      {mapMode && (() => {
-        const drawer = (
-          <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}>
-            <MapZoneDrawer
-              initialPolygon={mapMode === 'edit' ? editForm.polygonCoordinates : form.polygonCoordinates}
-              zoneColor={mapMode === 'edit' ? (editForm.color || FALLBACK_COLOR) : (form.color || pickAutoColor(usedColors))}
-              onConfirm={handleMapConfirm}
-              onCancel={() => { setMapMode(null); setMapFullscreen(false); }}
-              isFullscreen={mapFullscreen}
-              onToggleFullscreen={() => setMapFullscreen(v => !v)}
-            />
-          </Suspense>
-        );
-
-        if (mapFullscreen) {
-          return createPortal(
+      {/* Map drawer — single mount in a body portal; toggles between windowed and true fullscreen via CSS only */}
+      {mapMode && createPortal(
+        <>
+          {/* Backdrop — only in windowed mode; clicking it closes the drawer */}
+          {!mapFullscreen && (
             <div
-              className="fixed inset-0 z-[100] bg-background animate-in fade-in-0 duration-200"
-              style={{ width: '100vw', height: '100vh' }}
-            >
-              {drawer}
-            </div>,
-            document.body
-          );
-        }
-
-        return (
-          <Dialog open={true} onOpenChange={open => !open && setMapMode(null)}>
-            <DialogContent className="sm:max-w-3xl h-[80vh] p-0 gap-0 flex flex-col">
-              {drawer}
-            </DialogContent>
-          </Dialog>
-        );
-      })()}
+              className="fixed inset-0 z-[99] bg-black/80 animate-in fade-in-0"
+              onClick={() => setMapMode(null)}
+            />
+          )}
+          {/* Drawer container — same DOM node in both modes, only positioning/sizing changes */}
+          <div
+            className={
+              mapFullscreen
+                ? 'fixed inset-0 z-[100] bg-background animate-in fade-in-0 duration-200 flex flex-col'
+                : 'fixed left-1/2 top-1/2 z-[100] -translate-x-1/2 -translate-y-1/2 w-[min(96vw,768px)] h-[80vh] bg-background border rounded-lg shadow-lg flex flex-col overflow-hidden animate-in fade-in-0 zoom-in-95'
+            }
+            style={mapFullscreen ? { width: '100vw', height: '100vh' } : undefined}
+          >
+            <Suspense fallback={<div className="flex items-center justify-center h-full"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>}>
+              <MapZoneDrawer
+                initialPolygon={mapMode === 'edit' ? editForm.polygonCoordinates : form.polygonCoordinates}
+                zoneColor={mapMode === 'edit' ? (editForm.color || FALLBACK_COLOR) : (form.color || pickAutoColor(usedColors))}
+                onConfirm={handleMapConfirm}
+                onCancel={() => { setMapMode(null); setMapFullscreen(false); }}
+                isFullscreen={mapFullscreen}
+                onToggleFullscreen={() => setMapFullscreen(v => !v)}
+              />
+            </Suspense>
+          </div>
+        </>,
+        document.body
+      )}
     </>
   );
 }
