@@ -177,36 +177,37 @@ export default function MapPage() {
   const { data: revenueMap } = useAllCustomerRevenues();
   const queryClient = useQueryClient();
 
-  const isAdmin = role === 'admin' || role === 'manager';
+  const isAdmin = activeRole === 'admin' || activeRole === 'manager';
 
   // Geocoding state
   const [geocoding, setGeocoding] = useState(false);
   const [geocodeProgress, setGeocodeProgress] = useState({ total: 0, done: 0, success: 0, fail: 0 });
 
-  // Fetch ALL customers (with and without coords) so we can report missing geolocation
+  // Fetch customers with role-aware scope (mirrors RLS + impersonation)
   const { data: allCustomers = [], isLoading } = useQuery({
-    queryKey: ['customers-map', activeUserId, role],
+    queryKey: ['customers-map', activeUserId, activeRole],
     queryFn: async () => {
-      const selectFields = 'id, company_name, customer_type, city, latitude, longitude, number_of_vehicles, annual_revenue_potential, last_visit_date, phone, sales_potential, visit_frequency, address, postal_code';
-      
+      const selectFields = 'id, company_name, customer_type, city, latitude, longitude, number_of_vehicles, annual_revenue_potential, last_visit_date, phone, sales_potential, visit_frequency, address, postal_code, assigned_rep_id, exceptional_commercial_id, management_mode';
+
       if (isAdmin) {
-        // Admins/managers see ALL customers (RLS already allows it)
+        // Admin / Responsable → full scope
         const { data, error } = await supabase
           .from('customers')
           .select(selectFields);
         if (error) throw error;
         return (data || []) as (MapCustomer & { latitude: number | null; longitude: number | null })[];
       } else {
-        // Sales reps: own clients only
+        // Commercial (or admin impersonating one): clients assigned to them
+        // OR clients on exceptional management assigned to them.
         const { data, error } = await supabase
           .from('customers')
           .select(selectFields)
-          .eq('assigned_rep_id', activeUserId!);
+          .or(`assigned_rep_id.eq.${activeUserId},and(exceptional_commercial_id.eq.${activeUserId},management_mode.eq.exceptional)`);
         if (error) throw error;
         return (data || []) as (MapCustomer & { latitude: number | null; longitude: number | null })[];
       }
     },
-    enabled: !loading && !!activeUserId,
+    enabled: !loading && !!activeUserId && !!activeRole,
   });
 
   // Split into geolocated vs not
