@@ -380,6 +380,17 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between mb-2">
           <h2 className="font-heading text-sm font-semibold">Visites du jour</h2>
           <div className="flex items-center gap-1">
+            {totalPlanned > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs h-7 gap-1"
+                onClick={() => setRouteMapOpen(true)}
+                title="Voir le trajet du jour"
+              >
+                <RouteIcon className="h-3 w-3" /> Trajet
+              </Button>
+            )}
             {dailyTour && (
               confirmRegenerate ? (
                 <div className="flex items-center gap-1">
