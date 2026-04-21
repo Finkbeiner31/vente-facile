@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FileText, Calendar, User, ArrowRight, ChevronRight, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
+import { ClientReportSynthesis } from '@/components/ClientReportSynthesis';
 
 interface Report {
   id: string;
@@ -190,7 +191,12 @@ export function ReportHistorySheet({ open, onOpenChange, customerId, clientName 
             <p className="text-sm text-muted-foreground">Aucun rapport disponible pour ce client</p>
           </div>
         ) : (
-          <div className="space-y-2 overflow-y-auto max-h-[55vh]">
+          <div className="space-y-3 overflow-y-auto max-h-[55vh]">
+            <ClientReportSynthesis
+              customerId={customerId}
+              latestReportDate={reports[0]?.visit_date || null}
+              reportsCount={reports.length}
+            />
             {reports.map((report, idx) => {
               const outcome = report.quick_outcome ? outcomeLabels[report.quick_outcome] : null;
               return (
