@@ -112,6 +112,54 @@ export type Database = {
           },
         ]
       }
+      client_report_syntheses: {
+        Row: {
+          created_at: string
+          customer_id: string
+          generated_by: string
+          id: string
+          latest_report_date: string | null
+          next_actions: string | null
+          opportunities: string | null
+          potential: string
+          reports_count: number
+          risks: string | null
+          sentiment: string
+          summary: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_id: string
+          generated_by: string
+          id?: string
+          latest_report_date?: string | null
+          next_actions?: string | null
+          opportunities?: string | null
+          potential: string
+          reports_count?: number
+          risks?: string | null
+          sentiment: string
+          summary: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_id?: string
+          generated_by?: string
+          id?: string
+          latest_report_date?: string | null
+          next_actions?: string | null
+          opportunities?: string | null
+          potential?: string
+          reports_count?: number
+          risks?: string | null
+          sentiment?: string
+          summary?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       commercial_zones: {
         Row: {
           cities: string[]
