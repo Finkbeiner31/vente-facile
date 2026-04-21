@@ -279,8 +279,9 @@ export default function RoutesPage() {
     if (allStops.length === 0) return null;
 
     const existing = optimizedRoutes[dayKey];
-    const dep = existing?.departure ?? null;
-    const arr = existing?.arrival ?? null;
+    // Default A/B = entreprise from profile, overridden by optimizer choice.
+    const dep = existing?.departure ?? entrepriseEndpoint;
+    const arr = existing?.arrival ?? entrepriseEndpoint;
 
     let totalKm = 0;
     let prevLat: number | null = dep?.lat ?? null;
@@ -338,7 +339,7 @@ export default function RoutesPage() {
         && existing.customers.every((c, i) => c.id === allStops[i]?.customer.id)
         ? existing.path : [],
     } as OptimizedRoute;
-  }, [allStops, dayKey, todayZoneId, durationDefaults, optimizedRoutes]);
+  }, [allStops, dayKey, todayZoneId, durationDefaults, optimizedRoutes, entrepriseEndpoint]);
 
 
   const assignZoneMutation = useMutation({
