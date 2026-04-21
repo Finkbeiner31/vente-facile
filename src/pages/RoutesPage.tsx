@@ -882,8 +882,8 @@ export default function RoutesPage() {
               visitDurationMinutes: 'visitDurationMinutes' in s ? (s as any).visitDurationMinutes : null,
             }))}
             availableCustomers={zoneCustomers}
-            departure={optimizedRoutes[dayKey]?.departure ?? null}
-            arrival={optimizedRoutes[dayKey]?.arrival ?? null}
+            departure={effectiveDeparture}
+            arrival={effectiveArrival}
             onUpdatePlanned={(newStops) => {
               setCustomPlanned(prev => ({ ...prev, [dayKey]: newStops }));
               // The route summary auto-recomputes from the new manual order
